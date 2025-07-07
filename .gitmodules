@@ -25,3 +25,6 @@
 [submodule "lib/pendle-core-v2-public"]
 	path = lib/pendle-core-v2-public
 	url = https://github.com/pendle-finance/pendle-core-v2-public
+[submodule "lib/v2-core"]
+	path = lib/v2-core
+	url = https://github.com/superform-xyz/v2-core
