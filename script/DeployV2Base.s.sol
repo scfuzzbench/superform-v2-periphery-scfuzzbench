@@ -131,7 +131,7 @@ abstract contract DeployV2Base is Script, ConfigBase {
     function _readCoreContracts(uint64 chainId) internal view returns (string memory) {
         string memory chainName = chainNames[chainId];
         string memory root = vm.projectRoot();
-        string memory chainOutputFolder = string(abi.encodePacked("/script/output/"));
+        string memory chainOutputFolder = string(abi.encodePacked("/lib/v2-core/script/output/"));
 
         // For local runs, use local directory
         if (!vm.envOr("CI", false)) {
