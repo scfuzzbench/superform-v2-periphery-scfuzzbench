@@ -5,7 +5,9 @@ pragma solidity 0.8.30;
 
 import { Helpers } from "@superform-v2-core/test/utils/Helpers.sol";
 
-abstract contract PeripheryHelpers is Helpers {
+import { PeripheryConstants } from "./PeripheryConstants.sol";
+
+abstract contract PeripheryHelpers is PeripheryConstants, Helpers {
     address public SV_MANAGER;
     address public STRATEGIST;
     address public EMERGENCY_ADMIN;

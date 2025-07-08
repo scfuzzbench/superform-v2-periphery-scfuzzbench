@@ -2,12 +2,10 @@
 pragma solidity 0.8.30;
 
 import { PeripheryHelpers } from "./utils/PeripheryHelpers.sol";
-import { PeripheryConstants } from "./utils/PeripheryConstants.sol";
 import { Clones } from "openzeppelin-contracts/contracts/proxy/Clones.sol";
 
 // Import core BaseTest
 import { BaseTest as CoreBaseTest } from "@superform-v2-core/test/BaseTest.t.sol";
-import { ISuperLedgerConfiguration } from "@superform-v2-core/src/interfaces/accounting/ISuperLedgerConfiguration.sol";
 // Periphery-specific imports
 import { SuperGovernor } from "../src/SuperGovernor.sol";
 import { SuperBank } from "../src/SuperBank.sol";
@@ -28,7 +26,7 @@ struct PeripheryAddresses {
     ECDSAPPSOracle ecdsappsOracle;
 }
 
-contract BaseTest is PeripheryConstants, PeripheryHelpers, CoreBaseTest {
+contract BaseTest is PeripheryHelpers, CoreBaseTest {
     using Clones for address;
 
     /*//////////////////////////////////////////////////////////////
@@ -132,50 +130,52 @@ contract BaseTest is PeripheryConstants, PeripheryHelpers, CoreBaseTest {
             console2.log("Registering periphery hooks for chain", chainIds[i]);
 
             // Register fulfillRequests hooks
-            superGovernor.registerHook(_getContract(chainIds[i], DEPOSIT_4626_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], REDEEM_4626_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], DEPOSIT_5115_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], REDEEM_5115_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], REQUEST_DEPOSIT_7540_VAULT_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], REQUEST_REDEEM_7540_VAULT_HOOK_KEY), false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][DEPOSIT_4626_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][REDEEM_4626_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][DEPOSIT_5115_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][REDEEM_5115_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][REQUEST_DEPOSIT_7540_VAULT_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][REQUEST_REDEEM_7540_VAULT_HOOK_KEY], false);
 
             // Register remaining hooks
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_AND_DEPOSIT_4626_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_AND_DEPOSIT_5115_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_AND_REQUEST_DEPOSIT_7540_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_ERC20_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], TRANSFER_ERC20_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], DEPOSIT_7540_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], WITHDRAW_7540_VAULT_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_AND_REQUEST_REDEEM_7540_VAULT_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], SWAP_1INCH_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], SWAP_ODOSV2_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_AND_SWAP_ODOSV2_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], ACROSS_SEND_FUNDS_AND_EXECUTE_ON_DST_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], FLUID_CLAIM_REWARD_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], FLUID_STAKE_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], APPROVE_AND_FLUID_STAKE_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], FLUID_UNSTAKE_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], GEARBOX_CLAIM_REWARD_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], GEARBOX_STAKE_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], GEARBOX_APPROVE_AND_STAKE_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], GEARBOX_UNSTAKE_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], YEARN_CLAIM_ONE_REWARD_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], CANCEL_DEPOSIT_REQUEST_7540_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], CANCEL_REDEEM_REQUEST_7540_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], CLAIM_CANCEL_DEPOSIT_REQUEST_7540_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], CLAIM_CANCEL_REDEEM_REQUEST_7540_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], CANCEL_REDEEM_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], MINT_SUPERPOSITIONS_HOOK_KEY), false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][APPROVE_AND_DEPOSIT_4626_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][APPROVE_AND_DEPOSIT_5115_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(
+                hookAddresses[chainIds[i]][APPROVE_AND_REQUEST_DEPOSIT_7540_VAULT_HOOK_KEY], true
+            );
+            superGovernor.registerHook(hookAddresses[chainIds[i]][APPROVE_ERC20_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][TRANSFER_ERC20_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][DEPOSIT_7540_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][WITHDRAW_7540_VAULT_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][APPROVE_AND_REQUEST_REDEEM_7540_VAULT_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][SWAP_1INCH_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][SWAP_ODOSV2_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][APPROVE_AND_SWAP_ODOSV2_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][ACROSS_SEND_FUNDS_AND_EXECUTE_ON_DST_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][FLUID_CLAIM_REWARD_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][FLUID_STAKE_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][APPROVE_AND_FLUID_STAKE_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][FLUID_UNSTAKE_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][GEARBOX_CLAIM_REWARD_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][GEARBOX_STAKE_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][GEARBOX_APPROVE_AND_STAKE_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][GEARBOX_UNSTAKE_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][YEARN_CLAIM_ONE_REWARD_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][CANCEL_DEPOSIT_REQUEST_7540_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][CANCEL_REDEEM_REQUEST_7540_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][CLAIM_CANCEL_DEPOSIT_REQUEST_7540_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][CLAIM_CANCEL_REDEEM_REQUEST_7540_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][CANCEL_REDEEM_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][MINT_SUPERPOSITIONS_HOOK_KEY], false);
 
             // EXPERIMENTAL HOOKS FROM HERE ONWARDS
-            superGovernor.registerHook(_getContract(chainIds[i], ETHENA_COOLDOWN_SHARES_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], ETHENA_UNSTAKE_HOOK_KEY), true);
-            superGovernor.registerHook(_getContract(chainIds[i], MORPHO_BORROW_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], MORPHO_REPAY_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], MORPHO_REPAY_AND_WITHDRAW_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], PENDLE_ROUTER_REDEEM_HOOK_KEY), false);
-            superGovernor.registerHook(_getContract(chainIds[i], OFFRAMP_TOKENS_HOOK_KEY), false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][ETHENA_COOLDOWN_SHARES_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][ETHENA_UNSTAKE_HOOK_KEY], true);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][MORPHO_BORROW_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][MORPHO_REPAY_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][MORPHO_REPAY_AND_WITHDRAW_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][PENDLE_ROUTER_REDEEM_HOOK_KEY], false);
+            superGovernor.registerHook(hookAddresses[chainIds[i]][OFFRAMP_TOKENS_HOOK_KEY], false);
         }
     }
 
@@ -185,54 +185,5 @@ contract BaseTest is PeripheryConstants, PeripheryHelpers, CoreBaseTest {
 
     function _getPeripheryContract(uint64 chainId, string memory contractName) internal view returns (address) {
         return peripheryContractAddresses[chainId][contractName];
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                          OVERRIDE CORE SETUP
-    //////////////////////////////////////////////////////////////*/
-
-    function _setupSuperLedger() internal override {
-        console2.log("------ periphery base test MANAGER", MANAGER);
-        for (uint256 i; i < chainIds.length; ++i) {
-            vm.selectFork(FORKS[chainIds[i]]);
-
-            vm.startPrank(MANAGER);
-            SuperGovernor superGovernor = SuperGovernor(_getPeripheryContract(chainIds[i], SUPER_GOVERNOR_KEY));
-            ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[] memory configs =
-                new ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[](4);
-            configs[0] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
-                yieldSourceOracle: _getContract(chainIds[i], ERC4626_YIELD_SOURCE_ORACLE_KEY),
-                feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
-                ledger: _getContract(chainIds[i], SUPER_LEDGER_KEY)
-            });
-            configs[1] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
-                yieldSourceOracle: _getContract(chainIds[i], ERC7540_YIELD_SOURCE_ORACLE_KEY),
-                feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
-                ledger: _getContract(chainIds[i], SUPER_LEDGER_KEY)
-            });
-            configs[2] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
-                yieldSourceOracle: _getContract(chainIds[i], ERC5115_YIELD_SOURCE_ORACLE_KEY),
-                feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
-                ledger: _getContract(chainIds[i], ERC1155_LEDGER_KEY)
-            });
-            configs[3] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
-                yieldSourceOracle: _getContract(chainIds[i], STAKING_YIELD_SOURCE_ORACLE_KEY),
-                feePercent: 100,
-                feeRecipient: superGovernor.getAddress(keccak256("TREASURY")),
-                ledger: _getContract(chainIds[i], SUPER_LEDGER_KEY)
-            });
-            bytes32[] memory salts = new bytes32[](4);
-            salts[0] = bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY));
-            salts[1] = bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY));
-            salts[2] = bytes32(bytes(ERC5115_YIELD_SOURCE_ORACLE_KEY));
-            salts[3] = bytes32(bytes(STAKING_YIELD_SOURCE_ORACLE_KEY));
-            ISuperLedgerConfiguration(_getContract(chainIds[i], SUPER_LEDGER_CONFIGURATION_KEY)).setYieldSourceOracles(
-                salts, configs
-            );
-            vm.stopPrank();
-        }
     }
 }
