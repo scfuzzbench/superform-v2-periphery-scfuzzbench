@@ -33,8 +33,10 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                            PERIPHERY STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    // Periphery-specific mappings
-    mapping(uint64 chainId => mapping(string contractName => address contractAddress)) public peripheryContractAddresses;
+    // Global addresses for SuperVault strategies
+    address public globalSVStrategy;
+    address public globalSVGearStrategy;
+    address public globalRuggableVault;
 
     /*//////////////////////////////////////////////////////////////
                                 SETUP
@@ -68,11 +70,11 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                 address(this), address(this), address(this), TREASURY, POLYMER_PROVER[chainIds[i]]
             );
             vm.label(address(PA[i].superGovernor), SUPER_GOVERNOR_KEY);
-            peripheryContractAddresses[chainIds[i]][SUPER_GOVERNOR_KEY] = address(PA[i].superGovernor);
+            contractAddresses[chainIds[i]][SUPER_GOVERNOR_KEY] = address(PA[i].superGovernor);
 
             PA[i].superBank = new SuperBank{ salt: SALT }(address(PA[i].superGovernor));
             vm.label(address(PA[i].superBank), SUPER_BANK_KEY);
-            peripheryContractAddresses[chainIds[i]][SUPER_BANK_KEY] = address(PA[i].superBank);
+            contractAddresses[chainIds[i]][SUPER_BANK_KEY] = address(PA[i].superBank);
 
             // Update TREASURY to point to SuperBank
             TREASURY = address(PA[i].superBank);
@@ -81,11 +83,11 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                 address(this), new address[](0), new address[](0), new bytes32[](0), new address[](0)
             );
             vm.label(address(PA[i].oracleRegistry), SUPER_ORACLE_KEY);
-            peripheryContractAddresses[chainIds[i]][SUPER_ORACLE_KEY] = address(PA[i].oracleRegistry);
+            contractAddresses[chainIds[i]][SUPER_ORACLE_KEY] = address(PA[i].oracleRegistry);
 
             PA[i].ecdsappsOracle = new ECDSAPPSOracle(address(PA[i].superGovernor));
             vm.label(address(PA[i].ecdsappsOracle), ECDSAPPS_ORACLE_KEY);
-            peripheryContractAddresses[chainIds[i]][ECDSAPPS_ORACLE_KEY] = address(PA[i].ecdsappsOracle);
+            contractAddresses[chainIds[i]][ECDSAPPS_ORACLE_KEY] = address(PA[i].ecdsappsOracle);
 
             // Deploy implementation contracts first
             address vaultImpl = address(new SuperVault());
@@ -95,7 +97,36 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             PA[i].superVaultAggregator =
                 new SuperVaultAggregator(address(PA[i].superGovernor), vaultImpl, strategyImpl, escrowImpl);
             vm.label(address(PA[i].superVaultAggregator), SUPER_VAULT_AGGREGATOR_KEY);
-            peripheryContractAddresses[chainIds[i]][SUPER_VAULT_AGGREGATOR_KEY] = address(PA[i].superVaultAggregator);
+            contractAddresses[chainIds[i]][SUPER_VAULT_AGGREGATOR_KEY] = address(PA[i].superVaultAggregator);
+
+            if (chainIds[i] == ETH) {
+                /// @dev set any new sv addresses here
+                address aggregator = address(PA[i].superVaultAggregator);
+                globalSVStrategy = SuperVaultAggregator(aggregator).STRATEGY_IMPLEMENTATION()
+                    .predictDeterministicAddress(
+                    keccak256(
+                        abi.encodePacked(existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "SV_USDC", uint256(0))
+                    ),
+                    aggregator
+                );
+                globalSVGearStrategy = SuperVaultAggregator(aggregator).STRATEGY_IMPLEMENTATION()
+                    .predictDeterministicAddress(
+                    keccak256(
+                        abi.encodePacked(existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "svGearbox", uint256(1))
+                    ),
+                    aggregator
+                );
+
+                globalRuggableVault = SuperVaultAggregator(aggregator).STRATEGY_IMPLEMENTATION()
+                    .predictDeterministicAddress(
+                    keccak256(
+                        abi.encodePacked(
+                            existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "SV_USDC_RUG", uint256(1)
+                        )
+                    ),
+                    aggregator
+                );
+            }
 
             // Set up governor configurations
             PA[i].superGovernor.setActivePPSOracle(address(PA[i].ecdsappsOracle));
@@ -184,6 +215,6 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
     //////////////////////////////////////////////////////////////*/
 
     function _getPeripheryContract(uint64 chainId, string memory contractName) internal view returns (address) {
-        return peripheryContractAddresses[chainId][contractName];
+        return contractAddresses[chainId][contractName];
     }
 }
