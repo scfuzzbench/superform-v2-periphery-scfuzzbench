@@ -73,7 +73,7 @@ jobs:
         run: pnpm --version
 
       - name: "Install ModuleKit"
-        working-directory: ./lib/modulekit
+        working-directory: ./lib/v2-core/lib/modulekit
         run: pnpm install
 
       - name: "Build the contracts and print their size"
