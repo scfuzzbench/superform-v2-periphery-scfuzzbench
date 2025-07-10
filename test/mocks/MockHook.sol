@@ -2,8 +2,11 @@
 pragma solidity 0.8.30;
 
 import {
-    ISuperHook, ISuperHookResult, ISuperHookResultOutflow, Execution
-} from "../../src/core/interfaces/ISuperHook.sol";
+    ISuperHook,
+    ISuperHookResult,
+    ISuperHookResultOutflow,
+    Execution
+} from "@superform-v2-core/src/interfaces/ISuperHook.sol";
 
 contract MockHook is ISuperHook, ISuperHookResult, ISuperHookResultOutflow {
     HookType public hookType;
@@ -131,7 +134,7 @@ contract MockHook is ISuperHook, ISuperHookResult, ISuperHookResultOutflow {
     function setExecutionContext(address _caller) external {
         caller = _caller;
     }
-    
+
     function executionNonce() external pure returns (uint256) {
         return 1;
     }

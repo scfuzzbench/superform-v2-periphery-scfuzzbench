@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { BundlerRegistry } from "../../../src/periphery/BundlerRegistry.sol";
-import { IBundlerRegistry } from "../../../src/periphery/interfaces/IBundlerRegistry.sol";
-import { Helpers } from "../../utils/Helpers.sol";
+import { BundlerRegistry } from "../../../src/BundlerRegistry.sol";
+import { IBundlerRegistry } from "../../../src/interfaces/IBundlerRegistry.sol";
+import { PeripheryHelpers } from "../../utils/PeripheryHelpers.sol";
 
-contract BundlerRegistryTest is Helpers {
+contract BundlerRegistryTest is PeripheryHelpers {
     BundlerRegistry public bundlerRegistry;
     address public BUNDLER;
     bytes public constant EXTRA_DATA = "test_data";

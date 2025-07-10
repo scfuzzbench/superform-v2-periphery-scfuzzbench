@@ -6,8 +6,8 @@ import { Script } from "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 // Superform
-import { SuperDeployer } from "./utils/SuperDeployer.sol";
-import { ISuperDeployer } from "./utils/ISuperDeployer.sol";
+import { SuperDeployer } from "@superform-v2-core/script/utils/SuperDeployer.sol";
+import { ISuperDeployer } from "@superform-v2-core/script/utils/ISuperDeployer.sol";
 import { ConfigBase } from "./utils/ConfigBase.sol";
 
 abstract contract DeployV2Base is Script, ConfigBase {
@@ -81,10 +81,10 @@ abstract contract DeployV2Base is Script, ConfigBase {
         return deployedAddr;
     }
 
-    function __getSalt(string memory name) internal pure returns (bytes32) {
-        // Completely deterministic salt generation - independent of all external factors
-        // Only depends on contract name, guaranteeing same address across all chains/deployers
-        return keccak256(abi.encodePacked("SuperformV2", name, "v2.0"));
+    function __getSalt(string memory name) internal view returns (bytes32) {
+        // Use configurable salt namespace for deployment
+        // This allows for different salt namespaces for production vs test/vnet deployments
+        return keccak256(abi.encodePacked("SuperformV2", SALT_NAMESPACE, name, "v2.0"));
     }
 
     // Add a mapping to track exported contracts per chain
@@ -131,7 +131,7 @@ abstract contract DeployV2Base is Script, ConfigBase {
     function _readCoreContracts(uint64 chainId) internal view returns (string memory) {
         string memory chainName = chainNames[chainId];
         string memory root = vm.projectRoot();
-        string memory chainOutputFolder = string(abi.encodePacked("/script/output/"));
+        string memory chainOutputFolder = string(abi.encodePacked("/lib/v2-core/script/output/"));
 
         // For local runs, use local directory
         if (!vm.envOr("CI", false)) {

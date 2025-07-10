@@ -5,7 +5,7 @@ import "forge-std/StdJson.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
 import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-import { Helpers } from "../../Helpers.sol";
+import { PeripheryHelpers } from "../../PeripheryHelpers.sol";
 
 import { console2 } from "forge-std/console2.sol";
 
@@ -15,7 +15,7 @@ error NoProofFoundForHookAndArgs();
 error InvalidArrayLengths();
 error EmptyInput();
 
-abstract contract MerkleReader is StdCheats, Helpers {
+abstract contract MerkleReader is StdCheats, PeripheryHelpers {
     using stdJson for string;
 
     // Updated paths to the new output files

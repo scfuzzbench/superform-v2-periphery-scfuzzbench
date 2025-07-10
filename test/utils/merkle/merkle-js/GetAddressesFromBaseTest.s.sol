@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import "../../../../test/BaseTest.t.sol";
+import "../../../BaseTest.t.sol";
 import { console } from "forge-std/console.sol";
 
 contract GetAddressesFromBaseTest is BaseTest {

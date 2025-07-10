@@ -18,16 +18,17 @@ libs = ['lib']
 ffi = true
 fs_permissions = [{ access = "read-write", path = "./" }]
 remappings = [
-  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-  "excessivelySafeCall/=lib/ExcessivelySafeCall/src/",
-  "modulekit/=lib/modulekit/src/",
-  "@prb/math/=lib/modulekit/node_modules/@prb/math/src/",
-  "@solady/=lib/solady/",
-  "@account-abstraction/=lib/modulekit/node_modules/account-abstraction/contracts/",
-  "@pigeon/=lib/pigeon/src/",
-  "@surl/=lib/surl/src/",
-  "@stringutils/=lib/solidity-stringutils/src/",
-  "@pendle/=lib/pendle-core-v2-public/contracts/",
+  "@superform-v2-core/=lib/v2-core/",
+  "@openzeppelin/contracts/=lib/v2-core/lib/openzeppelin-contracts/contracts/",
+  "excessivelySafeCall/=lib/v2-core/lib/ExcessivelySafeCall/src/",
+  "modulekit/=lib/v2-core/lib/modulekit/src/",
+  "@prb/math/=lib/v2-core/lib/modulekit/node_modules/@prb/math/src/",
+  "@solady/=lib/v2-core/lib/solady/",
+  "@account-abstraction/=lib/v2-core/lib/modulekit/node_modules/account-abstraction/contracts/",
+  "@pigeon/=lib/v2-core/lib/pigeon/src/",
+  "@surl/=lib/v2-core/lib/surl/src/",
+  "@stringutils/=lib/v2-core/lib/solidity-stringutils/src/",
+  "@pendle/=lib/v2-core/lib/pendle-core-v2-public/contracts/",
 ]
 dynamic_test_linking = true
 gas_limit = "18446744073709551615"
