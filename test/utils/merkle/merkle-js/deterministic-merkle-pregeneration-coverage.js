@@ -123,10 +123,9 @@ DESCRIPTION:
                 ONE_INCH_API_KEY: process.env.ONE_INCH_API_KEY || 'dummy-api-key'
             };
 
-            const result = execSync('make forge-coverage-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vv"', {
+            const result = execSync('make forge-test-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vv"', {
                 encoding: 'utf8',
                 cwd: '../../../../', // Go back to project root
-                timeout: 120000, // 2 minute timeout for setUp()
                 env: testEnv
             });
 
@@ -587,6 +586,15 @@ DESCRIPTION:
     }
 
     async run() {
+        const testEnv = {
+          ...process.env,
+          ENVIRONMENT: 'ci',
+          ETHEREUM_RPC_URL: process.env.ETHEREUM_RPC_URL || 'https://ethereum.publicnode.com',
+          OPTIMISM_RPC_URL: process.env.OPTIMISM_RPC_URL || 'https://optimism.publicnode.com',
+          BASE_RPC_URL: process.env.BASE_RPC_URL || 'https://base.publicnode.com',
+          ONE_INCH_API_KEY: process.env.ONE_INCH_API_KEY || 'dummy-api-key'
+        };
+
         try {
             if (this.showHelp) {
                 this.displayHelp();
@@ -619,6 +627,15 @@ DESCRIPTION:
 
             if (!this.force && !needsRegen) {
                 console.log('✅ Merkle tree already generated for current addresses');
+
+                // Run coverage
+                execSync('make forge-coverage-internal', {
+                  encoding: 'utf8',
+                  cwd: '../../../../',
+                  env: testEnv,
+                  stdio: 'inherit'
+                });
+
                 return true;
             }
 
@@ -641,6 +658,14 @@ DESCRIPTION:
             this.saveAddressCache(addresses);
 
             console.log('✅ Deterministic merkle tree pre-generation completed');
+
+            execSync('make forge-coverage-internal', {
+              encoding: 'utf8',
+              cwd: '../../../../',
+              env: testEnv,
+              stdio: 'inherit'
+            });
+
             return true;
 
         } catch (error) {
