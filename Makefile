@@ -65,7 +65,7 @@ ftest-ci :; $(MAKE) regenerate-merkle-cache-ci && forge test -v --jobs 2
 
 ftest-quick :; forge test
 
-coverage :; $(MAKE) ensure-merkle-cache-coverage && FOUNDRY_PROFILE=coverage && forge coverage --jobs 10 --ir-minimum --report lcov
+coverage :; $(MAKE) ensure-merkle-cache-coverage && $(MAKE) forge-coverage-internal
 
 forge-coverage-internal :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage --ignore-errors inconsistent,corrupt --exclude 'test/*'
 
