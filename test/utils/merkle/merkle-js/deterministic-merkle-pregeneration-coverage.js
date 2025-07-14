@@ -123,7 +123,7 @@ DESCRIPTION:
                 ONE_INCH_API_KEY: process.env.ONE_INCH_API_KEY || 'dummy-api-key'
             };
 
-            const result = execSync('make forge-coverage-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
+            const result = execSync('make forge-coverage-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vv"', {
                 encoding: 'utf8',
                 cwd: '../../../../', // Go back to project root
                 timeout: 120000, // 2 minute timeout for setUp()
