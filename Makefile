@@ -33,10 +33,20 @@ ensure-merkle-cache-ci:
 	@echo "🌲 Checking merkle cache (CI mode)..."
 	@cd test/utils/merkle/merkle-js && ENVIRONMENT=ci node deterministic-merkle-pregeneration.js
 
+# Ensure merkle cache is up to date before running tests/builds
+ensure-merkle-cache-coverage:
+	@echo "🌲 Checking merkle cache for coverage..."
+	@cd test/utils/merkle/merkle-js && node deterministic-merkle-pregeneration-coverage.js
+
 # Force regenerate merkle cache
 regenerate-merkle-cache:
 	@echo "🌲 Force regenerating merkle cache..."
 	@cd test/utils/merkle/merkle-js && node deterministic-merkle-pregeneration.js --force
+
+# Force regenerate merkle cache for coverage
+regenerate-merkle-cache-coverage:
+	@echo "🌲 Force regenerating merkle cache for coverage..."
+	@cd test/utils/merkle/merkle-js && node deterministic-merkle-pregeneration-coverage.js --force
 
 # Force regenerate merkle cache for CI environments
 regenerate-merkle-cache-ci:
@@ -55,7 +65,9 @@ ftest-ci :; $(MAKE) regenerate-merkle-cache-ci && forge test -v --jobs 2
 
 ftest-quick :; forge test
 
-coverage :; $(MAKE) ensure-merkle-cache && FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov
+coverage :; $(MAKE) ensure-merkle-cache && FOUNDRY_PROFILE=coverage && forge coverage --jobs 10 --ir-minimum --report lcov
+
+forge-coverage-internal :; $(MAKE) ensure-merkle-cache && FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage --ignore-errors inconsistent,corrupt --exclude 'test/*'
 
 test-vvv :; $(MAKE) ensure-merkle-cache && forge test --match-test test_SpectraExchangeSwapHook_DepositAndRedeemPT  -vvvv --jobs 10
 
