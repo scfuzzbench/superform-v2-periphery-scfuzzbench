@@ -51,6 +51,9 @@ EXAMPLES:
     node deterministic-merkle-pregeneration.js --force
         → Force regenerate cache even if it appears valid
     
+    FOUNDRY_PROFILE=coverage node deterministic-merkle-pregeneration.js
+        → Generate cache using coverage environment
+    
     node deterministic-merkle-pregeneration.js --verbose --status
         → Check cache status with detailed logging
 
@@ -58,6 +61,9 @@ DESCRIPTION:
     This script ensures the merkle tree cache is up to date with current hook addresses.
     It automatically detects when hook addresses change and regenerates the cache.
     The cache includes both the merkle tree data and optimized lookup indices.
+    
+    When FOUNDRY_PROFILE=coverage is set, the script uses the coverage profile to extract
+    addresses that match the coverage testing environment.
 `);
     }
 
@@ -122,13 +128,27 @@ DESCRIPTION:
                 BASE_RPC_URL: process.env.BASE_RPC_URL || 'https://base.publicnode.com',
                 ONE_INCH_API_KEY: process.env.ONE_INCH_API_KEY || 'dummy-api-key'
             };
+            let result = '';
 
-            const result = execSync('make forge-test-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
-                encoding: 'utf8',
-                cwd: '../../../../', // Go back to project root
-                timeout: 120000, // 2 minute timeout for setUp()
-                env: testEnv
-            });
+            // Detect coverage mode
+            if (testEnv.FOUNDRY_PROFILE === 'coverage') {
+                this.log('Detected coverage environment for address extraction');
+
+
+                result = execSync('make forge-coverage-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
+                    encoding: 'utf8',
+                    cwd: '../../../../', // Go back to project root
+                    timeout: 120000, // 2 minute timeout for setUp()
+                    env: testEnv
+                });
+            } else {
+                result = execSync('make forge-test-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
+                    encoding: 'utf8',
+                    cwd: '../../../../', // Go back to project root
+                    timeout: 120000, // 2 minute timeout for setUp()
+                    env: testEnv
+                });
+            }
 
             // Parse the console output
             return this.parseConsoleOutput(result);
@@ -595,6 +615,8 @@ DESCRIPTION:
 
             if (this.statusOnly) {
                 console.log('🔍 Checking merkle cache status...');
+            } else if (process.env.FOUNDRY_PROFILE === 'coverage') {
+                console.log('🌲 Pre-generating merkle tree using BaseTest for coverage...');
             } else {
                 console.log('🌲 Pre-generating merkle tree using BaseTest...');
             }

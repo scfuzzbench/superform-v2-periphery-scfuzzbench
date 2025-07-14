@@ -79,6 +79,54 @@
     {
       "symbol": "test_11_Allocate_NewYieldSource",
       "address": "0x40C882E3a611C429EE43f2420a5047618f18c4AC"
+    },
+    {
+      "symbol": "test_1_DynamicAllocation_MockVault_Coverage",
+      "address": "0x3A59cC7F65aF2bB144c43aF7bD6499AeF8e0516A"
+    },
+    {
+      "symbol": "test_3_UnderlyingVaults_StressTest_Coverage",
+      "address": "0x7f441ae12C7c4Cd68c7f3c050d21622D754e59D6"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_vault1_Coverage",
+      "address": "0xeF63972e9d9354fB5B525e94868B1CB75714c400"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_vault2_Coverage",
+      "address": "0x3fB10a3f6a5e9eBccE29273Cdc793E600726eCaB"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_vault3_Coverage",
+      "address": "0xcb96cc795e119260544b7C08abbccA9B9FDfeF16"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault1_Coverage",
+      "address": "0xf0bBD5229Bea22342FC26Ff70209056853Bd1071"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault2_Coverage",
+      "address": "0xED81F7a22886717eEae844d721AE2104EBa889cD"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault3_Coverage",
+      "address": "0x022ba3e15b13eDCc3fF05a2600751A0a6303315b"
+    },
+    {
+      "symbol": "test_10_RuggableVault_Deposit_Coverage",
+      "address": "0x5b26D6497f1C57136c4ED68Fd51943C1Eb8738A9"
+    },
+    {
+      "symbol": "test_10_RuggableVault_Withdraw_Coverage",
+      "address": "0x495C81C431B9329DcAd98C1dc289D69631fC634B"
+    },
+    {
+      "symbol": "test_10_RuggableVault_Withdraw_ConvertDistortion_Coverage",
+      "address": "0x0E89551A0A89393f3E34332FEFA8F68AE0301574"
+    },
+    {
+      "symbol": "test_11_Allocate_NewYieldSource_Coverage",
+      "address": "0x0BC518FC3c4D571035087C77cdbA68124c036AF3"
     }
   ],
   "10": [

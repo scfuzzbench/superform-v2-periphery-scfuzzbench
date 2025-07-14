@@ -23,6 +23,14 @@ forge-test :; $(MAKE) ensure-merkle-cache && forge test --match-path $(TEST) $(A
 # Internal forge-test without merkle cache check (used by cache generation)
 forge-test-internal :; forge test --match-path $(TEST) $(ARGS)
 
+# Internal forge-test with coverage profile (used by cache generation)
+forge-test-coverage-internal :; FOUNDRY_PROFILE=coverage forge test --match-path $(TEST) $(ARGS)
+
+# Internal forge-coverage without merkle cache check (used by cache generation)
+forge-coverage-internal :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --match-path $(TEST) $(ARGS)
+
+forge-coverage-internal2 :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --match-contract SuperVaultTest -vv
+
 # Ensure merkle cache is up to date before running tests/builds
 ensure-merkle-cache:
 	@echo "🌲 Checking merkle cache..."
@@ -36,7 +44,7 @@ ensure-merkle-cache-ci:
 # Ensure merkle cache is up to date before running tests/builds
 ensure-merkle-cache-coverage:
 	@echo "🌲 Checking merkle cache for coverage..."
-	@cd test/utils/merkle/merkle-js && node deterministic-merkle-pregeneration-coverage.js
+	@cd test/utils/merkle/merkle-js && FOUNDRY_PROFILE=coverage node deterministic-merkle-pregeneration.js
 
 # Force regenerate merkle cache
 regenerate-merkle-cache:
@@ -46,7 +54,7 @@ regenerate-merkle-cache:
 # Force regenerate merkle cache for coverage
 regenerate-merkle-cache-coverage:
 	@echo "🌲 Force regenerating merkle cache for coverage..."
-	@cd test/utils/merkle/merkle-js && node deterministic-merkle-pregeneration-coverage.js --force
+	@cd test/utils/merkle/merkle-js && FOUNDRY_PROFILE=coverage node deterministic-merkle-pregeneration.js --force
 
 # Force regenerate merkle cache for CI environments
 regenerate-merkle-cache-ci:
@@ -65,10 +73,7 @@ ftest-ci :; $(MAKE) regenerate-merkle-cache-ci && forge test -v --jobs 2
 
 ftest-quick :; forge test
 
-coverage :; $(MAKE) ensure-merkle-cache-coverage
-
-# Internal forge-coverage without merkle cache check (used by cache generation)
-forge-coverage-internal :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage --ignore-errors inconsistent,corrupt --exclude 'test/*'
+coverage :; $(MAKE) ensure-merkle-cache-coverage && FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage --ignore-errors inconsistent,corrupt --exclude 'src/vendor/*' --exclude 'test/*'
 
 test-vvv :; $(MAKE) ensure-merkle-cache && forge test --match-test test_SpectraExchangeSwapHook_DepositAndRedeemPT  -vvvv --jobs 10
 
