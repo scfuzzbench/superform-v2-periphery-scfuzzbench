@@ -56,6 +56,9 @@ EXAMPLES:
     
     node deterministic-merkle-pregeneration.js --verbose --status
         → Check cache status with detailed logging
+    
+    MERKLE_GEN_TIMEOUT=300000 node deterministic-merkle-pregeneration.js
+        → Use custom timeout (5 minutes in this example)
 
 DESCRIPTION:
     This script ensures the merkle tree cache is up to date with current hook addresses.
@@ -64,6 +67,14 @@ DESCRIPTION:
     
     When FOUNDRY_PROFILE=coverage is set, the script uses the coverage profile to extract
     addresses that match the coverage testing environment.
+    
+    TIMEOUT BEHAVIOR:
+    The script automatically adjusts timeouts based on the environment:
+    - Coverage in CI: 10 minutes (coverage tests are slower in CI)
+    - Coverage locally: 5 minutes  
+    - Regular tests in CI: 4 minutes
+    - Regular tests locally: 2 minutes
+    Override with MERKLE_GEN_TIMEOUT environment variable (in milliseconds).
 `);
     }
 
@@ -130,22 +141,43 @@ DESCRIPTION:
             };
             let result = '';
 
+            // Configure timeout based on environment
+            // CI environments need longer timeouts, especially for coverage
+            const isCoverage = testEnv.FOUNDRY_PROFILE === 'coverage';
+            const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+
+            // Default timeouts (in milliseconds)
+            let timeout = 120000; // 2 minutes default
+            if (isCoverage && isCI) {
+                timeout = 600000; // 10 minutes for coverage in CI
+            } else if (isCoverage) {
+                timeout = 300000; // 5 minutes for coverage locally
+            } else if (isCI) {
+                timeout = 240000; // 4 minutes for regular tests in CI
+            }
+
+            // Allow override via environment variable
+            if (process.env.MERKLE_GEN_TIMEOUT) {
+                timeout = parseInt(process.env.MERKLE_GEN_TIMEOUT, 10);
+                this.log(`Using custom timeout: ${timeout}ms`);
+            }
+
             // Detect coverage mode
-            if (testEnv.FOUNDRY_PROFILE === 'coverage') {
-                this.log('Detected coverage environment for address extraction');
+            if (isCoverage) {
+                this.log(`Detected coverage environment for address extraction (timeout: ${timeout}ms)`);
 
-
-                result = execSync('make forge-coverage-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
+                result = execSync('make forge-coverage-internal ARGS="--match-test test_getAddresses -vvvv"', {
                     encoding: 'utf8',
                     cwd: '../../../../', // Go back to project root
-                    timeout: 120000, // 2 minute timeout for setUp()
+                    timeout: timeout,
                     env: testEnv
                 });
             } else {
+                this.log(`Running regular test for address extraction (timeout: ${timeout}ms)`);
                 result = execSync('make forge-test-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
                     encoding: 'utf8',
                     cwd: '../../../../', // Go back to project root
-                    timeout: 120000, // 2 minute timeout for setUp()
+                    timeout: timeout,
                     env: testEnv
                 });
             }

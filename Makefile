@@ -27,7 +27,7 @@ forge-test-internal :; forge test --match-path $(TEST) $(ARGS)
 forge-test-coverage-internal :; FOUNDRY_PROFILE=coverage forge test --match-path $(TEST) $(ARGS)
 
 # Internal forge-coverage without merkle cache check (used by cache generation)
-forge-coverage-internal :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --match-path $(TEST) $(ARGS)
+forge-coverage-internal :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum $(ARGS)
 
 forge-coverage-internal2 :; FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --match-contract SuperVaultTest -vv
 
