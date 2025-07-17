@@ -113,10 +113,19 @@
 ├── Makefile
 ├── README.md
 ├── script
+│   ├── core-output
+│   │   └── .gitkeep
 │   ├── DeployV2Base.s.sol
 │   ├── DeployV2Periphery.s.sol
 │   ├── output
-│   │   └── local
+│   │   ├── local
+│   │   │   ├── 1
+│   │   │   │   └── Ethereum-latest.json
+│   │   │   ├── 10
+│   │   │   │   └── Optimism-latest.json
+│   │   │   └── 8453
+│   │   │       └── Base-latest.json
+│   │   └── main
 │   │       ├── 1
 │   │       │   └── Ethereum-latest.json
 │   │       ├── 10
@@ -128,10 +137,13 @@
 │   │   ├── deploy_v2_vnet_s3.sh
 │   │   ├── update_structure.sh
 │   │   └── verify_v2_prod.sh
+│   ├── test
+│   │   └── TestCoreS3Fetcher.s.sol
 │   └── utils
 │       ├── ConfigBase.sol
 │       ├── ConfigPeriphery.sol
-│       └── Constants.sol
+│       ├── Constants.sol
+│       └── CoreS3Fetcher.sol
 ├── src
 │   ├── Bank.sol
 │   ├── BundlerRegistry.sol
@@ -310,5 +322,5 @@
         ├── PeripheryConstants.sol
         └── PeripheryHelpers.sol
 
-105 directories, 203 files
+111 directories, 209 files
 ```

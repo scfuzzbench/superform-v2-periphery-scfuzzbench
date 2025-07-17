@@ -1,0 +1,10 @@
+{
+  "ECDSAPPSOracle": "0x02C9F78DD0026064Ff0305F9f37A3E69A745E25A",
+  "SuperGovernor": "0x47e45d6A2F50896376b16caBA1c8c4448dc6A523",
+  "SuperOracle": "0xB5761469677e1b1607090EA360B0433724159B10",
+  "SuperVaultAggregator": "0x90b3bf0c0c8c8EE936EaE067c76B8437b120345b",
+  "SuperVaultEscrowImplementation": "0xcc46CF5B0eC07F6541F105291454d4467a7d390d",
+  "SuperVaultImplementation": "0xE3550e742Da6c4f38dea340Ea6949e2ab032421f",
+  "SuperVaultStrategyImplementation": "0x92047d9Ff07470a5701d6a1f5bbf07f2E0bdA4c7",
+  "VaultBank": "0xfe2F61B61F4f3012A0cd6DCb4A2245025AF0cdB4"
+}
