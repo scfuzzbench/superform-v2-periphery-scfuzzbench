@@ -19,6 +19,11 @@ import { VaultBank } from "../src/VaultBank/VaultBank.sol";
 import { console2 } from "forge-std/console2.sol";
 
 contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
+    /*//////////////////////////////////////////////////////////////
+                              STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
+    address private vaultBankAddress;
+
     struct PeripheryContracts {
         address superGovernor;
         address superVaultAggregator;
@@ -296,7 +301,12 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
         // Configure SuperGovernor with oracle and validator
         SuperGovernor(peripheryContracts.superGovernor).setActivePPSOracle(peripheryContracts.ecdsappsOracle);
         SuperGovernor(peripheryContracts.superGovernor).addValidator(configuration.validator);
-        SuperGovernor(peripheryContracts.superGovernor).addVaultBank(chainId, peripheryContracts.vaultBank);
+
+        // Store VaultBank address for multi-chain configuration (CREATE2 ensures same address across chains)
+        vaultBankAddress = peripheryContracts.vaultBank;
+
+        // Add VaultBanks for all supported chains (same address due to CREATE2)
+        _configureAllChainVaultBanks(SuperGovernor(peripheryContracts.superGovernor));
 
         console2.log("All periphery contracts deployed and configured successfully.");
 
@@ -355,5 +365,23 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
 
         superGovernor.revokeRole(keccak256("SUPER_GOVERNOR_ROLE"), TEST_DEPLOYER);
         console2.log("Revoked SUPER_GOVERNOR_ROLE from TEST_DEPLOYER");
+    }
+
+    /// @notice Configures VaultBanks for all supported chains using CREATE2 deterministic address
+    /// @param superGovernor The SuperGovernor instance to configure
+    function _configureAllChainVaultBanks(SuperGovernor superGovernor) internal {
+        console2.log("Configuring VaultBanks for all supported chains...");
+
+        // Supported chain IDs - VaultBank will have same address due to CREATE2
+        uint64[3] memory supportedChains = [uint64(1), uint64(8453), uint64(10)];
+
+        for (uint256 i = 0; i < supportedChains.length; i++) {
+            uint64 chainId = supportedChains[i];
+
+            superGovernor.addVaultBank(chainId, vaultBankAddress);
+            console2.log("Added VaultBank for chain", chainId, "at address:", vaultBankAddress);
+        }
+
+        console2.log("Multi-chain VaultBank configuration completed");
     }
 }
