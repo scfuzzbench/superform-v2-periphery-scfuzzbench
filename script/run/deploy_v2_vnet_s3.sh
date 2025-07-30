@@ -144,11 +144,15 @@ fi
 if [ "$BRANCH_NAME" = "local" ]; then
     log "INFO" "Local branch detected: $BRANCH_NAME. Using local deployment settings."
     GITHUB_REF_NAME="local"
-    S3_BUCKET_NAME="vnet-state"
+    S3_BUCKET_NAME="periphery-deployments"
 elif [ "$IS_MAIN_OR_DEV" = "false" ]; then
     log "INFO" "Custom branch detected: $BRANCH_NAME. Deploying to new VNET with branch name."
     GITHUB_REF_NAME="$BRANCH_NAME"
-    S3_BUCKET_NAME="vnet-state"
+    S3_BUCKET_NAME="periphery-deployments"
+else
+    log "INFO" "Main or dev branch detected: $BRANCH_NAME. Using branch-specific deployment settings."
+    GITHUB_REF_NAME="$BRANCH_NAME"
+    S3_BUCKET_NAME="periphery-deployments"
 fi
 
 # Log branch name for debugging

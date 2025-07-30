@@ -29,6 +29,7 @@ import { AccountInstance, UserOpData } from "modulekit/ModuleKit.sol";
 import { Mock4626Vault } from "../../mocks/Mock4626Vault.sol";
 import { RuggableVault } from "../../mocks/RuggableVault.sol";
 import { RuggableConvertVault } from "../../mocks/RuggableConvertVault.sol";
+import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 
 contract SuperVaultTest is BaseSuperVaultTest {
     using Math for uint256;
@@ -48,6 +49,9 @@ contract SuperVaultTest is BaseSuperVaultTest {
     function setUp() public override {
         super.setUp();
         userAddress = vm.addr(userPrivateKey); // Derive the correct address from private key
+
+        // Update test vault predictions with correct deployer address (this contract)
+        updateTestVaultPredictions();
 
         vm.selectFork(FORKS[ETH]);
 
@@ -3209,8 +3213,18 @@ contract SuperVaultTest is BaseSuperVaultTest {
         ScenarioNewYieldSourceVars memory vars;
         vars.depositAmount = 100e6;
 
-        Mock4626Vault newVault = new Mock4626Vault{ salt: "TEST" }(address(asset), "New Vault", "NV");
+        // Deploy using Create2.deploy() instead of new{salt} syntax for consistent prediction
+        Mock4626Vault newVault = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(type(Mock4626Vault).creationCode, abi.encode(address(asset), "New Vault", "NV"))
+            )
+        );
+
         console2.log("newVault", address(newVault));
+        console2.log("predicted", test1_DynamicAllocation_MockVault);
+        assertEq(address(newVault), test1_DynamicAllocation_MockVault, "TEST1 VAULT NOT EQUAL TO PREDICTED");
         _getTokens(address(asset), address(this), 2 * LARGE_DEPOSIT);
         asset.approve(address(newVault), type(uint256).max);
         newVault.deposit(2 * LARGE_DEPOSIT, address(this));
@@ -3598,14 +3612,12 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.rugPercentage = 10;
         vars.initialTimestamp = block.timestamp;
 
-        vars.ruggableVault = address(
-            new RuggableVault{ salt: "Test" }(
-                IERC20(address(asset)),
-                "Ruggable Vault",
-                "RUG",
-                true, // rug on deposit
-                true, // rug on withdraw
-                vars.rugPercentage
+        vars.ruggableVault = Create2.deploy(
+            0,
+            keccak256(abi.encodePacked(TEST_SALT)),
+            abi.encodePacked(
+                type(RuggableVault).creationCode,
+                abi.encode(IERC20(address(asset)), "Ruggable Vault", "RUG", true, true, vars.rugPercentage)
             )
         );
 
@@ -3613,6 +3625,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.label(address(fluidVault), "Fluid Vault");
 
         console2.log("ruggable vault", vars.ruggableVault);
+        assertEq(vars.ruggableVault, test3_UnderlyingVaults_StressTest, "TEST3 VAULT NOT EQUAL TO PREDICTED");
         console2.log("fluid vault", address(fluidVault));
 
         // add some funds to the vault to respect LARGE_DEPOSIT
@@ -3962,9 +3975,33 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.initialTimestamp = block.timestamp;
 
         // create yield testing vaults
-        vars.vault1 = new Mock4626Vault{ salt: "Test" }(address(asset), "Mock4626Vault 3%", "MV3");
-        vars.vault2 = new Mock4626Vault{ salt: "Test" }(address(asset), "Mock4626Vault 5%", "MV5");
-        vars.vault3 = new Mock4626Vault{ salt: "Test" }(address(asset), "Mock4626Vault 10%", "MV10");
+        vars.vault1 = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(
+                    type(Mock4626Vault).creationCode, abi.encode(address(asset), "Mock4626Vault 3%", "MV3")
+                )
+            )
+        );
+        vars.vault2 = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(
+                    type(Mock4626Vault).creationCode, abi.encode(address(asset), "Mock4626Vault 5%", "MV5")
+                )
+            )
+        );
+        vars.vault3 = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(
+                    type(Mock4626Vault).creationCode, abi.encode(address(asset), "Mock4626Vault 10%", "MV10")
+                )
+            )
+        );
         string[] memory vaultNames = new string[](3);
         vaultNames[0] = "test6YA_Mock4626Vault1";
         vaultNames[1] = "test6YA_Mock4626Vault2";
@@ -3977,6 +4014,10 @@ contract SuperVaultTest is BaseSuperVaultTest {
         console2.log("vault1", address(vars.vault1));
         console2.log("vault2", address(vars.vault2));
         console2.log("vault3", address(vars.vault3));
+
+        assertEq(address(vars.vault1), test6_yieldAccumulation_vault1, "TEST6 VAULT1 NOT EQUAL TO PREDICTED");
+        assertEq(address(vars.vault2), test6_yieldAccumulation_vault2, "TEST6 VAULT2 NOT EQUAL TO PREDICTED");
+        assertEq(address(vars.vault3), test6_yieldAccumulation_vault3, "TEST6 VAULT3 NOT EQUAL TO PREDICTED");
 
         vars.vault1.setYield(3000); // 3%
         vars.vault2.setYield(5000); // 5%
@@ -4119,9 +4160,27 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.initialTimestamp = block.timestamp;
 
         // create yield testing vaults
-        vars.vault1 = new Mock4626Vault{ salt: "Test" }(address(asset), "Mock Vault 3%", "MV3");
-        vars.vault2 = new Mock4626Vault{ salt: "Test" }(address(asset), "Mock Vault 5%", "MV5");
-        vars.vault3 = new Mock4626Vault{ salt: "Test" }(address(asset), "Mock Vault 10%", "MV10");
+        vars.vault1 = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(type(Mock4626Vault).creationCode, abi.encode(address(asset), "Mock Vault 3%", "MV3"))
+            )
+        );
+        vars.vault2 = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(type(Mock4626Vault).creationCode, abi.encode(address(asset), "Mock Vault 5%", "MV5"))
+            )
+        );
+        vars.vault3 = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(type(Mock4626Vault).creationCode, abi.encode(address(asset), "Mock Vault 10%", "MV10"))
+            )
+        );
         string[] memory vaultNames = new string[](3);
         vaultNames[0] = "test6YAREB_Mock4626Vault1";
         vaultNames[1] = "test6YAREB_Mock4626Vault2";
@@ -4134,6 +4193,22 @@ contract SuperVaultTest is BaseSuperVaultTest {
         console2.log("vault1", address(vars.vault1));
         console2.log("vault2", address(vars.vault2));
         console2.log("vault3", address(vars.vault3));
+
+        assertEq(
+            address(vars.vault1),
+            test6_yieldAccumulation_WithRebalancing_vault1,
+            "TEST6_REBAL_VAULT1 NOT EQUAL TO PREDICTED"
+        );
+        assertEq(
+            address(vars.vault2),
+            test6_yieldAccumulation_WithRebalancing_vault2,
+            "TEST6_REBAL_VAULT2 NOT EQUAL TO PREDICTED"
+        );
+        assertEq(
+            address(vars.vault3),
+            test6_yieldAccumulation_WithRebalancing_vault3,
+            "TEST6_REBAL_VAULT3 NOT EQUAL TO PREDICTED"
+        );
 
         vars.vault1.setYield(3000); // 3%
         vars.vault2.setYield(5000); // 5%
@@ -4768,15 +4843,20 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.initialTimestamp = block.timestamp;
 
         // Deploy a ruggable vault that rugs on deposit
-        vars.ruggableVault = new RuggableVault{ salt: "Test" }(
-            IERC20(address(asset)),
-            "Ruggable Vault",
-            "RUG",
-            true, // rug on deposit
-            false, // don't rug on withdraw
-            vars.rugPercentage
+        vars.ruggableVault = RuggableVault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(
+                    type(RuggableVault).creationCode,
+                    abi.encode(IERC20(address(asset)), "Ruggable Vault", "RUG", true, false, vars.rugPercentage)
+                )
+            )
         );
         console2.log("ruggableVault", address(vars.ruggableVault));
+        assertEq(
+            address(vars.ruggableVault), test10_RuggableVault_Deposit, "TEST10_DEPOSIT VAULT NOT EQUAL TO PREDICTED"
+        );
 
         // Add funds to the ruggable vault to respect LARGE_DEPOSIT
         _getTokens(address(asset), address(this), 2 * LARGE_DEPOSIT);
@@ -4840,15 +4920,18 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.initialTimestamp = block.timestamp;
 
         // Deploy a ruggable vault that rugs on withdraw
-        RuggableVault ruggableVault = new RuggableVault{ salt: "Test" }(
-            IERC20(address(asset)),
-            "Ruggable Vault",
-            "RUG",
-            false, // don't rug on deposit
-            true, // rug on withdraw
-            vars.rugPercentage
+        RuggableVault ruggableVault = RuggableVault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(
+                    type(RuggableVault).creationCode,
+                    abi.encode(IERC20(address(asset)), "Ruggable Vault", "RUG", false, true, vars.rugPercentage)
+                )
+            )
         );
         console2.log("ruggableVault", address(ruggableVault));
+        assertEq(address(ruggableVault), test10_RuggableVault_Withdraw, "TEST10_WITHDRAW VAULT NOT EQUAL TO PREDICTED");
 
         vars.ruggableVault = address(ruggableVault);
         vars.convertVault = false;
@@ -4880,14 +4963,22 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.initialTimestamp = block.timestamp;
 
         // Deploy a ruggable vault that rugs via convert functions
-        RuggableConvertVault ruggableConvertVault = new RuggableConvertVault{ salt: "Test" }(
-            IERC20(address(asset)),
-            "Ruggable Convert Vault",
-            "RUGC",
-            vars.rugPercentage,
-            true // rug enabled
+        RuggableConvertVault ruggableConvertVault = RuggableConvertVault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(
+                    type(RuggableConvertVault).creationCode,
+                    abi.encode(IERC20(address(asset)), "Ruggable Convert Vault", "RUGC", vars.rugPercentage, true)
+                )
+            )
         );
         console2.log("ruggableConvertVault", address(ruggableConvertVault));
+        assertEq(
+            address(ruggableConvertVault),
+            test10_RuggableVault_Withdraw_ConvertDistortion,
+            "TEST10_CONVERT VAULT NOT EQUAL TO PREDICTED"
+        );
 
         vars.ruggableVault = address(ruggableConvertVault);
         vars.convertVault = true;
@@ -4920,8 +5011,15 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _completeDepositFlow(vars.depositAmount);
 
         // add new vault as yield source
-        Mock4626Vault newVault = new Mock4626Vault{ salt: "Test" }(address(asset), "New Vault", "NV");
+        Mock4626Vault newVault = Mock4626Vault(
+            Create2.deploy(
+                0,
+                keccak256(abi.encodePacked(TEST_SALT)),
+                abi.encodePacked(type(Mock4626Vault).creationCode, abi.encode(address(asset), "New Vault", "NV"))
+            )
+        );
         console2.log("newVault", address(newVault));
+        assertEq(address(newVault), test11_Allocate_NewYieldSource, "TEST11 VAULT NOT EQUAL TO PREDICTED");
 
         //  -- add funds to the newVault to respect LARGE_DEPOSIT
         _getTokens(address(asset), address(this), 2 * LARGE_DEPOSIT);

@@ -29,6 +29,7 @@ abstract contract Constants {
     string internal constant SUPER_POSITION_KEY = "SuperPosition";
     string internal constant DEBRIDGE_RECEIVE_FUNDS_AND_EXECUTE_GATEWAY_KEY = "DeBridgeReceiveFundsAndExecuteGateway";
     string internal constant SUPER_NATIVE_PAYMASTER_KEY = "SuperNativePaymaster";
+    string internal constant VAULT_BANK_KEY = "VaultBank";
 
     string internal constant SUPER_BUNDLER_ID = "SUPER_BUNDLER_ID";
     string internal constant TREASURY_ID = "TREASURY_ID";

@@ -6,8 +6,8 @@ import { Script } from "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 // Superform
-import { SuperDeployer } from "@superform-v2-core/script/utils/SuperDeployer.sol";
-import { ISuperDeployer } from "@superform-v2-core/script/utils/ISuperDeployer.sol";
+import { SuperDeployer } from "@superform-v2-core/src/SuperDeployer.sol";
+import { ISuperDeployer } from "@superform-v2-core/src/interfaces/ISuperDeployer.sol";
 import { ConfigBase } from "./utils/ConfigBase.sol";
 
 abstract contract DeployV2Base is Script, ConfigBase {

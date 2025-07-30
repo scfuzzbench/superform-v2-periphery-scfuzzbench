@@ -17,6 +17,12 @@ import { SuperVaultStrategy } from "../src/SuperVault/SuperVaultStrategy.sol";
 import { SuperVaultEscrow } from "../src/SuperVault/SuperVaultEscrow.sol";
 import { ECDSAPPSOracle } from "../src/oracles/ECDSAPPSOracle.sol";
 
+// Mock contracts for address prediction
+import { Mock4626Vault } from "./mocks/Mock4626Vault.sol";
+import { RuggableVault } from "./mocks/RuggableVault.sol";
+import { RuggableConvertVault } from "./mocks/RuggableConvertVault.sol";
+import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
+
 import "forge-std/console2.sol";
 
 struct PeripheryAddresses {
@@ -34,10 +40,27 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                            PERIPHERY STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    // Constants for test vault deployment
+    string constant TEST_SALT = "TEST";
+
     // Global addresses for SuperVault strategies
     address public globalSVStrategy;
     address public globalSVGearStrategy;
     address public globalRuggableVault;
+
+    // Test vault addresses for deterministic testing
+    address public test1_DynamicAllocation_MockVault;
+    address public test3_UnderlyingVaults_StressTest;
+    address public test6_yieldAccumulation_vault1;
+    address public test6_yieldAccumulation_vault2;
+    address public test6_yieldAccumulation_vault3;
+    address public test6_yieldAccumulation_WithRebalancing_vault1;
+    address public test6_yieldAccumulation_WithRebalancing_vault2;
+    address public test6_yieldAccumulation_WithRebalancing_vault3;
+    address public test10_RuggableVault_Deposit;
+    address public test10_RuggableVault_Withdraw;
+    address public test10_RuggableVault_Withdraw_ConvertDistortion;
+    address public test11_Allocate_NewYieldSource;
 
     /*//////////////////////////////////////////////////////////////
                                 SETUP
@@ -130,6 +153,9 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                     ),
                     aggregator
                 );
+
+                // Predict test vault addresses
+                _predictTestVaultAddresses();
             }
 
             // Set up governor configurations
@@ -137,6 +163,151 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             PA[i].superGovernor.addValidator(VALIDATOR);
         }
         return PA;
+    }
+
+    /// @notice Predicts CREATE2 addresses for test vaults used in integration tests
+    /// @dev Uses Create2.deploy() method for consistent prediction and deployment
+    function _predictTestVaultAddresses() internal {
+        address deployer = address(this);
+        address assetAddress = existingUnderlyingTokens[ETH][USDC_KEY];
+
+        // Test 1: DynamicAllocation MockVault - uses salt "TEST"
+        test1_DynamicAllocation_MockVault =
+            _predictMock4626VaultAddress(deployer, assetAddress, "New Vault", "NV", TEST_SALT);
+
+        // Test 3: UnderlyingVaults StressTest (RuggableVault) - uses salt "TEST"
+        test3_UnderlyingVaults_StressTest = _predictRuggableVaultAddress(
+            deployer,
+            assetAddress,
+            "Ruggable Vault",
+            "RUG",
+            true, // rug on deposit
+            true, // rug on withdraw
+            10, // rug percentage
+            TEST_SALT
+        );
+
+        // Test 6: yieldAccumulation vaults - use salt "TEST"
+        test6_yieldAccumulation_vault1 =
+            _predictMock4626VaultAddress(deployer, assetAddress, "Mock4626Vault 3%", "MV3", TEST_SALT);
+        test6_yieldAccumulation_vault2 =
+            _predictMock4626VaultAddress(deployer, assetAddress, "Mock4626Vault 5%", "MV5", TEST_SALT);
+        test6_yieldAccumulation_vault3 =
+            _predictMock4626VaultAddress(deployer, assetAddress, "Mock4626Vault 10%", "MV10", TEST_SALT);
+
+        // Test 6: yieldAccumulation WithRebalancing vaults - use salt "TEST"
+        test6_yieldAccumulation_WithRebalancing_vault1 =
+            _predictMock4626VaultAddress(deployer, assetAddress, "Mock Vault 3%", "MV3", TEST_SALT);
+        test6_yieldAccumulation_WithRebalancing_vault2 =
+            _predictMock4626VaultAddress(deployer, assetAddress, "Mock Vault 5%", "MV5", TEST_SALT);
+        test6_yieldAccumulation_WithRebalancing_vault3 =
+            _predictMock4626VaultAddress(deployer, assetAddress, "Mock Vault 10%", "MV10", TEST_SALT);
+
+        // Test 10: RuggableVault tests - use salt "TEST"
+        test10_RuggableVault_Deposit = _predictRuggableVaultAddress(
+            deployer,
+            assetAddress,
+            "Ruggable Vault",
+            "RUG",
+            true, // rug on deposit
+            false, // don't rug on withdraw
+            5000, // 50% rug
+            TEST_SALT
+        );
+        test10_RuggableVault_Withdraw = _predictRuggableVaultAddress(
+            deployer,
+            assetAddress,
+            "Ruggable Vault",
+            "RUG",
+            false, // don't rug on deposit
+            true, // rug on withdraw
+            5000, // 50% rug
+            TEST_SALT
+        );
+        test10_RuggableVault_Withdraw_ConvertDistortion = _predictRuggableConvertVaultAddress(
+            deployer,
+            assetAddress,
+            "Ruggable Convert Vault",
+            "RUGC",
+            5000, // 50% rug
+            true, // rug enabled
+            TEST_SALT
+        );
+
+        // Test 11: Allocate NewYieldSource - uses salt "TEST"
+        test11_Allocate_NewYieldSource =
+            _predictMock4626VaultAddress(deployer, assetAddress, "New Vault", "NV", TEST_SALT);
+    }
+
+    /// @notice Updates test vault predictions with the correct deployer address
+    /// @dev Should be called from test contracts where address(this) gives the actual deployer
+    function updateTestVaultPredictions() public {
+        _predictTestVaultAddresses();
+    }
+
+    /// @notice Predicts CREATE2 address for Mock4626Vault using same method as Create2.deploy()
+    function _predictMock4626VaultAddress(
+        address deployer,
+        address asset,
+        string memory name,
+        string memory symbol,
+        string memory salt
+    )
+        internal
+        pure
+        returns (address)
+    {
+        bytes memory bytecode = abi.encodePacked(type(Mock4626Vault).creationCode, abi.encode(asset, name, symbol));
+        bytes32 bytecodeHash = keccak256(bytecode);
+        bytes32 saltHash = keccak256(abi.encodePacked(salt));
+
+        return Create2.computeAddress(saltHash, bytecodeHash, deployer);
+    }
+
+    /// @notice Predicts CREATE2 address for RuggableVault using same method as Create2.deploy()
+    function _predictRuggableVaultAddress(
+        address deployer,
+        address asset,
+        string memory name,
+        string memory symbol,
+        bool rugOnDeposit,
+        bool rugOnWithdraw,
+        uint256 rugPercentage,
+        string memory salt
+    )
+        internal
+        pure
+        returns (address)
+    {
+        bytes memory bytecode = abi.encodePacked(
+            type(RuggableVault).creationCode,
+            abi.encode(asset, name, symbol, rugOnDeposit, rugOnWithdraw, rugPercentage)
+        );
+        bytes32 bytecodeHash = keccak256(bytecode);
+        bytes32 saltHash = keccak256(abi.encodePacked(salt));
+        return Create2.computeAddress(saltHash, bytecodeHash, deployer);
+    }
+
+    /// @notice Predicts CREATE2 address for RuggableConvertVault using same method as Create2.deploy()
+    function _predictRuggableConvertVaultAddress(
+        address deployer,
+        address asset,
+        string memory name,
+        string memory symbol,
+        uint256 rugPercentage,
+        bool rugEnabled,
+        string memory salt
+    )
+        internal
+        pure
+        returns (address)
+    {
+        bytes memory bytecode = abi.encodePacked(
+            type(RuggableConvertVault).creationCode, abi.encode(asset, name, symbol, rugPercentage, rugEnabled)
+        );
+        bytes32 bytecodeHash = keccak256(bytecode);
+        bytes32 saltHash = keccak256(abi.encodePacked(salt));
+        return Create2.computeAddress(saltHash, bytecodeHash, deployer);
     }
 
     function _configurePeripheryGovernor(PeripheryAddresses[] memory PA) internal {
