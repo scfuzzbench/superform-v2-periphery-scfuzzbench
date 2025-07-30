@@ -1,11 +1,23 @@
 {
-  "timestamp": 1752749670362,
-  "addressHash": "[\"0x0abe4b9aaf91f295754d35749eb3de280a66e63f\",\"0x314fbd47de4579db96fa5b0532b61c7ebfcd2f6d\",\"0x8aa600d6504dc81995d4010ba1b3f9fefe3015df\",\"0xab88b4b03104c66dbf11605f4c5628b8d3faf2c7\",\"0xb516a08979032d6f5c0f6424951bbb8fabf23c93\",\"0xe77023114abb84d49644df4b691858be5b649495\",\"0xea8a53a5085a6f7fa7aa2908c81956744a7b1f9c\"]",
+  "timestamp": 1753894177116,
+  "addressHash": "[\"0x021210ad662b08fb81a53a560d9a03de8098c4f5\",\"0x0a89bec036c6b94d1b7bcfc774c44cb78afe7b95\",\"0x0d73a464b722bf807fb4163ebb5e487658620dce\",\"0x0d73a464b722bf807fb4163ebb5e487658620dce\",\"0x13c43599b83d0080624711b4c112307e44e98727\",\"0x1fb1f544cfa43eba145bdab5aae306ea310238c4\",\"0x2e61fd42b7d5b2a882cb32dbe605f23d2b570e32\",\"0x314fbd47de4579db96fa5b0532b61c7ebfcd2f6d\",\"0x3881c31711b09e2f7792b04529c12120d272c15f\",\"0x395055c952e907d7dc0e48b8b0c27dd0460cc5c6\",\"0x54ad48ca6a2b3d5c6f2875ced3221637028b7caa\",\"0x8aa600d6504dc81995d4010ba1b3f9fefe3015df\",\"0x92bd9b2fb1e55283452760e369979eda4c180286\",\"0xa44982ae9000894bd2d66ff3365d914658295c0e\",\"0xb516a08979032d6f5c0f6424951bbb8fabf23c93\",\"0xb572b235901669b98e23920b161530f6191037d3\",\"0xd98eacf53291ccfc3323293679745e512c8eeefd\",\"0xea8a53a5085a6f7fa7aa2908c81956744a7b1f9c\",\"0xfdcecfc913fb31c98835697ab52705e2b1dde17d\"]",
   "addresses": {
     "vaults": {
-      "globalSVStrategy": "0xaB88b4B03104c66dbf11605F4c5628b8d3FAf2c7",
-      "globalSVGearStrategy": "0x0Abe4B9aaF91f295754D35749EB3De280A66E63F",
-      "globalRuggableVault": "0xe77023114aBb84D49644df4B691858bE5B649495"
+      "globalSVStrategy": "0x3881c31711b09E2f7792b04529C12120d272c15F",
+      "globalSVGearStrategy": "0x0a89bEC036c6B94D1b7BCfC774c44Cb78afe7B95",
+      "globalRuggableVault": "0xd98eAcf53291CcFC3323293679745e512C8eEeFD",
+      "test1_DynamicAllocation_MockVault": "0x0d73a464b722bF807Fb4163Ebb5E487658620Dce",
+      "test3_UnderlyingVaults_StressTest": "0xb572b235901669b98E23920B161530f6191037d3",
+      "test6_yieldAccumulation_vault1": "0xfDceCFc913fB31c98835697ab52705E2B1DDE17D",
+      "test6_yieldAccumulation_vault2": "0x13C43599b83d0080624711B4c112307e44E98727",
+      "test6_yieldAccumulation_vault3": "0x2e61FD42B7d5B2a882cB32dbe605F23D2B570e32",
+      "test6_yieldAccumulation_WithRebalancing_vault1": "0x1Fb1f544CFA43ebA145bDaB5aAE306ea310238C4",
+      "test6_yieldAccumulation_WithRebalancing_vault2": "0x021210aD662B08fb81a53a560d9a03De8098C4f5",
+      "test6_yieldAccumulation_WithRebalancing_vault3": "0xa44982Ae9000894BD2D66ff3365d914658295c0E",
+      "test10_RuggableVault_Deposit": "0x395055c952e907D7Dc0e48b8b0c27dd0460cC5c6",
+      "test10_RuggableVault_Withdraw": "0x54ad48cA6A2B3d5C6f2875CEd3221637028b7cAA",
+      "test10_RuggableVault_Withdraw_ConvertDistortion": "0x92bd9b2Fb1E55283452760e369979EDa4C180286",
+      "test11_Allocate_NewYieldSource": "0x0d73a464b722bF807Fb4163Ebb5E487658620Dce"
     },
     "hooks": {
       "APPROVE_AND_DEPOSIT_4626_VAULT_HOOK": "0xb516A08979032D6f5C0f6424951bbb8FabF23c93",

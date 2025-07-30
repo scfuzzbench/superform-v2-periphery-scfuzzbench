@@ -62,99 +62,99 @@
     },
     {
       "symbol": "test_1_DynamicAllocation_MockVault",
-      "address": "0x273FcDE7FaE7aE912449B6c29E435EF2A09109F2"
-    },
-    {
-      "symbol": "test_3_UnderlyingVaults_StressTest",
-      "address": "0xE811B64ec8155Fd09A6a41Aec6304eea65abA489"
-    },
-    {
-      "symbol": "test_6_yieldAccumulation_vault1",
-      "address": "0x9F45e7Bd7c052EfA504F96D419DC0d8c4eAf4817"
-    },
-    {
-      "symbol": "test_6_yieldAccumulation_vault2",
-      "address": "0x9aCd1932A27df607BEf0B189FE59ee5198c387cA"
-    },
-    {
-      "symbol": "test_6_yieldAccumulation_vault3",
-      "address": "0x3F8E266097bD5e283415F9121072775eE7e515BA"
-    },
-    {
-      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault1",
-      "address": "0x97E8Ed255eC57395e49F232e351af77580c7b757"
-    },
-    {
-      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault2",
-      "address": "0xf95f423d11dBf1d6562883F5CCc5870ef7FD80cF"
-    },
-    {
-      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault3",
-      "address": "0x53A0fe9F918564556846A89cC7E4FCA39793A122"
-    },
-    {
-      "symbol": "test_10_RuggableVault_Deposit",
-      "address": "0x82304f7b5E252Ce000992b606a6d74BcE0Dde1C2"
-    },
-    {
-      "symbol": "test_10_RuggableVault_Withdraw",
-      "address": "0xf9622ef687564AfF6EE6F4CB08e9c8914303D17D"
-    },
-    {
-      "symbol": "test_10_RuggableVault_Withdraw_ConvertDistortion",
-      "address": "0xCCD1275961A2f604CAe254D891D29fb7B43ACF0b"
-    },
-    {
-      "symbol": "test_11_Allocate_NewYieldSource",
-      "address": "0x40C882E3a611C429EE43f2420a5047618f18c4AC"
+      "address": "0x0d73a464b722bF807Fb4163Ebb5E487658620Dce"
     },
     {
       "symbol": "test_1_DynamicAllocation_MockVault_Coverage",
-      "address": "0x3A59cC7F65aF2bB144c43aF7bD6499AeF8e0516A"
+      "address": "0x0d73a464b722bF807Fb4163Ebb5E487658620Dce"
+    },
+    {
+      "symbol": "test_3_UnderlyingVaults_StressTest",
+      "address": "0xb572b235901669b98E23920B161530f6191037d3"
     },
     {
       "symbol": "test_3_UnderlyingVaults_StressTest_Coverage",
-      "address": "0x7f441ae12C7c4Cd68c7f3c050d21622D754e59D6"
+      "address": "0xb572b235901669b98E23920B161530f6191037d3"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_vault1",
+      "address": "0xfDceCFc913fB31c98835697ab52705E2B1DDE17D"
     },
     {
       "symbol": "test_6_yieldAccumulation_vault1_Coverage",
-      "address": "0xeF63972e9d9354fB5B525e94868B1CB75714c400"
+      "address": "0xfDceCFc913fB31c98835697ab52705E2B1DDE17D"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_vault2",
+      "address": "0x13C43599b83d0080624711B4c112307e44E98727"
     },
     {
       "symbol": "test_6_yieldAccumulation_vault2_Coverage",
-      "address": "0x3fB10a3f6a5e9eBccE29273Cdc793E600726eCaB"
+      "address": "0x13C43599b83d0080624711B4c112307e44E98727"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_vault3",
+      "address": "0x2e61FD42B7d5B2a882cB32dbe605F23D2B570e32"
     },
     {
       "symbol": "test_6_yieldAccumulation_vault3_Coverage",
-      "address": "0xcb96cc795e119260544b7C08abbccA9B9FDfeF16"
+      "address": "0x2e61FD42B7d5B2a882cB32dbe605F23D2B570e32"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault1",
+      "address": "0x1Fb1f544CFA43ebA145bDaB5aAE306ea310238C4"
     },
     {
       "symbol": "test_6_yieldAccumulation_WithRebalancing_vault1_Coverage",
-      "address": "0xf0bBD5229Bea22342FC26Ff70209056853Bd1071"
+      "address": "0x1Fb1f544CFA43ebA145bDaB5aAE306ea310238C4"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault2",
+      "address": "0x021210aD662B08fb81a53a560d9a03De8098C4f5"
     },
     {
       "symbol": "test_6_yieldAccumulation_WithRebalancing_vault2_Coverage",
-      "address": "0xED81F7a22886717eEae844d721AE2104EBa889cD"
+      "address": "0x021210aD662B08fb81a53a560d9a03De8098C4f5"
+    },
+    {
+      "symbol": "test_6_yieldAccumulation_WithRebalancing_vault3",
+      "address": "0xa44982Ae9000894BD2D66ff3365d914658295c0E"
     },
     {
       "symbol": "test_6_yieldAccumulation_WithRebalancing_vault3_Coverage",
-      "address": "0x022ba3e15b13eDCc3fF05a2600751A0a6303315b"
+      "address": "0xa44982Ae9000894BD2D66ff3365d914658295c0E"
+    },
+    {
+      "symbol": "test_10_RuggableVault_Deposit",
+      "address": "0x395055c952e907D7Dc0e48b8b0c27dd0460cC5c6"
     },
     {
       "symbol": "test_10_RuggableVault_Deposit_Coverage",
-      "address": "0x5b26D6497f1C57136c4ED68Fd51943C1Eb8738A9"
+      "address": "0x395055c952e907D7Dc0e48b8b0c27dd0460cC5c6"
+    },
+    {
+      "symbol": "test_10_RuggableVault_Withdraw",
+      "address": "0x54ad48cA6A2B3d5C6f2875CEd3221637028b7cAA"
     },
     {
       "symbol": "test_10_RuggableVault_Withdraw_Coverage",
-      "address": "0x495C81C431B9329DcAd98C1dc289D69631fC634B"
+      "address": "0x54ad48cA6A2B3d5C6f2875CEd3221637028b7cAA"
+    },
+    {
+      "symbol": "test_10_RuggableVault_Withdraw_ConvertDistortion",
+      "address": "0x92bd9b2Fb1E55283452760e369979EDa4C180286"
     },
     {
       "symbol": "test_10_RuggableVault_Withdraw_ConvertDistortion_Coverage",
-      "address": "0x0E89551A0A89393f3E34332FEFA8F68AE0301574"
+      "address": "0x92bd9b2Fb1E55283452760e369979EDa4C180286"
+    },
+    {
+      "symbol": "test_11_Allocate_NewYieldSource",
+      "address": "0x0d73a464b722bF807Fb4163Ebb5E487658620Dce"
     },
     {
       "symbol": "test_11_Allocate_NewYieldSource_Coverage",
-      "address": "0x0BC518FC3c4D571035087C77cdbA68124c036AF3"
+      "address": "0x0d73a464b722bF807Fb4163Ebb5E487658620Dce"
     }
   ],
   "10": [

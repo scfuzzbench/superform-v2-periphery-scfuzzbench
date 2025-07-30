@@ -98,13 +98,43 @@ DESCRIPTION:
 
         // Look for console.log output lines
         for (const line of lines) {
+            // Original vault addresses
             if (line.includes('VAULT_globalSVStrategy:')) {
                 addresses.vaults.globalSVStrategy = this.extractAddress(line);
             } else if (line.includes('VAULT_globalSVGearStrategy:')) {
                 addresses.vaults.globalSVGearStrategy = this.extractAddress(line);
             } else if (line.includes('VAULT_globalRuggableVault:')) {
                 addresses.vaults.globalRuggableVault = this.extractAddress(line);
-            } else if (line.includes('HOOK_APPROVE_AND_DEPOSIT_4626_VAULT_HOOK:')) {
+            }
+            // Test vault addresses
+            else if (line.includes('VAULT_test1_DynamicAllocation_MockVault:')) {
+                addresses.vaults.test1_DynamicAllocation_MockVault = this.extractAddress(line);
+            } else if (line.includes('VAULT_test3_UnderlyingVaults_StressTest:')) {
+                addresses.vaults.test3_UnderlyingVaults_StressTest = this.extractAddress(line);
+            } else if (line.includes('VAULT_test6_yieldAccumulation_vault1:')) {
+                addresses.vaults.test6_yieldAccumulation_vault1 = this.extractAddress(line);
+            } else if (line.includes('VAULT_test6_yieldAccumulation_vault2:')) {
+                addresses.vaults.test6_yieldAccumulation_vault2 = this.extractAddress(line);
+            } else if (line.includes('VAULT_test6_yieldAccumulation_vault3:')) {
+                addresses.vaults.test6_yieldAccumulation_vault3 = this.extractAddress(line);
+            } else if (line.includes('VAULT_test6_yieldAccumulation_WithRebalancing_vault1:')) {
+                addresses.vaults.test6_yieldAccumulation_WithRebalancing_vault1 = this.extractAddress(line);
+            } else if (line.includes('VAULT_test6_yieldAccumulation_WithRebalancing_vault2:')) {
+                addresses.vaults.test6_yieldAccumulation_WithRebalancing_vault2 = this.extractAddress(line);
+            } else if (line.includes('VAULT_test6_yieldAccumulation_WithRebalancing_vault3:')) {
+                addresses.vaults.test6_yieldAccumulation_WithRebalancing_vault3 = this.extractAddress(line);
+            } else if (line.includes('VAULT_test10_RuggableVault_Deposit:')) {
+                addresses.vaults.test10_RuggableVault_Deposit = this.extractAddress(line);
+            } else if (line.includes('VAULT_test10_RuggableVault_Withdraw:')) {
+                addresses.vaults.test10_RuggableVault_Withdraw = this.extractAddress(line);
+            } else if (line.includes('VAULT_test10_RuggableVault_Withdraw_ConvertDistortion:')) {
+                addresses.vaults.test10_RuggableVault_Withdraw_ConvertDistortion = this.extractAddress(line);
+            } else if (line.includes('VAULT_test11_Allocate_NewYieldSource:')) {
+                addresses.vaults.test11_Allocate_NewYieldSource = this.extractAddress(line);
+            }
+
+            // Hook addresses
+            else if (line.includes('HOOK_APPROVE_AND_DEPOSIT_4626_VAULT_HOOK:')) {
                 addresses.hooks.APPROVE_AND_DEPOSIT_4626_VAULT_HOOK = this.extractAddress(line);
             } else if (line.includes('HOOK_REDEEM_4626_VAULT_HOOK:')) {
                 addresses.hooks.REDEEM_4626_VAULT_HOOK = this.extractAddress(line);
@@ -214,7 +244,29 @@ DESCRIPTION:
      * Validate calculated addresses
      */
     validateAddresses(addresses) {
-        const requiredVaults = ['globalSVStrategy', 'globalSVGearStrategy', 'globalRuggableVault'];
+        const requiredVaults = [
+            'globalSVStrategy',
+            'globalSVGearStrategy',
+            'globalRuggableVault'
+        ];
+
+        const testVaults = [
+            'test1_DynamicAllocation_MockVault',
+            'test3_UnderlyingVaults_StressTest',
+            'test6_yieldAccumulation_vault1',
+            'test6_yieldAccumulation_vault2',
+            'test6_yieldAccumulation_vault3',
+            'test6_yieldAccumulation_WithRebalancing_vault1',
+            'test6_yieldAccumulation_WithRebalancing_vault2',
+            'test6_yieldAccumulation_WithRebalancing_vault3',
+            'test10_RuggableVault_Deposit',
+            'test10_RuggableVault_Withdraw',
+            'test10_RuggableVault_Withdraw_ConvertDistortion',
+            'test11_Allocate_NewYieldSource'
+        ];
+
+
+
         const requiredHooks = [
             'APPROVE_AND_DEPOSIT_4626_VAULT_HOOK',
             'REDEEM_4626_VAULT_HOOK',
@@ -226,9 +278,22 @@ DESCRIPTION:
         if (!addresses.vaults) {
             throw new Error('Missing vaults object');
         }
+
+        // Check required vaults
         for (const vault of requiredVaults) {
             if (!addresses.vaults[vault] || addresses.vaults[vault] === '0x0000000000000000000000000000000000000000') {
                 throw new Error(`Invalid or missing vault address for ${vault}: ${addresses.vaults[vault]}`);
+            }
+        }
+
+        // Check test vaults (optional - not all test environments may have them)
+        this.log(`Checking ${testVaults.length} test vault addresses`);
+
+        for (const vault of testVaults) {
+            if (addresses.vaults[vault] && addresses.vaults[vault] !== '0x0000000000000000000000000000000000000000') {
+                this.log(`✓ Found test vault: ${vault} -> ${addresses.vaults[vault]}`);
+            } else {
+                this.log(`⚠️ Missing test vault: ${vault}`);
             }
         }
 
@@ -513,6 +578,108 @@ DESCRIPTION:
     }
 
     /**
+     * Update token_list.json and yield_sources_list.json with new test vault addresses
+     */
+    updateJsonFiles(addresses) {
+        const tokenListPath = '../target/token_list.json';
+        const yieldSourcesListPath = '../target/yield_sources_list.json';
+
+        try {
+            // Read existing JSON files
+            let tokenList = {};
+            let yieldSourcesList = {};
+
+            if (fs.existsSync(tokenListPath)) {
+                tokenList = JSON.parse(fs.readFileSync(tokenListPath, 'utf8'));
+            }
+            if (fs.existsSync(yieldSourcesListPath)) {
+                yieldSourcesList = JSON.parse(fs.readFileSync(yieldSourcesListPath, 'utf8'));
+            }
+
+            // Ensure chain 1 exists in both files
+            if (!tokenList['1']) tokenList['1'] = [];
+            if (!yieldSourcesList['1']) yieldSourcesList['1'] = [];
+
+            // Remove existing test vault entries from both lists
+            const testVaultSymbols = [
+                'test_1_DynamicAllocation_MockVault',
+                'test_3_UnderlyingVaults_StressTest',
+                'test_6_yieldAccumulation_vault1',
+                'test_6_yieldAccumulation_vault2',
+                'test_6_yieldAccumulation_vault3',
+                'test_6_yieldAccumulation_WithRebalancing_vault1',
+                'test_6_yieldAccumulation_WithRebalancing_vault2',
+                'test_6_yieldAccumulation_WithRebalancing_vault3',
+                'test_10_RuggableVault_Deposit',
+                'test_10_RuggableVault_Withdraw',
+                'test_10_RuggableVault_Withdraw_ConvertDistortion',
+                'test_11_Allocate_NewYieldSource'
+            ];
+
+            // Remove existing test entries (including _Coverage variants)
+            tokenList['1'] = tokenList['1'].filter(entry => {
+                return !testVaultSymbols.some(symbol =>
+                    entry.symbol === symbol || entry.symbol === symbol + '_Coverage'
+                );
+            });
+
+            yieldSourcesList['1'] = yieldSourcesList['1'].filter(entry => {
+                return !testVaultSymbols.some(symbol =>
+                    entry.symbol === symbol || entry.symbol === symbol + '_Coverage'
+                );
+            });
+
+            // Add new test vault entries from addresses object
+            const testVaultMappings = {
+                'test1_DynamicAllocation_MockVault': 'test_1_DynamicAllocation_MockVault',
+                'test3_UnderlyingVaults_StressTest': 'test_3_UnderlyingVaults_StressTest',
+                'test6_yieldAccumulation_vault1': 'test_6_yieldAccumulation_vault1',
+                'test6_yieldAccumulation_vault2': 'test_6_yieldAccumulation_vault2',
+                'test6_yieldAccumulation_vault3': 'test_6_yieldAccumulation_vault3',
+                'test6_yieldAccumulation_WithRebalancing_vault1': 'test_6_yieldAccumulation_WithRebalancing_vault1',
+                'test6_yieldAccumulation_WithRebalancing_vault2': 'test_6_yieldAccumulation_WithRebalancing_vault2',
+                'test6_yieldAccumulation_WithRebalancing_vault3': 'test_6_yieldAccumulation_WithRebalancing_vault3',
+                'test10_RuggableVault_Deposit': 'test_10_RuggableVault_Deposit',
+                'test10_RuggableVault_Withdraw': 'test_10_RuggableVault_Withdraw',
+                'test10_RuggableVault_Withdraw_ConvertDistortion': 'test_10_RuggableVault_Withdraw_ConvertDistortion',
+                'test11_Allocate_NewYieldSource': 'test_11_Allocate_NewYieldSource'
+            };
+
+            // Add new entries to both token list and yield sources list
+            for (const [vaultKey, jsonSymbol] of Object.entries(testVaultMappings)) {
+                if (addresses.vaults[vaultKey]) {
+                    const address = addresses.vaults[vaultKey];
+
+                    // Add regular entry
+                    const entry = {
+                        symbol: jsonSymbol,
+                        address: address
+                    };
+                    tokenList['1'].push(entry);
+                    yieldSourcesList['1'].push(entry);
+
+                    // Add coverage entry with same address (since same salt is used)
+                    const coverageEntry = {
+                        symbol: jsonSymbol + '_Coverage',
+                        address: address
+                    };
+                    tokenList['1'].push(coverageEntry);
+                    yieldSourcesList['1'].push(coverageEntry);
+                }
+            }
+
+            // Write updated JSON files
+            fs.writeFileSync(tokenListPath, JSON.stringify(tokenList, null, 2));
+            fs.writeFileSync(yieldSourcesListPath, JSON.stringify(yieldSourcesList, null, 2));
+
+            this.log('✅ Updated token_list.json and yield_sources_list.json with new test vault addresses');
+
+        } catch (error) {
+            this.log('⚠️  Warning: Could not update JSON files:', error.message);
+        }
+    }
+
+    /**
      * Clean up all existing cache and output files before regeneration
      */
     cleanupCacheFiles() {
@@ -684,6 +851,9 @@ DESCRIPTION:
             } else if (needsRegen) {
                 console.log('🔄 Cache validation failed (address differences detected) - automatically regenerating...');
             }
+
+            // Update JSON files with new test vault addresses
+            this.updateJsonFiles(addresses);
 
             // Generate merkle tree
             await this.generateMerkleTree(addresses);

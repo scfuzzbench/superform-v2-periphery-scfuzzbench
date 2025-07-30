@@ -112,7 +112,8 @@ const hookDefinitions = {
     // Map argument names to their semantic types for proper list lookups
     argsInfo: {
       extractedAddresses: [
-        { name: 'yieldSource', type: 'staking' }
+        { name: 'yieldSource', type: 'staking' },
+        { name: 'token', type: 'token' }
       ]
     }
   },
