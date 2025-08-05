@@ -16,19 +16,7 @@ abstract contract ConfigBase is Constants {
         address owner;
         address treasury;
         address validator;
-        // Core contract dependencies
-        mapping(uint64 chainId => address acrossSpokePoolV3) acrossSpokePoolV3s;
-        mapping(uint64 chainId => address debridgeDstDln) debridgeDstDln;
-        mapping(uint64 chainId => address nexusFactory) nexusFactories;
-        mapping(uint64 chainId => address permit2) permit2s;
-        // Periphery contract dependencies
         mapping(uint64 chainId => address polymerProver) polymerProvers;
-        // Protocol router dependencies
-        mapping(uint64 chainId => address routers) aggregationRouters;
-        mapping(uint64 chainId => address odosRouter) odosRouters;
-        mapping(uint64 chainId => address okxRouter) okxRouters;
-        mapping(uint64 chainId => address spectraRouter) spectraRouters;
-        mapping(uint64 chainId => address pendleRouter) pendleRouters;
     }
 
     EnvironmentData public configuration;
@@ -59,7 +47,6 @@ abstract contract ConfigBase is Constants {
         chainNames[MAINNET_CHAIN_ID] = ETHEREUM_KEY;
         chainNames[BASE_CHAIN_ID] = BASE_KEY;
         chainNames[OPTIMISM_CHAIN_ID] = OPTIMISM_KEY;
-        chainNames[POLYGON_CHAIN_ID] = POLYGON_KEY;
         chainNames[ARBITRUM_CHAIN_ID] = ARBITRUM_KEY;
         chainNames[BNB_CHAIN_ID] = BNB_KEY;
 

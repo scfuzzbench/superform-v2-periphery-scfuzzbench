@@ -26,7 +26,7 @@ import { ApproveERC20Hook } from "@superform-v2-core/src/hooks/tokens/erc20/Appr
 import { Deposit4626VaultHook } from "@superform-v2-core/src/hooks/vaults/4626/Deposit4626VaultHook.sol";
 import { MintSuperPositionsHook } from "@superform-v2-core/src/hooks/vaults/vault-bank/MintSuperPositionsHook.sol";
 import { SuperLedger } from "@superform-v2-core/src/accounting/SuperLedger.sol";
-import { SuperMerkleValidator } from "@superform-v2-core/src/validators/SuperMerkleValidator.sol";
+import { SuperValidator } from "@superform-v2-core/src/validators/SuperValidator.sol";
 import { VaultBank } from "../../src/VaultBank/VaultBank.sol";
 import { SuperGovernor } from "../../src/SuperGovernor.sol";
 
@@ -54,7 +54,7 @@ contract VaultBankFromExecutor is
     address approveHook;
     address deposit4626Hook;
     address mintSuperPositionsHook;
-    SuperMerkleValidator public validator;
+    SuperValidator public validator;
 
     address public signer;
     uint256 public signerPrvKey;
@@ -71,7 +71,7 @@ contract VaultBankFromExecutor is
         yieldSourceOracle = address(new ERC4626YieldSourceOracle(address(ledgerConfig)));
         vaultInstance = IERC4626(yieldSourceAddress);
 
-        validator = new SuperMerkleValidator();
+        validator = new SuperValidator();
         vm.label(address(validator), "Validator source");
 
         (signer, signerPrvKey) = makeAddrAndKey("signer");

@@ -158,7 +158,7 @@ contract VaultBankCrosschainTests is BaseTest {
                 tokenSent: underlyingBase_USDC
             });
 
-            (targetExecutorMessage, accountToUse) = _createTargetExecutorMessage(messageData);
+            (targetExecutorMessage, accountToUse) = _createTargetExecutorMessage(messageData, false);
         }
 
         // ETH is SRC
@@ -275,7 +275,7 @@ contract VaultBankCrosschainTests is BaseTest {
                 tokenSent: underlyingBase_USDC
             });
 
-            (targetExecutorMessage, accountToUse) = _createTargetExecutorMessage(messageData);
+            (targetExecutorMessage, accountToUse) = _createTargetExecutorMessage(messageData, false);
         }
 
         _getTokens(CHAIN_8453_USDC, accountToUse, amount);

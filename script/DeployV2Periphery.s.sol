@@ -2,27 +2,17 @@
 pragma solidity >=0.8.30;
 
 import { DeployV2Base } from "./DeployV2Base.s.sol";
-import { ISuperDeployer } from "@superform-v2-core/src/interfaces/ISuperDeployer.sol";
 import { ConfigPeriphery } from "./utils/ConfigPeriphery.sol";
-import { CoreS3Fetcher } from "./utils/CoreS3Fetcher.sol";
 
-// Periphery contracts
+// Periphery contracts - only import SuperGovernor for configuration
 import { SuperGovernor } from "../src/SuperGovernor.sol";
-import { SuperVaultAggregator } from "../src/SuperVault/SuperVaultAggregator.sol";
-import { SuperVault } from "../src/SuperVault/SuperVault.sol";
-import { SuperVaultStrategy } from "../src/SuperVault/SuperVaultStrategy.sol";
-import { SuperVaultEscrow } from "../src/SuperVault/SuperVaultEscrow.sol";
-import { ECDSAPPSOracle } from "../src/oracles/ECDSAPPSOracle.sol";
-import { SuperOracle } from "../src/oracles/SuperOracle.sol";
-import { VaultBank } from "../src/VaultBank/VaultBank.sol";
 
 import { console2 } from "forge-std/console2.sol";
 
-contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
+contract DeployV2Periphery is DeployV2Base, ConfigPeriphery {
     /*//////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    address private vaultBankAddress;
 
     struct PeripheryContracts {
         address superGovernor;
@@ -33,40 +23,22 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
         address strategyImpl;
         address escrowImpl;
         address vaultBank;
+        address superBank;
+        address bundlerRegistry;
+        address superAsset;
+        address superAssetFactory;
+        address up;
+        address upDistributor;
     }
 
-    struct HookAddresses {
-        address approveErc20Hook;
-        address transferErc20Hook;
-        address batchTransferHook;
-        address batchTransferFromHook;
-        address offrampTokensHook;
-        address deposit4626VaultHook;
-        address approveAndDeposit4626VaultHook;
-        address redeem4626VaultHook;
-        address deposit5115VaultHook;
-        address redeem5115VaultHook;
-        address approveAndDeposit5115VaultHook;
-        address deposit7540VaultHook;
-        address requestDeposit7540VaultHook;
-        address approveAndRequestDeposit7540VaultHook;
-        address approveAndRequestRedeem7540VaultHook;
-        address redeem7540VaultHook;
-        address requestRedeem7540VaultHook;
-        address withdraw7540VaultHook;
-        address acrossSendFundsAndExecuteOnDstHook;
-        address swap1InchHook;
-        address swapOdosHook;
-        address approveAndSwapOdosHook;
-        address cancelDepositRequest7540Hook;
-        address cancelRedeemRequest7540Hook;
-        address claimCancelDepositRequest7540Hook;
-        address claimCancelRedeemRequest7540Hook;
-        address cancelRedeemHook;
-        address deBridgeSendOrderAndExecuteOnDstHook;
-        address deBridgeCancelOrderHook;
-        address ethenaCooldownSharesHook;
-        address ethenaUnstakeHook;
+    // Core contract addresses needed for periphery deployment
+    struct CoreContractAddresses {
+        address superLedgerConfiguration;
+        address superValidator;
+        address superDestinationValidator;
+        address superExecutor;
+        address superDestinationExecutor;
+        address superLedger;
     }
 
     /// @notice Sets up complete configuration for periphery contracts
@@ -82,140 +54,155 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
 
     function run(uint256 env, uint64 chainId) public broadcast(env) {
         _setConfiguration(env, "");
-        _deployPeriphery(chainId);
+        _deployPeriphery(chainId, env);
     }
 
     function run(uint256 env, uint64 chainId, string memory saltNamespace) public broadcast(env) {
         _setConfiguration(env, saltNamespace);
-        _deployPeriphery(chainId);
+        _deployPeriphery(chainId, env);
     }
 
-    function _deployPeriphery(uint64 chainId) internal {
+    /// @notice Check V2 Periphery contract addresses before deployment
+    /// @param chainId The target chain ID
+    function runCheck(uint256 env, uint64 chainId) public broadcast(env) {
+        _setConfiguration(env, "");
+        console2.log("====== V2 Periphery Address Verification ======");
+        console2.log("Chain ID:", chainId);
+        console2.log("");
+
+        // Reset counters
+        deployed = 0;
+        total = 0;
+
+        _checkPeripheryContracts(chainId);
+
+        // Log comprehensive deployment summary
+        _logDeploymentSummary(chainId);
+
+        // ===== SUMMARY =====
+        console2.log("");
+        console2.log("=====> On this chain we have", deployed, "contracts already deployed out of", total);
+        console2.log("======================================");
+    }
+
+    function _deployPeriphery(uint64 chainId, uint256) internal {
         console2.log("Deploying V2 Periphery on chainId: ", chainId);
 
-        // Read SuperDeployer from core deployment
-        _readSuperDeployer(chainId);
+        // Compute core contract addresses deterministically
+        CoreContractAddresses memory coreAddresses = _computeCoreContractAddresses();
+
+        // Validate core contracts are deployed
+        _validateCoreContracts(coreAddresses);
 
         // Deploy periphery contracts
-        PeripheryContracts memory peripheryContracts = _deployPeripheryContracts(chainId);
+        PeripheryContracts memory peripheryContracts = _deployPeripheryContracts(chainId, coreAddresses);
 
-        // Read hook addresses from core deployment
-        HookAddresses memory hookAddresses = _readHookAddresses(chainId);
-
-        // Register hooks and configure governor
-        _registerHooks(hookAddresses, SuperGovernor(peripheryContracts.superGovernor));
-        _configureGovernor(
-            SuperGovernor(peripheryContracts.superGovernor),
-            peripheryContracts.superVaultAggregator,
-            peripheryContracts.vaultBank
-        );
-
-        // Grant roles and revoke from deployer
-        _configureGovernorRoles(SuperGovernor(peripheryContracts.superGovernor));
+        // Configure contracts
+        _configurePeripheryContracts(peripheryContracts, coreAddresses);
 
         // Write all exported contracts for this chain
         _writeExportedContracts(chainId);
+
+        console2.log("All periphery contracts deployed and configured successfully.");
     }
 
-    function _fetchOrReadCoreContracts() internal returns (string memory coreJson) {
-        // Determine branch name based on environment
-        string memory branchName;
-        if (vm.envOr("CI", false)) {
-            branchName = vm.envString("GITHUB_REF_NAME");
-        } else {
-            branchName = "local";
-        }
+    /// @notice Check periphery contract addresses
+    function _checkPeripheryContracts(uint64) internal {
+        console2.log("=== Periphery Contracts ===");
 
-        console2.log("Fetching core contracts for branch:", branchName);
+        // Core periphery contracts
+        __checkContract(SUPER_GOVERNOR_KEY, __getSalt(SUPER_GOVERNOR_KEY), "");
+        __checkContract(ECDSAPPS_ORACLE_KEY, __getSalt(ECDSAPPS_ORACLE_KEY), "");
+        __checkContract(SUPER_ORACLE_KEY, __getSalt(SUPER_ORACLE_KEY), "");
+        __checkContract(VAULT_BANK_KEY, __getSalt(VAULT_BANK_KEY), "");
 
-        // Try to read from local file first
-        coreJson = readCoreContractsFromFile(branchName);
+        // Vault implementations
+        __checkContract("SuperVaultImplementation", __getSalt("SuperVaultImplementation"), "");
+        __checkContract("SuperVaultStrategyImplementation", __getSalt("SuperVaultStrategyImplementation"), "");
+        __checkContract("SuperVaultEscrowImplementation", __getSalt("SuperVaultEscrowImplementation"), "");
 
-        if (bytes(coreJson).length == 0) {
-            // If not found locally, fetch from S3
-            console2.log("Core contracts not found locally, fetching from S3...");
-            coreJson = fetchAndSaveCoreContracts(branchName);
-        } else {
-            console2.log("Using cached core contracts from local file");
-        }
+        // SuperVaultAggregator (depends on implementations)
+        __checkContract(SUPER_VAULT_AGGREGATOR_KEY, __getSalt(SUPER_VAULT_AGGREGATOR_KEY), "");
 
-        return coreJson;
+        // Additional periphery contracts
+        __checkContract(SUPER_BANK_KEY, __getSalt(SUPER_BANK_KEY), "");
+        __checkContract(BUNDLER_REGISTRY_KEY, __getSalt(BUNDLER_REGISTRY_KEY), "");
+        __checkContract(SUPER_ASSET_KEY, __getSalt(SUPER_ASSET_KEY), "");
+        __checkContract(SUPER_ASSET_FACTORY_KEY, __getSalt(SUPER_ASSET_FACTORY_KEY), "");
+        __checkContract(UP_KEY, __getSalt(UP_KEY), "");
+        __checkContract(UP_DISTRIBUTOR_KEY, __getSalt(UP_DISTRIBUTOR_KEY), "");
     }
 
-    function _readSuperDeployer(uint64 chainId) internal {
-        string memory coreJson = _fetchOrReadCoreContracts();
-        string memory networkName = chainNames[chainId];
-        configuration.deployer = getContractAddress(coreJson, networkName, "SuperDeployer");
-        console2.log("Using SuperDeployer from core deployment at:", configuration.deployer);
+    /// @notice Compute core contract addresses deterministically
+    /// @return coreAddresses Struct containing all core contract addresses
+    function _computeCoreContractAddresses() internal view returns (CoreContractAddresses memory coreAddresses) {
+        // Compute core contract addresses using same salt pattern
+        coreAddresses.superLedgerConfiguration = __computeCoreContractAddress(SUPER_LEDGER_CONFIGURATION_KEY, "");
+        coreAddresses.superValidator = __computeCoreContractAddress(SUPER_VALIDATOR_KEY, "");
+        coreAddresses.superDestinationValidator = __computeCoreContractAddress(SUPER_DESTINATION_VALIDATOR_KEY, "");
+
+        // SuperExecutor requires SuperLedgerConfiguration
+        coreAddresses.superExecutor =
+            __computeCoreContractAddress(SUPER_EXECUTOR_KEY, abi.encode(coreAddresses.superLedgerConfiguration));
+
+        // SuperDestinationExecutor requires SuperLedgerConfiguration and SuperDestinationValidator
+        coreAddresses.superDestinationExecutor = __computeCoreContractAddress(
+            SUPER_DESTINATION_EXECUTOR_KEY,
+            abi.encode(coreAddresses.superLedgerConfiguration, coreAddresses.superDestinationValidator)
+        );
+
+        // SuperLedger requires SuperLedgerConfiguration and allowedExecutors
+        address[] memory allowedExecutors = new address[](2);
+        allowedExecutors[0] = coreAddresses.superExecutor;
+        allowedExecutors[1] = coreAddresses.superDestinationExecutor;
+        coreAddresses.superLedger = __computeCoreContractAddress(
+            SUPER_LEDGER_KEY, abi.encode(coreAddresses.superLedgerConfiguration, allowedExecutors)
+        );
     }
 
-    function _readHookAddresses(uint64 chainId) internal returns (HookAddresses memory) {
-        string memory coreJson = _fetchOrReadCoreContracts();
-        string memory networkName = chainNames[chainId];
+    /// @notice Validate that core contracts are deployed
+    /// @param coreAddresses Core contract addresses to validate
+    function _validateCoreContracts(CoreContractAddresses memory coreAddresses) internal view {
+        require(coreAddresses.superLedgerConfiguration.code.length > 0, "SuperLedgerConfiguration not deployed");
+        require(coreAddresses.superValidator.code.length > 0, "SuperValidator not deployed");
+        require(coreAddresses.superDestinationValidator.code.length > 0, "SuperDestinationValidator not deployed");
+        require(coreAddresses.superExecutor.code.length > 0, "SuperExecutor not deployed");
+        require(coreAddresses.superDestinationExecutor.code.length > 0, "SuperDestinationExecutor not deployed");
+        require(coreAddresses.superLedger.code.length > 0, "SuperLedger not deployed");
 
-        HookAddresses memory hookAddresses;
-        hookAddresses.approveErc20Hook = getContractAddress(coreJson, networkName, "ApproveERC20Hook");
-        hookAddresses.transferErc20Hook = getContractAddress(coreJson, networkName, "TransferERC20Hook");
-        hookAddresses.batchTransferHook = getContractAddress(coreJson, networkName, "BatchTransferHook");
-        hookAddresses.batchTransferFromHook = getContractAddress(coreJson, networkName, "BatchTransferFromHook");
-        hookAddresses.offrampTokensHook = getContractAddress(coreJson, networkName, "OfframpTokensHook");
-        hookAddresses.deposit4626VaultHook = getContractAddress(coreJson, networkName, "Deposit4626VaultHook");
-        hookAddresses.approveAndDeposit4626VaultHook =
-            getContractAddress(coreJson, networkName, "ApproveAndDeposit4626VaultHook");
-        hookAddresses.redeem4626VaultHook = getContractAddress(coreJson, networkName, "Redeem4626VaultHook");
-        hookAddresses.deposit5115VaultHook = getContractAddress(coreJson, networkName, "Deposit5115VaultHook");
-        hookAddresses.redeem5115VaultHook = getContractAddress(coreJson, networkName, "Redeem5115VaultHook");
-        hookAddresses.approveAndDeposit5115VaultHook =
-            getContractAddress(coreJson, networkName, "ApproveAndDeposit5115VaultHook");
-        hookAddresses.deposit7540VaultHook = getContractAddress(coreJson, networkName, "Deposit7540VaultHook");
-        hookAddresses.requestDeposit7540VaultHook =
-            getContractAddress(coreJson, networkName, "RequestDeposit7540VaultHook");
-        hookAddresses.approveAndRequestDeposit7540VaultHook =
-            getContractAddress(coreJson, networkName, "ApproveAndRequestDeposit7540VaultHook");
-        hookAddresses.approveAndRequestRedeem7540VaultHook =
-            getContractAddress(coreJson, networkName, "ApproveAndRequestRedeem7540VaultHook");
-        hookAddresses.redeem7540VaultHook = getContractAddress(coreJson, networkName, "Redeem7540VaultHook");
-        hookAddresses.requestRedeem7540VaultHook =
-            getContractAddress(coreJson, networkName, "RequestRedeem7540VaultHook");
-        hookAddresses.withdraw7540VaultHook = getContractAddress(coreJson, networkName, "Withdraw7540VaultHook");
-        hookAddresses.acrossSendFundsAndExecuteOnDstHook =
-            getContractAddress(coreJson, networkName, "AcrossSendFundsAndExecuteOnDstHook");
-        hookAddresses.swap1InchHook = getContractAddress(coreJson, networkName, "Swap1InchHook");
-        hookAddresses.swapOdosHook = getContractAddress(coreJson, networkName, "SwapOdosV2Hook");
-        hookAddresses.approveAndSwapOdosHook = getContractAddress(coreJson, networkName, "ApproveAndSwapOdosV2Hook");
-        hookAddresses.cancelDepositRequest7540Hook =
-            getContractAddress(coreJson, networkName, "CancelDepositRequest7540Hook");
-        hookAddresses.cancelRedeemRequest7540Hook =
-            getContractAddress(coreJson, networkName, "CancelRedeemRequest7540Hook");
-        hookAddresses.claimCancelDepositRequest7540Hook =
-            getContractAddress(coreJson, networkName, "ClaimCancelDepositRequest7540Hook");
-        hookAddresses.claimCancelRedeemRequest7540Hook =
-            getContractAddress(coreJson, networkName, "ClaimCancelRedeemRequest7540Hook");
-        hookAddresses.cancelRedeemHook = getContractAddress(coreJson, networkName, "CancelRedeemHook");
-        hookAddresses.deBridgeSendOrderAndExecuteOnDstHook =
-            getContractAddress(coreJson, networkName, "DeBridgeSendOrderAndExecuteOnDstHook");
-        hookAddresses.deBridgeCancelOrderHook = getContractAddress(coreJson, networkName, "DeBridgeCancelOrderHook");
-        hookAddresses.ethenaCooldownSharesHook = getContractAddress(coreJson, networkName, "EthenaCooldownSharesHook");
-        hookAddresses.ethenaUnstakeHook = getContractAddress(coreJson, networkName, "EthenaUnstakeHook");
-
-        return hookAddresses;
+        console2.log("All core contracts validated successfully");
+        console2.log("  SuperLedgerConfiguration:", coreAddresses.superLedgerConfiguration);
+        console2.log("  SuperValidator:", coreAddresses.superValidator);
+        console2.log("  SuperDestinationValidator:", coreAddresses.superDestinationValidator);
+        console2.log("  SuperExecutor:", coreAddresses.superExecutor);
+        console2.log("  SuperDestinationExecutor:", coreAddresses.superDestinationExecutor);
+        console2.log("  SuperLedger:", coreAddresses.superLedger);
     }
 
-    function _deployPeripheryContracts(uint64 chainId)
+    function _deployPeripheryContracts(
+        uint64 chainId,
+        CoreContractAddresses memory coreAddresses
+    )
         internal
         returns (PeripheryContracts memory peripheryContracts)
     {
-        // retrieve deployer
-        ISuperDeployer deployer = ISuperDeployer(configuration.deployer);
+        console2.log("Starting comprehensive periphery contract deployment with full validation...");
+
+        // ===== VALIDATION PHASE =====
+        require(configuration.treasury != address(0), "TREASURY_ADDRESS_ZERO");
+        require(configuration.owner != address(0), "OWNER_ADDRESS_ZERO");
+        require(configuration.validator != address(0), "VALIDATOR_ADDRESS_ZERO");
+        require(configuration.polymerProvers[chainId] != address(0), "POLYMER_PROVER_ADDRESS_ZERO");
+
+        console2.log("All periphery dependencies validated successfully");
 
         // Deploy SuperGovernor
-        peripheryContracts.superGovernor = __deployContract(
-            deployer,
+        peripheryContracts.superGovernor = __deployContractIfNeeded(
             SUPER_GOVERNOR_KEY,
             chainId,
             __getSalt(SUPER_GOVERNOR_KEY),
             abi.encodePacked(
-                type(SuperGovernor).creationCode,
+                vm.getCode("script/locked-bytecode/SuperGovernor.json"),
                 abi.encode(
                     configuration.owner,
                     configuration.owner,
@@ -227,38 +214,34 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
         );
 
         // Deploy SuperVault implementations first
-        peripheryContracts.vaultImpl = __deployContract(
-            deployer,
+        peripheryContracts.vaultImpl = __deployContractIfNeeded(
             "SuperVaultImplementation",
             chainId,
             __getSalt("SuperVaultImplementation"),
-            type(SuperVault).creationCode
+            vm.getCode("script/locked-bytecode/SuperVault.json")
         );
 
-        peripheryContracts.strategyImpl = __deployContract(
-            deployer,
+        peripheryContracts.strategyImpl = __deployContractIfNeeded(
             "SuperVaultStrategyImplementation",
             chainId,
             __getSalt("SuperVaultStrategyImplementation"),
-            type(SuperVaultStrategy).creationCode
+            vm.getCode("script/locked-bytecode/SuperVaultStrategy.json")
         );
 
-        peripheryContracts.escrowImpl = __deployContract(
-            deployer,
+        peripheryContracts.escrowImpl = __deployContractIfNeeded(
             "SuperVaultEscrowImplementation",
             chainId,
             __getSalt("SuperVaultEscrowImplementation"),
-            type(SuperVaultEscrow).creationCode
+            vm.getCode("script/locked-bytecode/SuperVaultEscrow.json")
         );
 
         // Deploy SuperVaultAggregator (takes all four addresses)
-        peripheryContracts.superVaultAggregator = __deployContract(
-            deployer,
+        peripheryContracts.superVaultAggregator = __deployContractIfNeeded(
             SUPER_VAULT_AGGREGATOR_KEY,
             chainId,
             __getSalt(SUPER_VAULT_AGGREGATOR_KEY),
             abi.encodePacked(
-                type(SuperVaultAggregator).creationCode,
+                vm.getCode("script/locked-bytecode/SuperVaultAggregator.json"),
                 abi.encode(
                     peripheryContracts.superGovernor,
                     peripheryContracts.vaultImpl,
@@ -269,93 +252,130 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
         );
 
         // Deploy ECDSAPPSOracle
-        peripheryContracts.ecdsappsOracle = __deployContract(
-            deployer,
+        peripheryContracts.ecdsappsOracle = __deployContractIfNeeded(
             ECDSAPPS_ORACLE_KEY,
             chainId,
             __getSalt(ECDSAPPS_ORACLE_KEY),
-            abi.encodePacked(type(ECDSAPPSOracle).creationCode, abi.encode(peripheryContracts.superGovernor))
+            abi.encodePacked(
+                vm.getCode("script/locked-bytecode/ECDSAPPSOracle.json"), abi.encode(peripheryContracts.superGovernor)
+            )
         );
 
         // Deploy SuperOracle
-        peripheryContracts.superOracle = __deployContract(
-            deployer,
+        peripheryContracts.superOracle = __deployContractIfNeeded(
             SUPER_ORACLE_KEY,
             chainId,
             __getSalt(SUPER_ORACLE_KEY),
             abi.encodePacked(
-                type(SuperOracle).creationCode,
+                vm.getCode("script/locked-bytecode/SuperOracle.json"),
                 abi.encode(configuration.owner, new address[](0), new address[](0), new uint256[](0), new bytes32[](0))
             )
         );
 
         // Deploy VaultBank
-        peripheryContracts.vaultBank = __deployContract(
-            deployer,
+        peripheryContracts.vaultBank = __deployContractIfNeeded(
             VAULT_BANK_KEY,
             chainId,
             __getSalt(VAULT_BANK_KEY),
-            abi.encodePacked(type(VaultBank).creationCode, abi.encode(peripheryContracts.superGovernor))
+            abi.encodePacked(
+                vm.getCode("script/locked-bytecode/VaultBank.json"), abi.encode(peripheryContracts.superGovernor)
+            )
         );
+
+        // Deploy SuperBank
+        peripheryContracts.superBank = __deployContractIfNeeded(
+            SUPER_BANK_KEY,
+            chainId,
+            __getSalt(SUPER_BANK_KEY),
+            abi.encodePacked(
+                vm.getCode("script/locked-bytecode/SuperBank.json"),
+                abi.encode(configuration.owner, configuration.treasury)
+            )
+        );
+
+        // Deploy BundlerRegistry
+        peripheryContracts.bundlerRegistry = __deployContractIfNeeded(
+            BUNDLER_REGISTRY_KEY,
+            chainId,
+            __getSalt(BUNDLER_REGISTRY_KEY),
+            abi.encodePacked(vm.getCode("script/locked-bytecode/BundlerRegistry.json"), abi.encode(configuration.owner))
+        );
+
+        // Deploy SuperAssetFactory first (required for SuperAsset)
+        peripheryContracts.superAssetFactory = __deployContractIfNeeded(
+            SUPER_ASSET_FACTORY_KEY,
+            chainId,
+            __getSalt(SUPER_ASSET_FACTORY_KEY),
+            abi.encodePacked(
+                vm.getCode("script/locked-bytecode/SuperAssetFactory.json"), abi.encode(configuration.owner)
+            )
+        );
+
+        // Deploy SuperAsset
+        peripheryContracts.superAsset = __deployContractIfNeeded(
+            SUPER_ASSET_KEY,
+            chainId,
+            __getSalt(SUPER_ASSET_KEY),
+            abi.encodePacked(
+                vm.getCode("script/locked-bytecode/SuperAsset.json"),
+                abi.encode(peripheryContracts.superAssetFactory, coreAddresses.superLedger)
+            )
+        );
+
+        // Deploy UP token
+        peripheryContracts.up = __deployContractIfNeeded(
+            UP_KEY,
+            chainId,
+            __getSalt(UP_KEY),
+            abi.encodePacked(vm.getCode("script/locked-bytecode/Up.json"), abi.encode(configuration.owner))
+        );
+
+        // Deploy UpDistributor
+        peripheryContracts.upDistributor = __deployContractIfNeeded(
+            UP_DISTRIBUTOR_KEY,
+            chainId,
+            __getSalt(UP_DISTRIBUTOR_KEY),
+            abi.encodePacked(
+                vm.getCode("script/locked-bytecode/UpDistributor.json"),
+                abi.encode(peripheryContracts.up, configuration.owner)
+            )
+        );
+
+        console2.log("All periphery contracts deployment completed successfully with full validation");
+
+        return peripheryContracts;
+    }
+
+    function _configurePeripheryContracts(
+        PeripheryContracts memory peripheryContracts,
+        CoreContractAddresses memory
+    )
+        internal
+    {
+        console2.log("Configuring periphery contracts...");
 
         // Configure SuperGovernor with oracle and validator
         SuperGovernor(peripheryContracts.superGovernor).setActivePPSOracle(peripheryContracts.ecdsappsOracle);
         SuperGovernor(peripheryContracts.superGovernor).addValidator(configuration.validator);
 
-        // Store VaultBank address for multi-chain configuration (CREATE2 ensures same address across chains)
-        vaultBankAddress = peripheryContracts.vaultBank;
+        // Configure SuperGovernor with aggregator and vault bank
+        SuperGovernor(peripheryContracts.superGovernor).setAddress(
+            SuperGovernor(peripheryContracts.superGovernor).SUPER_VAULT_AGGREGATOR(),
+            peripheryContracts.superVaultAggregator
+        );
+        SuperGovernor(peripheryContracts.superGovernor).setAddress(
+            SuperGovernor(peripheryContracts.superGovernor).VAULT_BANK(), peripheryContracts.vaultBank
+        );
 
         // Add VaultBanks for all supported chains (same address due to CREATE2)
-        _configureAllChainVaultBanks(SuperGovernor(peripheryContracts.superGovernor));
+        _configureAllChainVaultBanks(SuperGovernor(peripheryContracts.superGovernor), peripheryContracts.vaultBank);
 
-        console2.log("All periphery contracts deployed and configured successfully.");
+        // Grant roles and revoke from deployer for production
+        if (configuration.owner != TEST_DEPLOYER) {
+            _configureGovernorRoles(SuperGovernor(peripheryContracts.superGovernor));
+        }
 
-        return peripheryContracts;
-    }
-
-    function _registerHooks(HookAddresses memory hookAddresses, SuperGovernor superGovernor) internal {
-        // Register fulfillRequests hooks
-        superGovernor.registerHook(hookAddresses.deposit4626VaultHook, true);
-        superGovernor.registerHook(hookAddresses.approveAndDeposit4626VaultHook, true);
-        superGovernor.registerHook(hookAddresses.redeem4626VaultHook, true);
-        superGovernor.registerHook(hookAddresses.deposit5115VaultHook, true);
-        superGovernor.registerHook(hookAddresses.approveAndDeposit5115VaultHook, true);
-        superGovernor.registerHook(hookAddresses.redeem5115VaultHook, true);
-        superGovernor.registerHook(hookAddresses.deposit7540VaultHook, true);
-        superGovernor.registerHook(hookAddresses.redeem7540VaultHook, true);
-        superGovernor.registerHook(hookAddresses.approveAndRequestRedeem7540VaultHook, true);
-
-        // Register remaining hooks
-        superGovernor.registerHook(hookAddresses.approveErc20Hook, false);
-        superGovernor.registerHook(hookAddresses.transferErc20Hook, false);
-        superGovernor.registerHook(hookAddresses.batchTransferHook, false);
-        superGovernor.registerHook(hookAddresses.batchTransferFromHook, false);
-        superGovernor.registerHook(hookAddresses.requestDeposit7540VaultHook, false);
-        superGovernor.registerHook(hookAddresses.approveAndRequestDeposit7540VaultHook, false);
-        superGovernor.registerHook(hookAddresses.requestRedeem7540VaultHook, false);
-        superGovernor.registerHook(hookAddresses.withdraw7540VaultHook, false);
-        superGovernor.registerHook(hookAddresses.swap1InchHook, false);
-        superGovernor.registerHook(hookAddresses.swapOdosHook, false);
-        superGovernor.registerHook(hookAddresses.approveAndSwapOdosHook, false);
-        superGovernor.registerHook(hookAddresses.acrossSendFundsAndExecuteOnDstHook, false);
-        superGovernor.registerHook(hookAddresses.deBridgeSendOrderAndExecuteOnDstHook, false);
-        superGovernor.registerHook(hookAddresses.deBridgeCancelOrderHook, false);
-        superGovernor.registerHook(hookAddresses.cancelDepositRequest7540Hook, false);
-        superGovernor.registerHook(hookAddresses.cancelRedeemRequest7540Hook, false);
-        superGovernor.registerHook(hookAddresses.claimCancelDepositRequest7540Hook, false);
-        superGovernor.registerHook(hookAddresses.claimCancelRedeemRequest7540Hook, false);
-        superGovernor.registerHook(hookAddresses.cancelRedeemHook, false);
-        superGovernor.registerHook(hookAddresses.ethenaCooldownSharesHook, false);
-        superGovernor.registerHook(hookAddresses.ethenaUnstakeHook, false);
-        superGovernor.registerHook(hookAddresses.offrampTokensHook, false);
-
-        console2.log("All hooks registered successfully.");
-    }
-
-    function _configureGovernor(SuperGovernor superGovernor, address aggregator, address vaultBank) internal {
-        superGovernor.setAddress(superGovernor.SUPER_VAULT_AGGREGATOR(), aggregator);
-        superGovernor.setAddress(superGovernor.VAULT_BANK(), vaultBank);
-        console2.log("SuperGovernor configured with SuperVaultAggregator and VaultBank.");
+        console2.log("All periphery contracts configured successfully");
     }
 
     function _configureGovernorRoles(SuperGovernor superGovernor) internal {
@@ -369,7 +389,8 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery, CoreS3Fetcher {
 
     /// @notice Configures VaultBanks for all supported chains using CREATE2 deterministic address
     /// @param superGovernor The SuperGovernor instance to configure
-    function _configureAllChainVaultBanks(SuperGovernor superGovernor) internal {
+    /// @param vaultBankAddress The VaultBank address (same across all chains due to CREATE2)
+    function _configureAllChainVaultBanks(SuperGovernor superGovernor, address vaultBankAddress) internal {
         console2.log("Configuring VaultBanks for all supported chains...");
 
         // Supported chain IDs - VaultBank will have same address due to CREATE2

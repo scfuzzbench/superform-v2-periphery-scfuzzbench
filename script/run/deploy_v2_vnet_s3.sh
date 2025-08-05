@@ -145,12 +145,8 @@ if [ "$BRANCH_NAME" = "local" ]; then
     log "INFO" "Local branch detected: $BRANCH_NAME. Using local deployment settings."
     GITHUB_REF_NAME="local"
     S3_BUCKET_NAME="periphery-deployments"
-elif [ "$IS_MAIN_OR_DEV" = "false" ]; then
-    log "INFO" "Custom branch detected: $BRANCH_NAME. Deploying to new VNET with branch name."
-    GITHUB_REF_NAME="$BRANCH_NAME"
-    S3_BUCKET_NAME="periphery-deployments"
 else
-    log "INFO" "Main or dev branch detected: $BRANCH_NAME. Using branch-specific deployment settings."
+    log "INFO" "Branch detected: $BRANCH_NAME. Using periphery-deployments bucket."
     GITHUB_REF_NAME="$BRANCH_NAME"
     S3_BUCKET_NAME="periphery-deployments"
 fi
@@ -774,6 +770,17 @@ fi
 ETH_MAINNET_VERIFIER_URL="$ETH_MAINNET/verify/etherscan"
 BASE_MAINNET_VERIFIER_URL="$BASE_MAINNET/verify/etherscan"
 OPTIMISM_MAINNET_VERIFIER_URL="$OPTIMISM_MAINNET/verify/etherscan"
+
+###################################################################################
+# Update Locked Bytecode
+###################################################################################
+
+# Update locked bytecode before deployment for VNET environments
+log "INFO" "Updating locked bytecode artifacts for deployment..."
+if ! ./script/run/update_locked_bytecode.sh; then
+    log "ERROR" "Failed to update locked bytecode artifacts"
+    exit 1
+fi
 
 # Set initial balances
 log "INFO" "Setting initial balances..."
