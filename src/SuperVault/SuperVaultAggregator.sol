@@ -412,9 +412,6 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             _strategyData[strategy].secondaryStrategists.remove(newStrategist);
         }
 
-        // Make the old primary strategist a secondary strategist
-        _strategyData[strategy].secondaryStrategists.add(oldStrategist);
-
         // Set the new primary strategist
         _strategyData[strategy].mainStrategist = newStrategist;
 
