@@ -784,45 +784,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
                         STRATEGY INTERACTIONS TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_MintShares() public {
-        uint256 mintAmount = 1000e6;
-        uint256 initialEscrowBalance = vault.balanceOf(address(escrow));
-
-        // Only the strategy can call this function
-        vm.prank(address(strategy));
-        vault.mintShares(mintAmount);
-
-        // Verify shares were minted to escrow
-        uint256 finalEscrowBalance = vault.balanceOf(address(escrow));
-        assertEq(finalEscrowBalance, initialEscrowBalance + mintAmount, "Escrow balance should increase");
-    }
-
-    function test_RevertWhen_UnauthorizedMintShares() public {
-        uint256 mintAmount = 1000e6;
-
-        // Random address cannot call mintShares
-        vm.prank(accountEth);
-        vm.expectRevert(ISuperVault.UNAUTHORIZED.selector);
-        vault.mintShares(mintAmount);
-    }
-
-    function test_BurnShares() public {
-        // First mint some shares to escrow
-        uint256 mintAmount = 1000e6;
-        vm.prank(address(strategy));
-        vault.mintShares(mintAmount);
-
-        uint256 initialEscrowBalance = vault.balanceOf(address(escrow));
-
-        // Only the strategy can call this function
-        vm.prank(address(strategy));
-        vault.burnShares(mintAmount);
-
-        // Verify shares were burned from escrow
-        uint256 finalEscrowBalance = vault.balanceOf(address(escrow));
-        assertEq(finalEscrowBalance, initialEscrowBalance - mintAmount, "Escrow balance should decrease");
-    }
-
     function test_RevertWhen_UnauthorizedBurnShares() public {
         uint256 burnAmount = 1000e6;
 

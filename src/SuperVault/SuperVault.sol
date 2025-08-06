@@ -434,12 +434,6 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
     }
 
     // @inheritdoc ISuperVault
-    function mintShares(uint256 amount) external {
-        if (msg.sender != address(strategy)) revert UNAUTHORIZED();
-        _mint(escrow, amount);
-    }
-
-    // @inheritdoc ISuperVault
     function burnShares(uint256 amount) external {
         if (msg.sender != address(strategy)) revert UNAUTHORIZED();
         _burn(escrow, amount);
