@@ -226,7 +226,7 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
         returns (bool)
     {
         if (controller == operator) revert UNAUTHORIZED();
-        if (block.timestamp > deadline) revert TIMELOCK_NOT_EXPIRED();
+        if (block.timestamp > deadline) revert DEADLINE_PASSED();
         if (_authorizations[controller][nonce]) revert UNAUTHORIZED();
 
         _authorizations[controller][nonce] = true;

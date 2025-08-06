@@ -318,7 +318,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         // Operator tries to use expired signature
         vm.prank(operator);
-        vm.expectRevert(ISuperVault.TIMELOCK_NOT_EXPIRED.selector);
+        vm.expectRevert(ISuperVault.DEADLINE_PASSED.selector);
         vault.authorizeOperator(userAddress, operator, approved, nonce, deadline, signature);
     }
 

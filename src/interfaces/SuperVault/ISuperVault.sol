@@ -18,7 +18,7 @@ interface ISuperVault {
     error INVALID_AMOUNT();
     error REQUEST_NOT_FOUND();
     error UNAUTHORIZED();
-    error TIMELOCK_NOT_EXPIRED();
+    error DEADLINE_PASSED();
     error INVALID_SIGNATURE();
     error NOT_IMPLEMENTED();
     error INVALID_NONCE();
