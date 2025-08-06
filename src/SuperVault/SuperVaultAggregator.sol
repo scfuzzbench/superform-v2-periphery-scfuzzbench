@@ -379,11 +379,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         external
         validStrategy(strategy)
     {
-        // Check that caller is either the main strategist or a secondary strategist
-        if (
-            msg.sender != _strategyData[strategy].mainStrategist
-                && !_strategyData[strategy].secondaryStrategists.contains(msg.sender)
-        ) {
+        // Since this is a risky call, we only allow main strategists as callers
+        if (msg.sender != _strategyData[strategy].mainStrategist) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
         }
 
