@@ -385,6 +385,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
         }
 
+        if (strategy == address(0)) revert ZERO_ADDRESS();
+
         if (newStrategist == address(0)) revert ZERO_ADDRESS();
 
         address oldStrategist = _strategyData[strategy].mainStrategist;

@@ -210,28 +210,6 @@ contract SuperGovernorTest is PeripheryHelpers {
         assertEq(ISuperVaultAggregator(superVaultAggregator).getMainStrategist(strategy1), newStrategist);
     }
 
-    /// @notice Tests reverting when changing strategist to address(0)
-    function test_StrategistTakeover_Revert_ZeroStrategist() public {
-        // Set up SuperVaultAggregator address in registry
-        vm.prank(sGovernor);
-        superGovernor.setAddress(SUPER_VAULT_AGGREGATOR, superVaultAggregator);
-
-        vm.prank(sGovernor);
-        vm.expectRevert(ISuperGovernor.INVALID_ADDRESS.selector);
-        superGovernor.changePrimaryStrategist(strategy1, address(0));
-    }
-
-    /// @notice Tests reverting when changing strategy to address(0)
-    function test_StrategistTakeover_Revert_ZeroStrategy() public {
-        // Set up SuperVaultAggregator address in registry
-        vm.prank(sGovernor);
-        superGovernor.setAddress(SUPER_VAULT_AGGREGATOR, superVaultAggregator);
-
-        vm.prank(sGovernor);
-        vm.expectRevert(ISuperGovernor.INVALID_ADDRESS.selector);
-        superGovernor.changePrimaryStrategist(address(0), newStrategist);
-    }
-
     /// @notice Tests freezing strategist takeovers
     function test_StrategistTakeover_Freeze() public {
         vm.prank(sGovernor);

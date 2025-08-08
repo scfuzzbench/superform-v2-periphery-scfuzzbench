@@ -204,8 +204,6 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         // Check if takeovers are globally frozen
         if (_strategistTakeoversFrozen) revert STRATEGIST_TAKEOVERS_FROZEN();
 
-        if (strategy_ == address(0) || newStrategist_ == address(0)) revert INVALID_ADDRESS();
-
         address aggregator = _addressRegistry[SUPER_VAULT_AGGREGATOR];
         if (aggregator == address(0)) revert CONTRACT_NOT_FOUND();
 
