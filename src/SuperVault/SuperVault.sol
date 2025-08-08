@@ -3,13 +3,18 @@ pragma solidity 0.8.30;
 
 // External
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+
+// OpenZeppelin Upgradeable
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC165 } from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import { EIP712Upgradeable } from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 // Interfaces
 import { ISuperVault } from "../interfaces/SuperVault/ISuperVault.sol";
@@ -25,7 +30,16 @@ import { AssetMetadataLib } from "../libraries/AssetMetadataLib.sol";
 /// @author Superform Labs
 /// @notice SuperVault vault contract implementing ERC4626 with synchronous deposits and asynchronous redeems via
 /// ERC7540
-contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, ReentrancyGuard {
+contract SuperVault is
+    Initializable,
+    ERC20Upgradeable,
+    IERC7540Redeem,
+    IERC7741,
+    IERC4626,
+    ISuperVault,
+    ReentrancyGuardUpgradeable,
+    EIP712Upgradeable
+{
     using AssetMetadataLib for address;
     using SafeERC20 for IERC20;
     using Math for uint256;
@@ -43,14 +57,7 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
                                 STATE
     //////////////////////////////////////////////////////////////*/
     bool public initialized;
-    string private vaultName;
-    string private vaultSymbol;
     address public share;
-    bytes32 private _DOMAIN_SEPARATOR;
-    bytes32 private _NAME_HASH;
-    bytes32 private _VERSION_HASH;
-    uint256 public deploymentChainId;
-    address public deploymentAddress;
     IERC20 private _asset;
     uint8 private _underlyingDecimals;
     ISuperVaultStrategy public strategy;
@@ -67,8 +74,8 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
                             CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor() ERC20("", "") {
-        // Empty constructor for proxy initialization
+    constructor() {
+        _disableInitializers();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -89,6 +96,7 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
         address escrow_
     )
         external
+        initializer
     {
         if (initialized) revert ALREADY_INITIALIZED();
         if (asset_ == address(0)) revert INVALID_ASSET();
@@ -96,9 +104,10 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
         if (escrow_ == address(0)) revert INVALID_ESCROW();
         initialized = true;
 
-        // Store name and symbol
-        vaultName = name_;
-        vaultSymbol = symbol_;
+        // Initialize parent contracts
+        __ERC20_init(name_, symbol_);
+        __ReentrancyGuard_init();
+        __EIP712_init(name_, "1");
 
         // Set asset and precision
         _asset = IERC20(asset_);
@@ -108,25 +117,11 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
         share = address(this);
         strategy = ISuperVaultStrategy(strategy_);
         escrow = escrow_;
-
-        // Initialize EIP712 domain separator
-        _NAME_HASH = keccak256(bytes(name_));
-        _VERSION_HASH = keccak256(bytes("1"));
-        deploymentChainId = block.chainid;
-        deploymentAddress = address(this);
-        _DOMAIN_SEPARATOR = _calculateDomainSeparator();
     }
 
     /*//////////////////////////////////////////////////////////////
                             ERC20 OVERRIDES
     //////////////////////////////////////////////////////////////*/
-    function name() public view virtual override(IERC20Metadata, ERC20) returns (string memory) {
-        return vaultName;
-    }
-
-    function symbol() public view virtual override(IERC20Metadata, ERC20) returns (string memory) {
-        return vaultSymbol;
-    }
 
     /*//////////////////////////////////////////////////////////////
                         USER EXTERNAL FUNCTIONS
@@ -230,13 +225,9 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
 
         _authorizations[controller][nonce] = true;
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                DOMAIN_SEPARATOR(),
-                keccak256(abi.encode(AUTHORIZE_OPERATOR_TYPEHASH, controller, operator, approved, nonce, deadline))
-            )
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(AUTHORIZE_OPERATOR_TYPEHASH, controller, operator, approved, nonce, deadline));
+        bytes32 digest = _hashTypedDataV4(structHash);
 
         if (!_isValidSignature(controller, digest, signature)) revert INVALID_SIGNATURE();
 
@@ -285,9 +276,7 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
 
     /// @inheritdoc IERC7741
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
-        return block.chainid == deploymentChainId && address(this) == deploymentAddress
-            ? _DOMAIN_SEPARATOR
-            : _calculateDomainSeparator();
+        return _domainSeparatorV4();
     }
 
     /// @inheritdoc IERC7741
@@ -301,7 +290,7 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
     /*//////////////////////////////////////////////////////////////
                             ERC4626 IMPLEMENTATION
     //////////////////////////////////////////////////////////////*/
-    function decimals() public view virtual override(IERC20Metadata, ERC20) returns (uint8) {
+    function decimals() public view virtual override(ERC20Upgradeable, IERC20Metadata) returns (uint8) {
         return _underlyingDecimals;
     }
 
@@ -473,19 +462,6 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
         if (controller != msg.sender && !isOperator[controller][msg.sender]) revert INVALID_CONTROLLER();
     }
 
-    /// @notice Calculates the EIP712 domain separator
-    function _calculateDomainSeparator() internal view returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                _NAME_HASH,
-                _VERSION_HASH,
-                block.chainid,
-                address(this)
-            )
-        );
-    }
-
     /// @notice Verify an EIP712 signature using OpenZeppelin's ECDSA library
     /// @param signer The signer to verify
     /// @param digest The digest to verify
@@ -499,7 +475,7 @@ contract SuperVault is ERC20, IERC7540Redeem, IERC7741, IERC4626, ISuperVault, R
     /// @param from The address of the sender
     /// @param to The address of the recipient
     /// @param value The amount of shares being transferred
-    function _update(address from, address to, uint256 value) internal override {
+    function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable) {
         if (from != address(0) && to != address(0)) {
             ISuperVaultStrategy.SuperVaultState memory state = strategy.getSuperVaultState(from);
             strategy.updateSuperVaultState(to, state);

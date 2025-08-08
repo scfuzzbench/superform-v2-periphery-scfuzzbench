@@ -196,7 +196,7 @@ DESCRIPTION:
             if (isCoverage) {
                 this.log(`Detected coverage environment for address extraction (timeout: ${timeout}ms)`);
 
-                result = execSync('make forge-coverage-internal ARGS="--match-test test_getAddresses -vvvv"', {
+                result = execSync('make forge-coverage-internal ARGS="--match-test test_getAddresses -vv"', {
                     encoding: 'utf8',
                     cwd: '../../../../', // Go back to project root
                     timeout: timeout,
@@ -204,7 +204,7 @@ DESCRIPTION:
                 });
             } else {
                 this.log(`Running regular test for address extraction (timeout: ${timeout}ms)`);
-                result = execSync('make forge-test-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vvvv"', {
+                result = execSync('make forge-test-internal TEST=test/utils/merkle/merkle-js/GetAddressesFromBaseTest.s.sol ARGS="--match-test test_getAddresses -vv"', {
                     encoding: 'utf8',
                     cwd: '../../../../', // Go back to project root
                     timeout: timeout,

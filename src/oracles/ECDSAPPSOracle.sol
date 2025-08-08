@@ -145,9 +145,6 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
             keccak256(abi.encodePacked(strategy, pps, ppsStdev, validatorSet, totalValidators, timestamp));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
-        // Track valid signers and count
-        uint256 validSignatureCount;
-
         uint256 proofsLength = proofs.length;
         address[] memory seenSigners = new address[](proofsLength);
 
@@ -162,17 +159,16 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
             if (!SUPER_GOVERNOR.isValidator(signer)) revert INVALID_VALIDATOR();
 
             // Check for duplicate signers and revert if found
-            for (uint256 j; j < validSignatureCount; j++) {
+            for (uint256 j; j < i; j++) {
                 if (seenSigners[j] == signer) revert INVALID_PROOF();
             }
 
             // Mark this signer as seen and increment count
-            seenSigners[validSignatureCount] = signer;
-            validSignatureCount++;
+            seenSigners[i] = signer;
         }
 
         // Ensure we have enough valid signatures to meet quorum
         uint256 quorumRequirement = SUPER_GOVERNOR.getPPSOracleQuorum();
-        if (validSignatureCount < quorumRequirement) revert QUORUM_NOT_MET();
+        if (proofsLength < quorumRequirement) revert QUORUM_NOT_MET();
     }
 }

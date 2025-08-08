@@ -76,6 +76,8 @@ interface ISuperGovernor is IAccessControl {
     error STRATEGIST_TAKEOVERS_FROZEN();
     /// @notice Thrown when no proposed Merkle root exists but one is expected
     error NO_PROPOSED_MERKLE_ROOT();
+    /// @notice Thrown when no proposed Merkle root exists but one is expected
+    error ZERO_PROPOSED_MERKLE_ROOT();
     /// @notice Thrown when no proposed upkeep cost exists but one is expected
     error NO_PROPOSED_UPKEEP_COST();
     /// @notice Thrown when a relayer is not registered

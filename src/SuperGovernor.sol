@@ -133,7 +133,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     constructor(address superGovernor, address governor, address bankManager, address treasury_, address prover_) {
         if (
             superGovernor == address(0) || treasury_ == address(0) || governor == address(0)
-                || bankManager == address(0)
+                || bankManager == address(0) || prover_ == address(0)
         ) revert INVALID_ADDRESS();
 
         // Set up roles
@@ -630,6 +630,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
         _upkeepPaymentsEnabled = _proposedUpkeepPaymentsEnabled;
         _upkeepPaymentsChangeEffectiveTime = 0;
+        _proposedUpkeepPaymentsEnabled = false;
 
         emit UpkeepPaymentsChanged(_upkeepPaymentsEnabled);
     }
@@ -659,6 +660,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function proposeVaultBankHookMerkleRoot(address hook, bytes32 proposedRoot) external onlyRole(_GOVERNOR_ROLE) {
         if (!_registeredHooks.contains(hook)) revert HOOK_NOT_APPROVED();
+        if (proposedRoot == bytes32(0)) revert ZERO_PROPOSED_MERKLE_ROOT();
 
         uint256 effectiveTime = block.timestamp + TIMELOCK;
         ISuperGovernor.HookMerkleRootData storage data = vaultBankHooksMerkleRoots[hook];
@@ -697,6 +699,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function proposeSuperBankHookMerkleRoot(address hook, bytes32 proposedRoot) external onlyRole(_GOVERNOR_ROLE) {
         if (!_registeredHooks.contains(hook)) revert HOOK_NOT_APPROVED();
+        if (proposedRoot == bytes32(0)) revert ZERO_PROPOSED_MERKLE_ROOT();
 
         uint256 effectiveTime = block.timestamp + TIMELOCK;
         ISuperGovernor.HookMerkleRootData storage data = superBankHooksMerkleRoots[hook];

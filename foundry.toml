@@ -20,6 +20,7 @@ fs_permissions = [{ access = "read-write", path = "./" }]
 remappings = [
   "@superform-v2-core/=lib/v2-core/",
   "@openzeppelin/contracts/=lib/v2-core/lib/openzeppelin-contracts/contracts/",
+  "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
   "excessivelySafeCall/=lib/v2-core/lib/ExcessivelySafeCall/src/",
   "modulekit/=lib/v2-core/lib/modulekit/src/",
   "@prb/math/=lib/v2-core/lib/modulekit/node_modules/@prb/math/src/",
@@ -50,6 +51,7 @@ dynamic_test_linking = true
 gas_limit = "18446744073709551615"
 gas_snapshot_emit= false # Added due to tests in test_extraGas in PaymasterPoC.t.sol
 evm_version = "prague"
+lint_on_build = false
 
 [profile.ci-sizes]
 script = "src"
