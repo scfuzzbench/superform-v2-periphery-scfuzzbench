@@ -23,7 +23,6 @@ contract SuperVaultEscrow {
     bool public initialized;
     address public vault;
     address public strategy;
-    IERC20 public shares;
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -47,7 +46,6 @@ contract SuperVaultEscrow {
         initialized = true;
         vault = vault_;
         strategy = strategy_;
-        shares = IERC20(vault_);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -58,13 +56,13 @@ contract SuperVaultEscrow {
     /// @param from The address to transfer shares from
     /// @param amount The amount of shares to transfer
     function escrowShares(address from, uint256 amount) external onlyVault {
-        shares.safeTransferFrom(from, address(this), amount);
+        IERC20(vault).safeTransferFrom(from, address(this), amount);
     }
 
     /// @notice Return shares from escrow to user during redeem cancellation
     /// @param to The address to return shares to
     /// @param amount The amount of shares to return
     function returnShares(address to, uint256 amount) external onlyVault {
-        shares.safeTransfer(to, amount);
+        IERC20(vault).safeTransfer(to, amount);
     }
 }
