@@ -204,15 +204,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @inheritdoc ISuperVaultAggregator
     function batchForwardPPS(BatchForwardPPSArgs calldata args) external onlyPPSOracle {
+        uint256 strategiesLength = args.strategies.length;
         // Check array lengths
         if (
-            args.strategies.length != args.ppss.length || args.strategies.length != args.ppsStdevs.length
-                || args.strategies.length != args.validatorSets.length || args.strategies.length != args.timestamps.length
+            strategiesLength != args.ppss.length || strategiesLength != args.ppsStdevs.length
+                || strategiesLength != args.validatorSets.length || strategiesLength != args.timestamps.length
         ) {
             revert ARRAY_LENGTH_MISMATCH();
         }
 
-        uint256 strategiesLength = args.strategies.length;
         if (strategiesLength == 0) revert ZERO_ARRAY_LENGTH();
 
         bool upkeepExempt = false;
