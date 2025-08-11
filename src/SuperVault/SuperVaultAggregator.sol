@@ -828,6 +828,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             revert UPDATE_TOO_FREQUENT();
         }
 
+        // Ensure timestamp is monotonically increasing to prevent out-of-order updates
+        if (args.timestamp <= lastUpdate) {
+            revert TIMESTAMP_NOT_MONOTONIC();
+        }
+
         // Get the strategy's strategist to deduct upkeep cost from
         address strategist = _strategyData[args.strategy].mainStrategist;
 

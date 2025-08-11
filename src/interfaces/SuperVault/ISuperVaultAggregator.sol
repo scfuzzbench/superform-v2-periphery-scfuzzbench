@@ -341,6 +341,8 @@ interface ISuperVaultAggregator {
     error INVALID_ARRAY_LENGTH();
     /// @notice Thrown when trying to add a protected keeper as an authorized caller
     error CANNOT_ADD_PROTECTED_KEEPER();
+    /// @notice Thrown when update timestamp is not monotonically increasing
+    error TIMESTAMP_NOT_MONOTONIC();
 
     /*//////////////////////////////////////////////////////////////
                             VAULT CREATION

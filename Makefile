@@ -18,7 +18,7 @@ build :; $(MAKE) ensure-merkle-cache && forge build && $(MAKE) generate
 
 forge-script :; forge script $(SCRIPT) $(ARGS)
 
-forge-test :; $(MAKE) ensure-merkle-cache && forge test --match-path $(TEST) $(ARGS)
+forge-test :; $(MAKE) ensure-merkle-cache && forge test --match-test $(TEST) $(ARGS)
 
 # Internal forge-test without merkle cache check (used by cache generation)
 forge-test-internal :; forge test --match-path $(TEST) $(ARGS)
