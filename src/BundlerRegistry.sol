@@ -29,7 +29,9 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
 
     /// @inheritdoc IBundlerRegistry
     function getBundler(uint256 _bundlerId) external view returns (Bundler memory) {
-        return bundlers[bundlerIds[_bundlerId]];
+        Bundler memory bundler = bundlers[bundlerIds[_bundlerId]];
+        if (bundler.bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
+        return bundler;
     }
 
     /// @inheritdoc IBundlerRegistry
@@ -66,6 +68,8 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
     /// @param _newAddress The new address of the bundler
     function updateBundlerAddress(uint256 _bundlerId, address _newAddress) external onlyOwner {
         address bundlerAddress = bundlerIds[_bundlerId];
+        if (bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
+        if (_newAddress == address(0)) revert INVALID_BUNDLER_ADDRESS();
 
         // Copy the bundler data to the new address
         IBundlerRegistry.Bundler memory bundler = bundlers[bundlerAddress];
@@ -84,6 +88,7 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
     /// @param _extraData The new extra data for the bundler
     function updateBundlerExtraData(uint256 _bundlerId, bytes calldata _extraData) external onlyOwner {
         address bundlerAddress = bundlerIds[_bundlerId];
+        if (bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
 
         bundlers[bundlerAddress].extraData = _extraData;
 
@@ -95,6 +100,7 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
     /// @param _isActive The new status of the bundler
     function updateBundlerStatus(uint256 _bundlerId, bool _isActive) external onlyOwner {
         address bundlerAddress = bundlerIds[_bundlerId];
+        if (bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
 
         bundlers[bundlerAddress].isActive = _isActive;
 
