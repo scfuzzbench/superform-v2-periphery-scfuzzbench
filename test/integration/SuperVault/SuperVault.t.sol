@@ -2109,7 +2109,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         for (uint256 i = 0; i < 3; i++) {
             // Deploy a new vault with custom configuration
-            (address vaultAddr, address strategyAddr, address escrowAddr) = _deployVault(
+            (address vaultAddr,,) = _deployVault(
                 address(asset),
                 symbols[i] // symbol
             );

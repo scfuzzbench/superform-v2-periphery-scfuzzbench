@@ -149,9 +149,9 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _superVaultEscrows.add(escrow);
 
         // Get asset decimals
-        (vars.success, vars.assetDecimals) = params.asset.tryGetAssetDecimals();
-        vars.underlyingDecimals = vars.success ? vars.assetDecimals : 18;
-        vars.initialPPS = 10 ** vars.underlyingDecimals; // 1.0 as initial PPS
+        (bool success, uint8 assetDecimals) = params.asset.tryGetAssetDecimals();
+        if (!success) revert INVALID_ASSET();
+        vars.initialPPS = 10 ** assetDecimals; // 1.0 as initial PPS
 
         // Initialize StrategyData individually to avoid mapping assignment issues
         _strategyData[strategy].pps = vars.initialPPS;

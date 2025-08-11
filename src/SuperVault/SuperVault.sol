@@ -118,7 +118,8 @@ contract SuperVault is
         // Set asset and precision
         _asset = IERC20(asset_);
         (bool success, uint8 assetDecimals) = asset_.tryGetAssetDecimals();
-        _underlyingDecimals = success ? assetDecimals : 18;
+        if (!success) revert INVALID_ASSET();
+        _underlyingDecimals = assetDecimals;
         PRECISION = 10 ** _underlyingDecimals;
         share = address(this);
         strategy = ISuperVaultStrategy(strategy_);
