@@ -326,9 +326,8 @@ contract SuperVault is
     }
 
     /// @inheritdoc IERC4626
-    function maxMint(address owner) external view override returns (uint256) {
-        uint256 maxAssets = maxDeposit(owner);
-        return convertToShares(maxAssets);
+    function maxMint(address) external pure override returns (uint256) {
+        return type(uint256).max;
     }
 
     /// @inheritdoc IERC4626
