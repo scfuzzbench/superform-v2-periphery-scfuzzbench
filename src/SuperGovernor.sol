@@ -398,6 +398,10 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
             emit FulfillRequestsHookUnregistered(hook_);
         }
         if (_registeredHooks.remove(hook_)) {
+            // Clear merkle root data for the unregistered hook to prevent stale data
+            delete superBankHooksMerkleRoots[hook_];
+            delete vaultBankHooksMerkleRoots[hook_];
+
             emit HookRemoved(hook_);
         }
     }
