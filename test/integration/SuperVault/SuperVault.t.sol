@@ -512,6 +512,50 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertApproxEqRel(assetsAfter, sharesAmount, 0.01e18, "Asset conversion should be close to 1:1");
     }
 
+    /// @notice Tests the zero PPS fix using the actual deployed vault
+    /// @dev This verifies the fix by setting PPS to 0 on the real vault and testing conversion functions
+    function test_ConvertFunctions_ZeroPPS_RealVault() public {
+        // First set PPS to 0 using the actual PPS update mechanism
+        _updateSuperVaultPPS_ToZero(address(strategy));
+
+        uint256 testAssets = 1000e6; // 1000 USDC
+        uint256 testShares = 1000e6; // 1000 shares
+
+        // Test convertToShares with zero PPS
+        uint256 resultShares = vault.convertToShares(testAssets);
+        assertEq(resultShares, 0, "convertToShares should return 0 when PPS is 0");
+
+        // Test convertToAssets with zero PPS
+        uint256 resultAssets = vault.convertToAssets(testShares);
+        assertEq(resultAssets, 0, "convertToAssets should return 0 when PPS is 0");
+
+        // Test totalAssets consistency - should also be 0 when PPS is 0 (if no supply)
+        // Note: totalAssets depends on both PPS and total supply, so behavior may vary
+        uint256 totalAssets = vault.totalAssets();
+        console2.log("totalAssets with PPS=0:", totalAssets);
+
+        // Test edge cases with zero inputs
+        assertEq(vault.convertToShares(0), 0, "convertToShares(0) should return 0");
+        assertEq(vault.convertToAssets(0), 0, "convertToAssets(0) should return 0");
+
+        // Test with large values to ensure no overflow issues
+        uint256 largeValue = type(uint128).max; // Use uint128 max to avoid potential overflow
+        assertEq(vault.convertToShares(largeValue), 0, "convertToShares should return 0 for large values when PPS is 0");
+        assertEq(vault.convertToAssets(largeValue), 0, "convertToAssets should return 0 for large values when PPS is 0");
+
+        // Verify that operations requiring valid PPS should fail
+        deal(address(asset), address(this), testAssets);
+        asset.approve(address(vault), testAssets);
+
+        // Deposit should revert with INVALID_PPS when PPS is 0
+        vm.expectRevert(ISuperVault.INVALID_PPS.selector);
+        vault.deposit(testAssets, address(this));
+
+        // Mint should revert with INVALID_PPS when PPS is 0
+        vm.expectRevert(ISuperVault.INVALID_PPS.selector);
+        vault.mint(testShares, address(this));
+    }
+
     function test_Mint() public {
         uint256 mintShares = 1000e6; // 1000 shares
         uint256 expectedAssets = vault.previewMint(mintShares);
@@ -5946,6 +5990,57 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 strategy: strategyAddr,
                 proofs: vars.proofs,
                 pps: newPPS,
+                ppsStdev: vars.ppsStdev,
+                validatorSet: vars.validatorSet,
+                totalValidators: vars.totalValidators,
+                timestamp: vars.timestamp
+            })
+        );
+    }
+
+    /// @notice Helper function to set vault PPS to 0 for testing zero PPS scenarios
+    /// @dev Exactly matches _updateSuperVaultPPS but forces PPS to 0
+    /// @param strategyAddr The strategy address
+    function _updateSuperVaultPPS_ToZero(address strategyAddr) internal {
+        UpdatePPSVars memory vars;
+
+        // Force PPS to 0 for testing
+        vars.pps = 0;
+
+        // Get the current timestamp for the signature
+        vars.timestamp = block.timestamp;
+
+        // Set the additional parameters as in _updateSuperVaultPPS
+        vars.ppsStdev = 0;
+        vars.validatorSet = 1;
+        vars.totalValidators = 1;
+
+        // Create the message hash with all parameters (exactly as in _updateSuperVaultPPS)
+        vars.messageHash = keccak256(
+            abi.encodePacked(
+                strategyAddr, vars.pps, vars.ppsStdev, vars.validatorSet, vars.totalValidators, vars.timestamp
+            )
+        );
+
+        // Create the Ethereum signed message hash (exactly as in _updateSuperVaultPPS)
+        vars.ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", vars.messageHash));
+
+        // Create signature (r, s, v) components using VALIDATOR_KEY (exactly as in _updateSuperVaultPPS)
+        (vars.v, vars.r, vars.s) = vm.sign(VALIDATOR_KEY, vars.ethSignedMessageHash);
+
+        // Combine the signature components into a single bytes signature
+        vars.signature = abi.encodePacked(vars.r, vars.s, vars.v);
+
+        // Create an array of proofs with the signature
+        vars.proofs = new bytes[](1);
+        vars.proofs[0] = vars.signature;
+
+        // Call updatePPS on the ECDSAPPSOracle (exactly as in _updateSuperVaultPPS)
+        ecdsappsOracle.updatePPS(
+            IECDSAPPSOracle.UpdatePPSArgs({
+                strategy: strategyAddr,
+                proofs: vars.proofs,
+                pps: vars.pps,
                 ppsStdev: vars.ppsStdev,
                 validatorSet: vars.validatorSet,
                 totalValidators: vars.totalValidators,
