@@ -52,19 +52,16 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     bool private _strategistTakeoversFrozen;
 
     // Validator registry
-    mapping(address validator => bool isValidator) private _isValidator;
-    address[] private _validatorsList;
+    EnumerableSet.AddressSet private _validators;
 
     // Relayer registry
-    mapping(address relayer => bool isRelayer) private _isRelayer;
-    address[] private _relayersList;
+    EnumerableSet.AddressSet private _relayers;
 
     // Protected keepers registry (cannot be added as authorized callers by strategists)
     EnumerableSet.AddressSet private _protectedKeepers;
 
     // Executor registry
-    mapping(address executor => bool isExecutor) private _isExecutor;
-    address[] private _executorsList;
+    EnumerableSet.AddressSet private _executors;
 
     // Polymer prover
     address private _prover;
@@ -412,28 +409,14 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function addExecutor(address executor_) external onlyRole(_GOVERNOR_ROLE) {
         if (executor_ == address(0)) revert INVALID_ADDRESS();
-        if (_isExecutor[executor_]) revert EXECUTOR_ALREADY_REGISTERED();
+        if (!_executors.add(executor_)) revert EXECUTOR_ALREADY_REGISTERED();
 
-        _isExecutor[executor_] = true;
-        _executorsList.push(executor_);
         emit ExecutorAdded(executor_);
     }
 
     /// @inheritdoc ISuperGovernor
     function removeExecutor(address executor_) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_isExecutor[executor_]) revert EXECUTOR_NOT_REGISTERED();
-
-        _isExecutor[executor_] = false;
-
-        // Remove from executors array
-        uint256 length = _executorsList.length;
-        for (uint256 i; i < length; i++) {
-            if (_executorsList[i] == executor_) {
-                _executorsList[i] = _executorsList[_executorsList.length - 1];
-                _executorsList.pop();
-                break;
-            }
-        }
+        if (!_executors.remove(executor_)) revert EXECUTOR_NOT_REGISTERED();
 
         emit ExecutorRemoved(executor_);
     }
@@ -444,28 +427,14 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function addRelayer(address relayer_) external onlyRole(_GOVERNOR_ROLE) {
         if (relayer_ == address(0)) revert INVALID_ADDRESS();
-        if (_isRelayer[relayer_]) revert RELAYER_ALREADY_REGISTERED();
+        if (!_relayers.add(relayer_)) revert RELAYER_ALREADY_REGISTERED();
 
-        _isRelayer[relayer_] = true;
-        _relayersList.push(relayer_);
         emit RelayerAdded(relayer_);
     }
 
     /// @inheritdoc ISuperGovernor
     function removeRelayer(address relayer_) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_isRelayer[relayer_]) revert RELAYER_NOT_REGISTERED();
-
-        _isRelayer[relayer_] = false;
-
-        // Remove from relayers array
-        uint256 length = _relayersList.length;
-        for (uint256 i; i < length; i++) {
-            if (_relayersList[i] == relayer_) {
-                _relayersList[i] = _relayersList[_relayersList.length - 1];
-                _relayersList.pop();
-                break;
-            }
-        }
+        if (!_relayers.remove(relayer_)) revert RELAYER_NOT_REGISTERED();
 
         emit RelayerRemoved(relayer_);
     }
@@ -476,28 +445,14 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function addValidator(address validator) external onlyRole(_GOVERNOR_ROLE) {
         if (validator == address(0)) revert INVALID_ADDRESS();
-        if (_isValidator[validator]) revert VALIDATOR_ALREADY_REGISTERED();
+        if (!_validators.add(validator)) revert VALIDATOR_ALREADY_REGISTERED();
 
-        _isValidator[validator] = true;
-        _validatorsList.push(validator);
         emit ValidatorAdded(validator);
     }
 
     /// @inheritdoc ISuperGovernor
     function removeValidator(address validator) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_isValidator[validator]) revert VALIDATOR_NOT_REGISTERED();
-
-        _isValidator[validator] = false;
-
-        // Remove from validators array
-        uint256 length = _validatorsList.length;
-        for (uint256 i; i < length; i++) {
-            if (_validatorsList[i] == validator) {
-                _validatorsList[i] = _validatorsList[_validatorsList.length - 1];
-                _validatorsList.pop();
-                break;
-            }
-        }
+        if (!_validators.remove(validator)) revert VALIDATOR_NOT_REGISTERED();
 
         emit ValidatorRemoved(validator);
     }
@@ -900,7 +855,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function isValidator(address validator) external view returns (bool) {
-        return _isValidator[validator];
+        return _validators.contains(validator);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -910,17 +865,27 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function isRelayer(address relayer) external view returns (bool) {
-        return _isRelayer[relayer];
+        return _relayers.contains(relayer);
     }
 
     /// @inheritdoc ISuperGovernor
     function isExecutor(address executor) external view returns (bool) {
-        return _isExecutor[executor];
+        return _executors.contains(executor);
     }
 
     /// @inheritdoc ISuperGovernor
     function getValidators() external view returns (address[] memory) {
-        return _validatorsList;
+        return _validators.values();
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getRelayers() external view returns (address[] memory) {
+        return _relayers.values();
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getExecutors() external view returns (address[] memory) {
+        return _executors.values();
     }
 
     /// @inheritdoc ISuperGovernor

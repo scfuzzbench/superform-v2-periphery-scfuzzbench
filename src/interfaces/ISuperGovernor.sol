@@ -615,6 +615,14 @@ interface ISuperGovernor is IAccessControl {
     /// @return List of validator addresses
     function getValidators() external view returns (address[] memory);
 
+    /// @notice Returns all registered relayers
+    /// @return List of relayer addresses
+    function getRelayers() external view returns (address[] memory);
+
+    /// @notice Returns all registered executors
+    /// @return List of executor addresses
+    function getExecutors() external view returns (address[] memory);
+
     /// @notice Gets the proposed active PPS oracle and its effective time
     /// @return proposedOracle The proposed oracle address
     /// @return effectiveTime The timestamp when the proposed oracle will become effective
