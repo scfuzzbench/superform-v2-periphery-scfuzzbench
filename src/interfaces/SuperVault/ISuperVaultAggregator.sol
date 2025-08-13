@@ -345,6 +345,8 @@ interface ISuperVaultAggregator {
     error CANNOT_ADD_PROTECTED_KEEPER();
     /// @notice Thrown when update timestamp is not monotonically increasing
     error TIMESTAMP_NOT_MONOTONIC();
+    /// @notice Thrown when the provided maxStaleness is less than the minimum required staleness
+    error MAX_STALENESS_TOO_LOW();
 
     /*//////////////////////////////////////////////////////////////
                             VAULT CREATION

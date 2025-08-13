@@ -36,6 +36,7 @@ contract SuperGovernorTest is PeripheryHelpers {
     // Role Hashes
     bytes32 internal constant SUPER_GOVERNOR_ROLE = keccak256("SUPER_GOVERNOR_ROLE");
     bytes32 internal constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
+    bytes32 internal constant BANK_MANAGER_ROLE = keccak256("BANK_MANAGER_ROLE");
     bytes32 internal constant SUPER_VAULT_AGGREGATOR = keccak256("SUPER_VAULT_AGGREGATOR");
 
     // Keys
@@ -96,6 +97,7 @@ contract SuperGovernorTest is PeripheryHelpers {
     function test_constructor_InitialState() public view {
         assertTrue(superGovernor.hasRole(SUPER_GOVERNOR_ROLE, sGovernor), "Admin should have SUPER_GOVERNOR_ROLE");
         assertTrue(superGovernor.hasRole(GOVERNOR_ROLE, governor), "Governor should have GOVERNOR_ROLE");
+        assertTrue(superGovernor.hasRole(BANK_MANAGER_ROLE, governor), "Governor should have BANK_MANAGER_ROLE");
         assertEq(superGovernor.getAddress(superGovernor.TREASURY()), treasury, "Treasury address mismatch");
     }
 
@@ -1438,5 +1440,371 @@ contract SuperGovernorTest is PeripheryHelpers {
         superGovernor.executeRemoveIncentiveTokens();
 
         assertFalse(superGovernor.isWhitelistedIncentiveToken(token1), "Token should not be whitelisted");
+    }
+
+    // =============================================================
+    // Min Staleness Management Tests
+    // =============================================================
+
+    /// @notice Tests proposing a new minimum staleness value
+    function test_MinStalenesManagement_ProposeMinStaleness() public {
+        uint256 newMinStaleness = 600; // 10 minutes
+        uint256 expectedTime = block.timestamp + TIMELOCK;
+
+        vm.prank(sGovernor);
+        vm.expectEmit(true, true, false, false);
+        emit ISuperGovernor.MinStalenesProposed(newMinStaleness, expectedTime);
+        superGovernor.proposeMinStaleness(newMinStaleness);
+
+        (uint256 proposedMinStaleness, uint256 effectiveTime) = superGovernor.getProposedMinStaleness();
+        assertEq(proposedMinStaleness, newMinStaleness, "Proposed minimum staleness mismatch");
+        assertEq(effectiveTime, expectedTime, "Effective time mismatch");
+    }
+
+    /// @notice Tests access control for proposeMinStaleness (only SUPER_GOVERNOR_ROLE)
+    function test_MinStalenesManagement_ProposeAccessControl() public {
+        uint256 newMinStaleness = 600;
+
+        // Test with governor (should fail - needs SUPER_GOVERNOR_ROLE)
+        vm.prank(governor);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, governor, SUPER_GOVERNOR_ROLE
+            )
+        );
+        superGovernor.proposeMinStaleness(newMinStaleness);
+
+        // Test with user (should fail)
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, SUPER_GOVERNOR_ROLE)
+        );
+        superGovernor.proposeMinStaleness(newMinStaleness);
+
+        // Test with sGovernor (should succeed)
+        vm.prank(sGovernor);
+        superGovernor.proposeMinStaleness(newMinStaleness);
+    }
+
+    /// @notice Tests executing a minimum staleness change
+    function test_MinStalenesManagement_ExecuteMinStalenesChange() public {
+        uint256 newMinStaleness = 600; // 10 minutes
+
+        // Propose new minimum staleness
+        vm.prank(sGovernor);
+        superGovernor.proposeMinStaleness(newMinStaleness);
+
+        // Check initial value (should be 300 from constructor)
+        assertEq(superGovernor.getMinStaleness(), 300, "Initial minimum staleness should be 300");
+
+        // Warp to after timelock
+        vm.warp(block.timestamp + TIMELOCK + 1);
+
+        // Execute the change
+        vm.expectEmit(true, false, false, false);
+        emit ISuperGovernor.MinStalenesChanged(newMinStaleness);
+        superGovernor.executeMinStalenesChange();
+
+        assertEq(superGovernor.getMinStaleness(), newMinStaleness, "Minimum staleness should be updated");
+
+        // Check that proposal data is reset
+        (uint256 proposedMinStaleness,) = superGovernor.getProposedMinStaleness();
+        assertEq(proposedMinStaleness, 0, "Proposed minimum staleness should be reset");
+    }
+
+    /// @notice Tests reverting when executing without a proposal
+    function test_MinStalenesManagement_Revert_ExecuteNoProposal() public {
+        vm.expectRevert(ISuperGovernor.NO_PROPOSED_MIN_STALENESS.selector);
+        superGovernor.executeMinStalenesChange();
+    }
+
+    /// @notice Tests reverting when executing before timelock expiry
+    function test_MinStalenesManagement_Revert_ExecuteBeforeTimelock() public {
+        uint256 newMinStaleness = 600;
+
+        // Propose new minimum staleness
+        vm.prank(sGovernor);
+        superGovernor.proposeMinStaleness(newMinStaleness);
+
+        // Try to execute before timelock expires
+        vm.expectRevert(ISuperGovernor.TIMELOCK_NOT_EXPIRED.selector);
+        superGovernor.executeMinStalenesChange();
+    }
+
+    /// @notice Tests the initial minimum staleness value
+    function test_MinStalenesManagement_InitialValue() public view {
+        // Should be initialized to 300 seconds (5 minutes) in constructor
+        assertEq(superGovernor.getMinStaleness(), 300, "Initial minimum staleness should be 300 seconds");
+    }
+
+    /// @notice Tests that execution is public (can be called by anyone)
+    function test_MinStalenesManagement_PublicExecution() public {
+        uint256 newMinStaleness = 600;
+
+        // Propose as sGovernor
+        vm.prank(sGovernor);
+        superGovernor.proposeMinStaleness(newMinStaleness);
+
+        // Execute as regular user (should work)
+        vm.warp(block.timestamp + TIMELOCK + 1);
+        vm.prank(user);
+        superGovernor.executeMinStalenesChange();
+
+        assertEq(superGovernor.getMinStaleness(), newMinStaleness, "Minimum staleness should be updated");
+    }
+
+    // =============================================================
+    // Oracle Staleness Validation Tests
+    // =============================================================
+
+    /// @notice Tests that roles are properly assigned for oracle tests
+    function test_OracleStalenesValidation_RoleAssignments() public view {
+        assertTrue(superGovernor.hasRole(SUPER_GOVERNOR_ROLE, sGovernor), "sGovernor should have SUPER_GOVERNOR_ROLE");
+        assertTrue(superGovernor.hasRole(GOVERNOR_ROLE, governor), "governor should have GOVERNOR_ROLE");
+        assertTrue(superGovernor.hasRole(BANK_MANAGER_ROLE, governor), "governor should have BANK_MANAGER_ROLE");
+    }
+
+    /// @notice Tests setOracleMaxStaleness with valid staleness value
+    function test_OracleStalenesValidation_SetOracleMaxStaleness_Success() public {
+        // Create a mock oracle that implements the required functions
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        // Get the oracle key before pranking
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        // Set the oracle in the registry
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        uint256 validStaleness = 400; // Greater than min staleness of 300
+
+        vm.prank(governor);
+        superGovernor.setOracleMaxStaleness(validStaleness);
+
+        // Verify the mock oracle received the call
+        assertEq(mockOracle.lastMaxStaleness(), validStaleness, "Oracle should have received the staleness value");
+    }
+
+    /// @notice Tests setOracleMaxStaleness reverts when staleness is too low
+    function test_OracleStalenesValidation_SetOracleMaxStaleness_Revert_TooLow() public {
+        // Create a mock oracle
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        // Get the oracle key before pranking
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        // Set the oracle in the registry
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        uint256 tooLowStaleness = 200; // Less than min staleness of 300
+
+        vm.prank(governor);
+        vm.expectRevert(ISuperGovernor.MAX_STALENESS_TOO_LOW.selector);
+        superGovernor.setOracleMaxStaleness(tooLowStaleness);
+    }
+
+    /// @notice Tests setOracleFeedMaxStaleness with valid staleness value
+    function test_OracleStalenesValidation_SetOracleFeedMaxStaleness_Success() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        address feed = address(0x123);
+        uint256 validStaleness = 500;
+
+        vm.prank(governor);
+        superGovernor.setOracleFeedMaxStaleness(feed, validStaleness);
+
+        assertEq(mockOracle.lastFeed(), feed, "Oracle should have received the feed address");
+        assertEq(mockOracle.lastFeedStaleness(), validStaleness, "Oracle should have received the staleness value");
+    }
+
+    /// @notice Tests setOracleFeedMaxStaleness reverts when staleness is too low
+    function test_OracleStalenesValidation_SetOracleFeedMaxStaleness_Revert_TooLow() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        address feed = address(0x123);
+        uint256 tooLowStaleness = 250; // Less than min staleness of 300
+
+        vm.prank(governor);
+        vm.expectRevert(ISuperGovernor.MAX_STALENESS_TOO_LOW.selector);
+        superGovernor.setOracleFeedMaxStaleness(feed, tooLowStaleness);
+    }
+
+    /// @notice Tests setOracleFeedMaxStaleness reverts with zero feed address
+    function test_OracleStalenesValidation_SetOracleFeedMaxStaleness_Revert_ZeroFeed() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        uint256 validStaleness = 400;
+
+        vm.prank(governor);
+        vm.expectRevert(ISuperGovernor.INVALID_ADDRESS.selector);
+        superGovernor.setOracleFeedMaxStaleness(address(0), validStaleness);
+    }
+
+    /// @notice Tests setOracleFeedMaxStalenessBatch with all valid staleness values
+    function test_OracleStalenesValidation_SetOracleFeedMaxStalenessBatch_Success() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        address[] memory feeds = new address[](3);
+        feeds[0] = address(0x123);
+        feeds[1] = address(0x456);
+        feeds[2] = address(0x789);
+
+        uint256[] memory stalenessList = new uint256[](3);
+        stalenessList[0] = 400;
+        stalenessList[1] = 500;
+        stalenessList[2] = 600;
+
+        vm.prank(governor);
+        superGovernor.setOracleFeedMaxStalenessBatch(feeds, stalenessList);
+
+        assertTrue(mockOracle.batchCalled(), "Oracle batch function should have been called");
+    }
+
+    /// @notice Tests setOracleFeedMaxStalenessBatch reverts when any staleness is too low
+    function test_OracleStalenesValidation_SetOracleFeedMaxStalenessBatch_Revert_OneTooLow() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        address[] memory feeds = new address[](3);
+        feeds[0] = address(0x123);
+        feeds[1] = address(0x456);
+        feeds[2] = address(0x789);
+
+        uint256[] memory stalenessList = new uint256[](3);
+        stalenessList[0] = 400; // Valid
+        stalenessList[1] = 200; // Too low!
+        stalenessList[2] = 600; // Valid
+
+        vm.prank(governor);
+        vm.expectRevert(ISuperGovernor.MAX_STALENESS_TOO_LOW.selector);
+        superGovernor.setOracleFeedMaxStalenessBatch(feeds, stalenessList);
+    }
+
+    /// @notice Tests oracle staleness validation after changing minimum staleness
+    function test_OracleStalenesValidation_AfterMinStalenesChange() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        // Change minimum staleness to a higher value
+        uint256 newMinStaleness = 800;
+        vm.prank(sGovernor);
+        superGovernor.proposeMinStaleness(newMinStaleness);
+        vm.warp(block.timestamp + TIMELOCK + 1);
+        superGovernor.executeMinStalenesChange();
+
+        // Now values that were previously valid should be rejected
+        uint256 previouslyValidStaleness = 600; // Was > 300, but now < 800
+
+        vm.prank(governor);
+        vm.expectRevert(ISuperGovernor.MAX_STALENESS_TOO_LOW.selector);
+        superGovernor.setOracleMaxStaleness(previouslyValidStaleness);
+
+        // But values above the new minimum should work
+        uint256 nowValidStaleness = 900;
+
+        vm.prank(governor);
+        superGovernor.setOracleMaxStaleness(nowValidStaleness);
+        assertEq(mockOracle.lastMaxStaleness(), nowValidStaleness, "Oracle should accept valid staleness");
+    }
+
+    /// @notice Tests access control for oracle staleness functions
+    function f() public {
+        MockSuperOracleForStaleness mockOracle = new MockSuperOracleForStaleness();
+
+        bytes32 oracleKey = superGovernor.SUPER_ORACLE();
+
+        vm.prank(sGovernor);
+        superGovernor.setAddress(oracleKey, address(mockOracle));
+
+        uint256 validStaleness = 400;
+        address feed = address(0x123);
+
+        // Test with user (should fail - needs GOVERNOR_ROLE)
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, GOVERNOR_ROLE)
+        );
+        superGovernor.setOracleMaxStaleness(validStaleness);
+
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, GOVERNOR_ROLE)
+        );
+        superGovernor.setOracleFeedMaxStaleness(feed, validStaleness);
+
+        // Test with sGovernor (should fail - needs GOVERNOR_ROLE specifically)
+        vm.prank(sGovernor);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, sGovernor, GOVERNOR_ROLE)
+        );
+        superGovernor.setOracleMaxStaleness(validStaleness);
+
+        // Test with governor (should succeed)
+        vm.prank(governor);
+        superGovernor.setOracleMaxStaleness(validStaleness);
+        assertEq(mockOracle.lastMaxStaleness(), validStaleness, "Governor should be able to set staleness");
+    }
+
+    /// @notice Tests reverting when oracle is not set in registry
+    function test_OracleStalenesValidation_Revert_OracleNotSet() public {
+        uint256 validStaleness = 400;
+
+        vm.prank(governor);
+        vm.expectRevert(ISuperGovernor.CONTRACT_NOT_FOUND.selector);
+        superGovernor.setOracleMaxStaleness(validStaleness);
+    }
+}
+
+// =============================================================
+// Mock Contract for Oracle Staleness Testing
+// =============================================================
+
+/// @notice Mock SuperOracle contract that implements the staleness functions for testing
+contract MockSuperOracleForStaleness {
+    uint256 public lastMaxStaleness;
+    address public lastFeed;
+    uint256 public lastFeedStaleness;
+    bool public batchCalled;
+
+    function setMaxStaleness(uint256 newMaxStaleness) external {
+        lastMaxStaleness = newMaxStaleness;
+    }
+
+    function setFeedMaxStaleness(address feed, uint256 newMaxStaleness) external {
+        lastFeed = feed;
+        lastFeedStaleness = newMaxStaleness;
+    }
+
+    function setFeedMaxStalenessBatch(address[] calldata, uint256[] calldata) external {
+        batchCalled = true;
     }
 }

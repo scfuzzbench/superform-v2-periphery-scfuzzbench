@@ -153,6 +153,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         if (!success) revert INVALID_ASSET();
         vars.initialPPS = 10 ** assetDecimals; // 1.0 as initial PPS
 
+        // Validate maxStaleness against minimum required staleness
+        if (params.maxStaleness < SUPER_GOVERNOR.getMinStaleness()) {
+            revert MAX_STALENESS_TOO_LOW();
+        }
+
         // Initialize StrategyData individually to avoid mapping assignment issues
         _strategyData[strategy].pps = vars.initialPPS;
         // Initialize standard deviation to 0

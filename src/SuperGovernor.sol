@@ -96,6 +96,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     // Superform strategists (exempt from upkeep costs)
     EnumerableSet.AddressSet private _superformStrategists;
 
+    // Min staleness configuration to prevent maxStaleness from being set too low
+    uint256 private _minStaleness;
+    uint256 private _proposedMinStaleness;
+    uint256 private _minStalenesEffectiveTime;
+
     // Timelock configuration
     uint256 private constant TIMELOCK = 7 days;
     uint256 private constant BPS_MAX = 10_000; // 100% in basis points
@@ -162,6 +167,9 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         _upkeepCostPerUpdate = 1e18; // 1 UP token
 
         emit UpkeepCostPerUpdateChanged(_upkeepCostPerUpdate);
+
+        // Initialize minimum staleness (5 minutes to prevent extremely low staleness values)
+        _minStaleness = 300; // 5 minutes in seconds
 
         // Initialize prover
         _prover = prover_;
@@ -284,6 +292,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function setOracleMaxStaleness(uint256 newMaxStaleness_) external onlyRole(_GOVERNOR_ROLE) {
+        if (newMaxStaleness_ < _minStaleness) revert MAX_STALENESS_TOO_LOW();
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
@@ -293,6 +302,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function setOracleFeedMaxStaleness(address feed_, uint256 newMaxStaleness_) external onlyRole(_GOVERNOR_ROLE) {
         if (feed_ == address(0)) revert INVALID_ADDRESS();
+        if (newMaxStaleness_ < _minStaleness) revert MAX_STALENESS_TOO_LOW();
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
@@ -307,6 +317,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         external
         onlyRole(_GOVERNOR_ROLE)
     {
+        // Validate all staleness values before proceeding
+        for (uint256 i; i < newMaxStalenessList_.length; i++) {
+            if (newMaxStalenessList_[i] < _minStaleness) revert MAX_STALENESS_TOO_LOW();
+        }
+
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
@@ -586,6 +601,32 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         _proposedUpkeepPaymentsEnabled = false;
 
         emit UpkeepPaymentsChanged(_upkeepPaymentsEnabled);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        MIN STALENESS MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+    /// @inheritdoc ISuperGovernor
+    function proposeMinStaleness(uint256 newMinStaleness_) external onlyRole(_SUPER_GOVERNOR_ROLE) {
+        _proposedMinStaleness = newMinStaleness_;
+        _minStalenesEffectiveTime = block.timestamp + TIMELOCK;
+
+        emit MinStalenesProposed(newMinStaleness_, _minStalenesEffectiveTime);
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function executeMinStalenesChange() external {
+        uint256 minStalenesEffectiveTime = _minStalenesEffectiveTime;
+        if (minStalenesEffectiveTime == 0) revert NO_PROPOSED_MIN_STALENESS();
+        if (block.timestamp < minStalenesEffectiveTime) revert TIMELOCK_NOT_EXPIRED();
+
+        _minStaleness = _proposedMinStaleness;
+
+        // Reset proposal data
+        _proposedMinStaleness = 0;
+        _minStalenesEffectiveTime = 0;
+
+        emit MinStalenesChanged(_minStaleness);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -922,6 +963,16 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function getProposedUpkeepCostPerUpdate() external view returns (uint256 proposedCost, uint256 effectiveTime) {
         return (_proposedUpkeepCostPerUpdate, _upkeepCostEffectiveTime);
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getMinStaleness() external view returns (uint256) {
+        return _minStaleness;
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getProposedMinStaleness() external view returns (uint256 proposedMinStaleness, uint256 effectiveTime) {
+        return (_proposedMinStaleness, _minStalenesEffectiveTime);
     }
 
     /// @inheritdoc ISuperGovernor

@@ -80,6 +80,10 @@ interface ISuperGovernor is IAccessControl {
     error ZERO_PROPOSED_MERKLE_ROOT();
     /// @notice Thrown when no proposed upkeep cost exists but one is expected
     error NO_PROPOSED_UPKEEP_COST();
+    /// @notice Thrown when no proposed minimum staleness exists but one is expected
+    error NO_PROPOSED_MIN_STALENESS();
+    /// @notice Thrown when the provided maxStaleness is less than the minimum required staleness
+    error MAX_STALENESS_TOO_LOW();
     /// @notice Thrown when a relayer is not registered
     error RELAYER_NOT_REGISTERED();
     /// @notice Thrown when a relayer is already registered
@@ -245,6 +249,15 @@ interface ISuperGovernor is IAccessControl {
     /// @notice Emitted when upkeep payments status is changed
     /// @param enabled The new status (enabled/disabled)
     event UpkeepPaymentsChanged(bool enabled);
+
+    /// @notice Emitted when a new minimum staleness is proposed
+    /// @param newMinStaleness The proposed minimum staleness value
+    /// @param effectiveTime The timestamp when the new value will be effective
+    event MinStalenesProposed(uint256 newMinStaleness, uint256 effectiveTime);
+
+    /// @notice Emitted when the minimum staleness is changed
+    /// @param newMinStaleness The new minimum staleness value
+    event MinStalenesChanged(uint256 newMinStaleness);
 
     /// @notice Emitted when a superform strategist is added
     /// @param strategist The address of the added strategist
@@ -481,6 +494,16 @@ interface ISuperGovernor is IAccessControl {
     function executeUpkeepPaymentsChange() external;
 
     /*//////////////////////////////////////////////////////////////
+                        MIN STALENESS MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+    /// @notice Proposes a new minimum staleness value to prevent maxStaleness from being set too low
+    /// @param newMinStaleness The proposed new minimum staleness value in seconds
+    function proposeMinStaleness(uint256 newMinStaleness) external;
+
+    /// @notice Executes a previously proposed minimum staleness change after timelock has expired
+    function executeMinStalenesChange() external;
+
+    /*//////////////////////////////////////////////////////////////
                         SUPERFORM STRATEGIST MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -654,6 +677,15 @@ interface ISuperGovernor is IAccessControl {
     /// @return proposedCost The proposed new upkeep cost
     /// @return effectiveTime The timestamp when the new cost will become effective
     function getProposedUpkeepCostPerUpdate() external view returns (uint256 proposedCost, uint256 effectiveTime);
+
+    /// @notice Gets the current minimum staleness value
+    /// @return The current minimum staleness value in seconds
+    function getMinStaleness() external view returns (uint256);
+
+    /// @notice Gets the proposed minimum staleness value and its effective time
+    /// @return proposedMinStaleness The proposed new minimum staleness value
+    /// @return effectiveTime The timestamp when the new value will become effective
+    function getProposedMinStaleness() external view returns (uint256 proposedMinStaleness, uint256 effectiveTime);
 
     /// @notice Returns the current Merkle root for a specific hook's allowed targets.
     /// @param hook The address of the hook to get the Merkle root for.

@@ -630,7 +630,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
-                maxStaleness: 100, // Shorter staleness period for testing
+                maxStaleness: 400, // Shorter staleness period for testing (must be >= minStaleness of 300)
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: strategist })
             })
         );
@@ -639,8 +639,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         uint256 timestamp1 = superVaultAggregator.getLastUpdateTimestamp(strategy);
         uint256 timestamp2 = superVaultAggregator.getLastUpdateTimestamp(strategy2);
 
-        // Fast forward time to make strategy2 stale (beyond maxStaleness of 100 seconds)
-        vm.warp(block.timestamp + 150);
+        // Fast forward time to make strategy2 stale (beyond maxStaleness of 400 seconds)
+        vm.warp(block.timestamp + 450);
 
         // Prepare batch data where strategy2 will be stale
         address[] memory strategies = new address[](2);
