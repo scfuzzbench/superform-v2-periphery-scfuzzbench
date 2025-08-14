@@ -65,7 +65,6 @@ abstract contract DeployV2Base is Script, ConfigBase {
         // Predict address first
         address predictedAddr = DeterministicDeployerLib.computeAddress(creationCode, salt);
 
-        // Check if already deployed using assembly like Nexus
         if (predictedAddr.code.length > 0) {
             console2.log("[!] %s already deployed at:", contractName, predictedAddr);
             console2.log("      skipping...");

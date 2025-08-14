@@ -9,6 +9,8 @@ interface IBundlerRegistry {
     error INVALID_BUNDLER_ADDRESS();
     /// @notice Thrown when the bundler is already registered
     error BUNDLER_ALREADY_REGISTERED();
+    /// @notice Thrown when the bundler is not found
+    error BUNDLER_NOT_FOUND();
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS

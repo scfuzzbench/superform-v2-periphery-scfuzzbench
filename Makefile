@@ -18,7 +18,7 @@ build :; $(MAKE) ensure-merkle-cache && forge build && $(MAKE) generate
 
 forge-script :; forge script $(SCRIPT) $(ARGS)
 
-forge-test :; $(MAKE) ensure-merkle-cache && forge test --match-path $(TEST) $(ARGS)
+forge-test :; $(MAKE) ensure-merkle-cache && forge test --match-test $(TEST) $(ARGS)
 
 # Internal forge-test without merkle cache check (used by cache generation)
 forge-test-internal :; forge test --match-path $(TEST) $(ARGS)
@@ -67,7 +67,7 @@ merkle-status:
 
 ftest :; $(MAKE) ensure-merkle-cache && forge test
 
-ftest-vvv :; $(MAKE) ensure-merkle-cache && forge test -v --jobs 2
+ftest-vvv :; $(MAKE) ensure-merkle-cache && forge test -vvv --jobs 2
 
 ftest-ci :; $(MAKE) regenerate-merkle-cache-ci && forge test -v --jobs 2
 
@@ -77,7 +77,7 @@ coverage :; $(MAKE) ensure-merkle-cache-coverage && FOUNDRY_PROFILE=coverage for
 
 coverage-ci :; $(MAKE) ensure-merkle-cache-coverage && FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov
 
-test-vvv :; $(MAKE) ensure-merkle-cache && forge test --match-contract SuperVaultTest  -vvvv --jobs 10
+test-vvv :; $(MAKE) ensure-merkle-cache && forge test --match-test test_OracleStalenesValidation_AccessControl  -vvvv --jobs 10
 
 test-integration :; $(MAKE) ensure-merkle-cache && forge test --match-test test_DeBridgeCancelOrderHook -vvvv --jobs 10
 

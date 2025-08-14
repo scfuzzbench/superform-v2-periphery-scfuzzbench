@@ -52,19 +52,16 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     bool private _strategistTakeoversFrozen;
 
     // Validator registry
-    mapping(address validator => bool isValidator) private _isValidator;
-    address[] private _validatorsList;
+    EnumerableSet.AddressSet private _validators;
 
     // Relayer registry
-    mapping(address relayer => bool isRelayer) private _isRelayer;
-    address[] private _relayersList;
+    EnumerableSet.AddressSet private _relayers;
 
     // Protected keepers registry (cannot be added as authorized callers by strategists)
     EnumerableSet.AddressSet private _protectedKeepers;
 
     // Executor registry
-    mapping(address executor => bool isExecutor) private _isExecutor;
-    address[] private _executorsList;
+    EnumerableSet.AddressSet private _executors;
 
     // Polymer prover
     address private _prover;
@@ -98,6 +95,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     // Superform strategists (exempt from upkeep costs)
     EnumerableSet.AddressSet private _superformStrategists;
+
+    // Min staleness configuration to prevent maxStaleness from being set too low
+    uint256 private _minStaleness;
+    uint256 private _proposedMinStaleness;
+    uint256 private _minStalenesEffectiveTime;
 
     // Timelock configuration
     uint256 private constant TIMELOCK = 7 days;
@@ -165,6 +167,9 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         _upkeepCostPerUpdate = 1e18; // 1 UP token
 
         emit UpkeepCostPerUpdateChanged(_upkeepCostPerUpdate);
+
+        // Initialize minimum staleness (5 minutes to prevent extremely low staleness values)
+        _minStaleness = 300; // 5 minutes in seconds
 
         // Initialize prover
         _prover = prover_;
@@ -259,12 +264,12 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function setSuperAssetManager(address superAsset, address _superAssetManager) external onlyRole(_GOVERNOR_ROLE) {
-        if (_superAssetManager == address(0)) revert INVALID_ADDRESS();
+    function setSuperAssetManager(address superAsset, address superAssetManager) external onlyRole(_GOVERNOR_ROLE) {
+        if (superAsset == address(0) || superAssetManager == address(0)) revert INVALID_ADDRESS();
         address value = _addressRegistry[_SUPER_ASSET_FACTORY];
         if (value == address(0)) revert CONTRACT_NOT_FOUND();
         ISuperAssetFactory factory = ISuperAssetFactory(value);
-        factory.setSuperAssetManager(superAsset, _superAssetManager);
+        factory.setSuperAssetManager(superAsset, superAssetManager);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -287,6 +292,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function setOracleMaxStaleness(uint256 newMaxStaleness_) external onlyRole(_GOVERNOR_ROLE) {
+        if (newMaxStaleness_ < _minStaleness) revert MAX_STALENESS_TOO_LOW();
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
@@ -296,6 +302,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function setOracleFeedMaxStaleness(address feed_, uint256 newMaxStaleness_) external onlyRole(_GOVERNOR_ROLE) {
         if (feed_ == address(0)) revert INVALID_ADDRESS();
+        if (newMaxStaleness_ < _minStaleness) revert MAX_STALENESS_TOO_LOW();
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
@@ -310,6 +317,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         external
         onlyRole(_GOVERNOR_ROLE)
     {
+        // Validate all staleness values before proceeding
+        for (uint256 i; i < newMaxStalenessList_.length; i++) {
+            if (newMaxStalenessList_[i] < _minStaleness) revert MAX_STALENESS_TOO_LOW();
+        }
+
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
@@ -384,27 +396,25 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     function registerHook(address hook_, bool isFulfillRequestsHook_) external onlyRole(_GOVERNOR_ROLE) {
         if (hook_ == address(0)) revert INVALID_ADDRESS();
 
-        if (isFulfillRequestsHook_) {
-            if (_registeredFulfillRequestsHooks.contains(hook_)) {
-                revert FULFILL_REQUESTS_HOOK_ALREADY_REGISTERED();
-            }
-
-            _registeredFulfillRequestsHooks.add(hook_);
+        if (isFulfillRequestsHook_ && _registeredFulfillRequestsHooks.add(hook_)) {
             emit FulfillRequestsHookRegistered(hook_);
         }
-        if (_registeredHooks.contains(hook_)) {
-            revert HOOK_ALREADY_APPROVED();
+        if (_registeredHooks.add(hook_)) {
+            emit HookApproved(hook_);
         }
-        _registeredHooks.add(hook_);
-        emit HookApproved(hook_);
     }
 
     /// @inheritdoc ISuperGovernor
-    function unregisterHook(address hook_, bool isFulfillRequestsHook_) external onlyRole(_GOVERNOR_ROLE) {
-        if (isFulfillRequestsHook_) {
-            _unregisterFulfillRequestsHook(hook_);
-        } else {
-            _unregisterRegularHook(hook_);
+    function unregisterHook(address hook_) external onlyRole(_GOVERNOR_ROLE) {
+        if (_registeredFulfillRequestsHooks.remove(hook_)) {
+            emit FulfillRequestsHookUnregistered(hook_);
+        }
+        if (_registeredHooks.remove(hook_)) {
+            // Clear merkle root data for the unregistered hook to prevent stale data
+            delete superBankHooksMerkleRoots[hook_];
+            delete vaultBankHooksMerkleRoots[hook_];
+
+            emit HookRemoved(hook_);
         }
     }
 
@@ -414,28 +424,14 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function addExecutor(address executor_) external onlyRole(_GOVERNOR_ROLE) {
         if (executor_ == address(0)) revert INVALID_ADDRESS();
-        if (_isExecutor[executor_]) revert EXECUTOR_ALREADY_REGISTERED();
+        if (!_executors.add(executor_)) revert EXECUTOR_ALREADY_REGISTERED();
 
-        _isExecutor[executor_] = true;
-        _executorsList.push(executor_);
         emit ExecutorAdded(executor_);
     }
 
     /// @inheritdoc ISuperGovernor
     function removeExecutor(address executor_) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_isExecutor[executor_]) revert EXECUTOR_NOT_REGISTERED();
-
-        _isExecutor[executor_] = false;
-
-        // Remove from executors array
-        uint256 length = _executorsList.length;
-        for (uint256 i; i < length; i++) {
-            if (_executorsList[i] == executor_) {
-                _executorsList[i] = _executorsList[_executorsList.length - 1];
-                _executorsList.pop();
-                break;
-            }
-        }
+        if (!_executors.remove(executor_)) revert EXECUTOR_NOT_REGISTERED();
 
         emit ExecutorRemoved(executor_);
     }
@@ -446,28 +442,14 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function addRelayer(address relayer_) external onlyRole(_GOVERNOR_ROLE) {
         if (relayer_ == address(0)) revert INVALID_ADDRESS();
-        if (_isRelayer[relayer_]) revert RELAYER_ALREADY_REGISTERED();
+        if (!_relayers.add(relayer_)) revert RELAYER_ALREADY_REGISTERED();
 
-        _isRelayer[relayer_] = true;
-        _relayersList.push(relayer_);
         emit RelayerAdded(relayer_);
     }
 
     /// @inheritdoc ISuperGovernor
     function removeRelayer(address relayer_) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_isRelayer[relayer_]) revert RELAYER_NOT_REGISTERED();
-
-        _isRelayer[relayer_] = false;
-
-        // Remove from relayers array
-        uint256 length = _relayersList.length;
-        for (uint256 i; i < length; i++) {
-            if (_relayersList[i] == relayer_) {
-                _relayersList[i] = _relayersList[_relayersList.length - 1];
-                _relayersList.pop();
-                break;
-            }
-        }
+        if (!_relayers.remove(relayer_)) revert RELAYER_NOT_REGISTERED();
 
         emit RelayerRemoved(relayer_);
     }
@@ -478,28 +460,14 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function addValidator(address validator) external onlyRole(_GOVERNOR_ROLE) {
         if (validator == address(0)) revert INVALID_ADDRESS();
-        if (_isValidator[validator]) revert VALIDATOR_ALREADY_REGISTERED();
+        if (!_validators.add(validator)) revert VALIDATOR_ALREADY_REGISTERED();
 
-        _isValidator[validator] = true;
-        _validatorsList.push(validator);
         emit ValidatorAdded(validator);
     }
 
     /// @inheritdoc ISuperGovernor
     function removeValidator(address validator) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_isValidator[validator]) revert VALIDATOR_NOT_REGISTERED();
-
-        _isValidator[validator] = false;
-
-        // Remove from validators array
-        uint256 length = _validatorsList.length;
-        for (uint256 i; i < length; i++) {
-            if (_validatorsList[i] == validator) {
-                _validatorsList[i] = _validatorsList[_validatorsList.length - 1];
-                _validatorsList.pop();
-                break;
-            }
-        }
+        if (!_validators.remove(validator)) revert VALIDATOR_NOT_REGISTERED();
 
         emit ValidatorRemoved(validator);
     }
@@ -633,6 +601,32 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         _proposedUpkeepPaymentsEnabled = false;
 
         emit UpkeepPaymentsChanged(_upkeepPaymentsEnabled);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        MIN STALENESS MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+    /// @inheritdoc ISuperGovernor
+    function proposeMinStaleness(uint256 newMinStaleness_) external onlyRole(_SUPER_GOVERNOR_ROLE) {
+        _proposedMinStaleness = newMinStaleness_;
+        _minStalenesEffectiveTime = block.timestamp + TIMELOCK;
+
+        emit MinStalenesProposed(newMinStaleness_, _minStalenesEffectiveTime);
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function executeMinStalenesChange() external {
+        uint256 minStalenesEffectiveTime = _minStalenesEffectiveTime;
+        if (minStalenesEffectiveTime == 0) revert NO_PROPOSED_MIN_STALENESS();
+        if (block.timestamp < minStalenesEffectiveTime) revert TIMELOCK_NOT_EXPIRED();
+
+        _minStaleness = _proposedMinStaleness;
+
+        // Reset proposal data
+        _proposedMinStaleness = 0;
+        _minStalenesEffectiveTime = 0;
+
+        emit MinStalenesChanged(_minStaleness);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -775,20 +769,23 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function executeAddIncentiveTokens() external {
         if (
-            _proposedAddWhitelistedIncentiveTokensEffectiveTime != 0
-                && block.timestamp < _proposedAddWhitelistedIncentiveTokensEffectiveTime
+            _proposedAddWhitelistedIncentiveTokensEffectiveTime == 0
+                || block.timestamp < _proposedAddWhitelistedIncentiveTokensEffectiveTime
         ) revert TIMELOCK_NOT_EXPIRED();
 
+        // Get all proposed tokens before modifying the set
+        address[] memory tokensToAdd = _proposedWhitelistedIncentiveTokens.values();
+        uint256 len = tokensToAdd.length;
         address token;
-        for (uint256 i; i < _proposedWhitelistedIncentiveTokens.length(); i++) {
-            token = _proposedWhitelistedIncentiveTokens.at(i);
-
+        for (uint256 i; i < len; i++) {
+            token = tokensToAdd[i];
             _isWhitelistedIncentiveToken[token] = true;
-            emit WhitelistedIncentiveTokensAdded(_proposedWhitelistedIncentiveTokens.values());
-
             // Remove from proposed whitelisted tokens
             _proposedWhitelistedIncentiveTokens.remove(token);
         }
+
+        // Emit event once with all tokens
+        emit WhitelistedIncentiveTokensAdded(tokensToAdd);
 
         // Reset proposal timestamp
         _proposedAddWhitelistedIncentiveTokensEffectiveTime = 0;
@@ -813,21 +810,25 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function executeRemoveIncentiveTokens() external {
         if (
-            _proposedRemoveWhitelistedIncentiveTokensEffectiveTime != 0
-                && block.timestamp < _proposedRemoveWhitelistedIncentiveTokensEffectiveTime
+            _proposedRemoveWhitelistedIncentiveTokensEffectiveTime == 0
+                || block.timestamp < _proposedRemoveWhitelistedIncentiveTokensEffectiveTime
         ) revert TIMELOCK_NOT_EXPIRED();
 
+        // Get all proposed tokens before modifying the set
+        address[] memory tokensToRemove = _proposedRemoveWhitelistedIncentiveTokens.values();
+        uint256 len = tokensToRemove.length;
         address token;
-        for (uint256 i; i < _proposedRemoveWhitelistedIncentiveTokens.length(); i++) {
-            token = _proposedRemoveWhitelistedIncentiveTokens.at(i);
+        for (uint256 i; i < len; i++) {
+            token = tokensToRemove[i];
             if (_isWhitelistedIncentiveToken[token]) {
                 _isWhitelistedIncentiveToken[token] = false;
-
-                emit WhitelistedIncentiveTokensRemoved(_proposedWhitelistedIncentiveTokens.values());
             }
             // Remove from proposed whitelisted tokens to be removed
             _proposedRemoveWhitelistedIncentiveTokens.remove(token);
         }
+
+        // Emit event once with all tokens
+        emit WhitelistedIncentiveTokensRemoved(tokensToRemove);
 
         // Reset proposal timestamp
         _proposedRemoveWhitelistedIncentiveTokensEffectiveTime = 0;
@@ -895,7 +896,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function isValidator(address validator) external view returns (bool) {
-        return _isValidator[validator];
+        return _validators.contains(validator);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -905,17 +906,27 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function isRelayer(address relayer) external view returns (bool) {
-        return _isRelayer[relayer];
+        return _relayers.contains(relayer);
     }
 
     /// @inheritdoc ISuperGovernor
     function isExecutor(address executor) external view returns (bool) {
-        return _isExecutor[executor];
+        return _executors.contains(executor);
     }
 
     /// @inheritdoc ISuperGovernor
     function getValidators() external view returns (address[] memory) {
-        return _validatorsList;
+        return _validators.values();
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getRelayers() external view returns (address[] memory) {
+        return _relayers.values();
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getExecutors() external view returns (address[] memory) {
+        return _executors.values();
     }
 
     /// @inheritdoc ISuperGovernor
@@ -952,6 +963,16 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function getProposedUpkeepCostPerUpdate() external view returns (uint256 proposedCost, uint256 effectiveTime) {
         return (_proposedUpkeepCostPerUpdate, _upkeepCostEffectiveTime);
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getMinStaleness() external view returns (uint256) {
+        return _minStaleness;
+    }
+
+    /// @inheritdoc ISuperGovernor
+    function getProposedMinStaleness() external view returns (uint256 proposedMinStaleness, uint256 effectiveTime) {
+        return (_proposedMinStaleness, _minStalenesEffectiveTime);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -1087,22 +1108,4 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    /// @dev Internal function to unregister a fulfill requests hook
-    function _unregisterFulfillRequestsHook(address hook_) internal {
-        if (!_registeredFulfillRequestsHooks.contains(hook_)) {
-            revert FULFILL_REQUESTS_HOOK_NOT_REGISTERED();
-        }
-        _registeredFulfillRequestsHooks.remove(hook_);
-        emit FulfillRequestsHookUnregistered(hook_);
-        _unregisterRegularHook(hook_);
-    }
-
-    /// @dev Internal function to unregister a regular hook
-    function _unregisterRegularHook(address hook_) internal {
-        if (!_registeredHooks.contains(hook_)) {
-            revert HOOK_NOT_APPROVED();
-        }
-        _registeredHooks.remove(hook_);
-        emit HookRemoved(hook_);
-    }
 }

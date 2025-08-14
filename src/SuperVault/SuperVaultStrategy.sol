@@ -2,8 +2,9 @@
 pragma solidity 0.8.30;
 
 // External
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -31,7 +32,7 @@ import { ISuperVaultAggregator } from "../interfaces/SuperVault/ISuperVaultAggre
 /// @title SuperVaultStrategy
 /// @author Superform Labs
 /// @notice Strategy implementation for SuperVault that executes strategies
-contract SuperVaultStrategy is ISuperVaultStrategy, ReentrancyGuard {
+contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
@@ -50,7 +51,6 @@ contract SuperVaultStrategy is ISuperVaultStrategy, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                 STATE
     //////////////////////////////////////////////////////////////*/
-    bool private _initialized;
     address private _vault;
     IERC20 private _asset;
     uint8 private _vaultDecimals;
@@ -83,19 +83,19 @@ contract SuperVaultStrategy is ISuperVaultStrategy, ReentrancyGuard {
         if (superGovernor_ == address(0)) revert ZERO_ADDRESS();
 
         superGovernor = ISuperGovernor(superGovernor_);
-
         emit SuperGovernorSet(superGovernor_);
+        _disableInitializers();
     }
 
     /*//////////////////////////////////////////////////////////////
                             INITIALIZATION
     //////////////////////////////////////////////////////////////*/
-    function initialize(address vault_, FeeConfig memory feeConfig_) external {
-        if (_initialized) revert ALREADY_INITIALIZED();
+    function initialize(address vault_, FeeConfig memory feeConfig_) external initializer {
         if (vault_ == address(0)) revert INVALID_VAULT();
         if (feeConfig.performanceFeeBps > 0 && feeConfig.recipient == address(0)) revert ZERO_ADDRESS();
 
-        _initialized = true;
+        __ReentrancyGuard_init();
+
         _vault = vault_;
         _asset = IERC20(IERC4626(vault_).asset());
         _vaultDecimals = IERC20Metadata(vault_).decimals();
@@ -145,6 +145,7 @@ contract SuperVaultStrategy is ISuperVaultStrategy, ReentrancyGuard {
 
         uint256 hooksLength = args.hooks.length;
         if (hooksLength == 0) revert ZERO_LENGTH();
+        if (args.hookCalldata.length != hooksLength) revert INVALID_ARRAY_LENGTH();
         if (args.expectedAssetsOrSharesOut.length != hooksLength) revert INVALID_ARRAY_LENGTH();
         if (args.globalProofs.length != hooksLength) revert INVALID_ARRAY_LENGTH();
         if (args.strategyProofs.length != hooksLength) revert INVALID_ARRAY_LENGTH();
@@ -176,8 +177,8 @@ contract SuperVaultStrategy is ISuperVaultStrategy, ReentrancyGuard {
         if (hooksLength == 0) revert ZERO_LENGTH();
         uint256 controllersLength = args.controllers.length;
         if (controllersLength == 0) revert ZERO_LENGTH();
+        if (args.hookCalldata.length != hooksLength) revert INVALID_ARRAY_LENGTH();
         if (args.expectedAssetsOrSharesOut.length != hooksLength) revert INVALID_ARRAY_LENGTH();
-        if (args.controllers.length != controllersLength) revert INVALID_ARRAY_LENGTH();
         if (args.globalProofs.length != hooksLength) revert INVALID_ARRAY_LENGTH();
         if (args.strategyProofs.length != hooksLength) revert INVALID_ARRAY_LENGTH();
 
@@ -292,11 +293,6 @@ contract SuperVaultStrategy is ISuperVaultStrategy, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    // @inheritdoc ISuperVaultStrategy
-    function isInitialized() external view returns (bool) {
-        return _initialized;
-    }
 
     // @inheritdoc ISuperVaultStrategy
     function getVaultInfo() external view returns (address vault_, address asset_, uint8 vaultDecimals_) {

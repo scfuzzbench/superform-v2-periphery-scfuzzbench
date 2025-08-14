@@ -98,10 +98,9 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             if (proverAddress == address(0)) {
                 proverAddress = address(0xDEAD);
             }
-            
-            PA[i].superGovernor = new SuperGovernor{ salt: SALT }(
-                address(this), address(this), address(this), TREASURY, proverAddress
-            );
+
+            PA[i].superGovernor =
+                new SuperGovernor{ salt: SALT }(address(this), address(this), address(this), TREASURY, proverAddress);
             vm.label(address(PA[i].superGovernor), SUPER_GOVERNOR_KEY);
             contractAddresses[chainIds[i]][SUPER_GOVERNOR_KEY] = address(PA[i].superGovernor);
 
@@ -123,7 +122,7 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             contractAddresses[chainIds[i]][ECDSAPPS_ORACLE_KEY] = address(PA[i].ecdsappsOracle);
 
             // Deploy implementation contracts first
-            address vaultImpl = address(new SuperVault());
+            address vaultImpl = address(new SuperVault(address(PA[i].superGovernor)));
             address strategyImpl = address(new SuperVaultStrategy(address(PA[i].superGovernor)));
             address escrowImpl = address(new SuperVaultEscrow());
 

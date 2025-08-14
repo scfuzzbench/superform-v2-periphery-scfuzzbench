@@ -8,7 +8,6 @@ interface ISuperVault {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
-    error ALREADY_INITIALIZED();
     error INVALID_ASSET();
     error INVALID_STRATEGY();
     error INVALID_ESCROW();
@@ -45,6 +44,8 @@ interface ISuperVault {
     event NonceInvalidated(address indexed sender, bytes32 indexed nonce);
 
     event RedeemRequestCancelled(address indexed controller, address indexed sender);
+
+    event SuperGovernorSet(address indexed superGovernor);
 
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL METHODS

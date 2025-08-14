@@ -19,6 +19,8 @@ import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadat
 // Interfaces
 import { ISuperVault } from "../interfaces/SuperVault/ISuperVault.sol";
 import { ISuperVaultStrategy } from "../interfaces/SuperVault/ISuperVaultStrategy.sol";
+import { ISuperGovernor } from "../interfaces/ISuperGovernor.sol";
+import { ISuperVaultAggregator } from "../interfaces/SuperVault/ISuperVaultAggregator.sol";
 import { IERC7540Operator, IERC7540Redeem, IERC7741 } from "../vendor/standards/ERC7540/IERC7540Vault.sol";
 import { IERC7575 } from "../vendor/standards/ERC7575/IERC7575.sol";
 import { ISuperVaultEscrow } from "../interfaces/SuperVault/ISuperVaultEscrow.sol";
@@ -56,13 +58,15 @@ contract SuperVault is
     /*//////////////////////////////////////////////////////////////
                                 STATE
     //////////////////////////////////////////////////////////////*/
-    bool public initialized;
     address public share;
     IERC20 private _asset;
     uint8 private _underlyingDecimals;
     ISuperVaultStrategy public strategy;
     address public escrow;
     uint256 public PRECISION;
+
+    // Core contracts
+    ISuperGovernor public immutable superGovernor;
 
     /// @inheritdoc IERC7540Operator
     mapping(address owner => mapping(address operator => bool)) public isOperator;
@@ -74,7 +78,11 @@ contract SuperVault is
                             CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor() {
+    constructor(address superGovernor_) {
+        if (superGovernor_ == address(0)) revert ZERO_ADDRESS();
+        superGovernor = ISuperGovernor(superGovernor_);
+        emit SuperGovernorSet(superGovernor_);
+
         _disableInitializers();
     }
 
@@ -98,11 +106,9 @@ contract SuperVault is
         external
         initializer
     {
-        if (initialized) revert ALREADY_INITIALIZED();
         if (asset_ == address(0)) revert INVALID_ASSET();
         if (strategy_ == address(0)) revert INVALID_STRATEGY();
         if (escrow_ == address(0)) revert INVALID_ESCROW();
-        initialized = true;
 
         // Initialize parent contracts
         __ERC20_init(name_, symbol_);
@@ -112,7 +118,8 @@ contract SuperVault is
         // Set asset and precision
         _asset = IERC20(asset_);
         (bool success, uint8 assetDecimals) = asset_.tryGetAssetDecimals();
-        _underlyingDecimals = success ? assetDecimals : 18;
+        if (!success) revert INVALID_ASSET();
+        _underlyingDecimals = assetDecimals;
         PRECISION = 10 ** _underlyingDecimals;
         share = address(this);
         strategy = ISuperVaultStrategy(strategy_);
@@ -309,26 +316,27 @@ contract SuperVault is
     /// @inheritdoc IERC4626
     function convertToShares(uint256 assets) public view override returns (uint256) {
         uint256 currentPPS = _getStoredPPS();
-        if (currentPPS == 0) return assets;
+        if (currentPPS == 0) return 0;
         return Math.mulDiv(assets, PRECISION, currentPPS, Math.Rounding.Floor);
     }
 
     /// @inheritdoc IERC4626
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         uint256 currentPPS = _getStoredPPS();
-        if (currentPPS == 0) return shares;
+        if (currentPPS == 0) return 0;
         return Math.mulDiv(shares, currentPPS, PRECISION, Math.Rounding.Ceil);
     }
 
     /// @inheritdoc IERC4626
-    function maxDeposit(address) public pure override returns (uint256) {
+    function maxDeposit(address) public view override returns (uint256) {
+        if (_isPaused()) return 0;
         return type(uint256).max;
     }
 
     /// @inheritdoc IERC4626
-    function maxMint(address owner) external view override returns (uint256) {
-        uint256 maxAssets = maxDeposit(owner);
-        return convertToShares(maxAssets);
+    function maxMint(address) external view override returns (uint256) {
+        if (_isPaused()) return 0;
+        return type(uint256).max;
     }
 
     /// @inheritdoc IERC4626
@@ -450,7 +458,7 @@ contract SuperVault is
     function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
         return interfaceId == type(IERC7540Redeem).interfaceId || interfaceId == type(IERC165).interfaceId
             || interfaceId == type(IERC7741).interfaceId || interfaceId == type(IERC4626).interfaceId
-            || interfaceId == type(IERC7575).interfaceId;
+            || interfaceId == type(IERC7575).interfaceId || interfaceId == type(IERC7540Operator).interfaceId;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -476,7 +484,8 @@ contract SuperVault is
     /// @param to The address of the recipient
     /// @param value The amount of shares being transferred
     function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable) {
-        if (from != address(0) && to != address(0)) {
+        /// @dev Copy user state only between actual users, not to/from infrastructure contracts
+        if (from != address(0) && to != address(0) && to != address(escrow) && from != address(escrow)) {
             ISuperVaultStrategy.SuperVaultState memory state = strategy.getSuperVaultState(from);
             strategy.updateSuperVaultState(to, state);
         }
@@ -491,5 +500,13 @@ contract SuperVault is
         uint256 currentPPS = _getStoredPPS();
         if (currentPPS == 0) revert INVALID_PPS();
         return currentPPS;
+    }
+
+    /// @notice Checks if the vault is currently paused
+    /// @dev This accesses the SuperVaultAggregator directly via the governor to determine pause status
+    /// @return True if the vault is paused, false otherwise
+    function _isPaused() internal view returns (bool) {
+        address aggregatorAddress = superGovernor.getAddress(superGovernor.SUPER_VAULT_AGGREGATOR());
+        return ISuperVaultAggregator(aggregatorAddress).isStrategyPaused(address(strategy));
     }
 }

@@ -66,7 +66,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
             new SuperGovernor(governorAddress, governorAddress, governorAddress, TREASURY, CHAIN_1_POLYMER_PROVER);
 
         // Deploy implementation contracts first
-        address vaultImpl = address(new SuperVault());
+        address vaultImpl = address(new SuperVault(address(governor)));
         address strategyImpl = address(new SuperVaultStrategy(address(governor)));
         address escrowImpl = address(new SuperVaultEscrow());
 

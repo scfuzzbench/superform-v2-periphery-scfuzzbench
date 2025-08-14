@@ -132,4 +132,56 @@ contract BundlerRegistryTest is PeripheryHelpers {
         assertEq(nonExistentBundler.bundlerAddress, address(0), "Non-existent bundler should have zero address");
         assertFalse(nonExistentBundler.isActive, "Non-existent bundler should be inactive");
     }
+
+    function test_RevertWhen_RegisterBundlerWithZeroAddress() public {
+        vm.expectRevert(IBundlerRegistry.INVALID_BUNDLER_ADDRESS.selector);
+        bundlerRegistry.registerBundler(address(0), EXTRA_DATA);
+    }
+
+    function test_RevertWhen_GetBundlerByInvalidId() public {
+        uint256 invalidBundlerId = 999_999;
+
+        vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
+        bundlerRegistry.getBundler(invalidBundlerId);
+    }
+
+    function test_RevertWhen_UpdateBundlerAddressWithInvalidId() public {
+        uint256 invalidBundlerId = 999_999;
+
+        vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
+        bundlerRegistry.updateBundlerAddress(invalidBundlerId, NEW_BUNDLER_ADDRESS);
+    }
+
+    function test_RevertWhen_UpdateBundlerAddressWithZeroAddress() public {
+        // First register a bundler
+        bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
+        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
+        uint256 bundlerId = bundler.id;
+
+        vm.expectRevert(IBundlerRegistry.INVALID_BUNDLER_ADDRESS.selector);
+        bundlerRegistry.updateBundlerAddress(bundlerId, address(0));
+    }
+
+    function test_RevertWhen_UpdateBundlerExtraDataWithInvalidId() public {
+        uint256 invalidBundlerId = 999_999;
+
+        vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
+        bundlerRegistry.updateBundlerExtraData(invalidBundlerId, NEW_EXTRA_DATA);
+    }
+
+    function test_RevertWhen_UpdateBundlerStatusWithInvalidId() public {
+        uint256 invalidBundlerId = 999_999;
+
+        vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
+        bundlerRegistry.updateBundlerStatus(invalidBundlerId, false);
+    }
+
+    function test_RevertWhen_RegisterAlreadyRegisteredBundler() public {
+        // First register a bundler
+        bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
+
+        // Try to register the same bundler again
+        vm.expectRevert(IBundlerRegistry.BUNDLER_ALREADY_REGISTERED.selector);
+        bundlerRegistry.registerBundler(BUNDLER, NEW_EXTRA_DATA);
+    }
 }

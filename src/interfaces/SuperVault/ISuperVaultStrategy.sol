@@ -18,7 +18,6 @@ interface ISuperVaultStrategy {
     error ACCESS_DENIED();
     error INVALID_AMOUNT();
     error INVALID_MANAGER();
-    error ALREADY_INITIALIZED();
     error OPERATION_FAILED();
     error INVALID_TIMESTAMP();
     error REQUEST_NOT_FOUND();
@@ -275,9 +274,6 @@ interface ISuperVaultStrategy {
     /*//////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    /// @notice Check if the strategy is initialized
-    function isInitialized() external view returns (bool);
 
     /// @notice Get the vault info
     function getVaultInfo() external view returns (address vault, address asset, uint8 vaultDecimals);

@@ -291,6 +291,8 @@ interface ISuperVaultAggregator {
     error ZERO_ARRAY_LENGTH();
     /// @notice Thrown when array length is zero
     error ARRAY_LENGTH_MISMATCH();
+    /// @notice Thrown when asset is invalid
+    error INVALID_ASSET();
     /// @notice Thrown when insufficient upkeep balance for operation
     error INSUFFICIENT_UPKEEP();
     /// @notice Thrown when vault is paused but operation requires active state
@@ -341,6 +343,10 @@ interface ISuperVaultAggregator {
     error INVALID_ARRAY_LENGTH();
     /// @notice Thrown when trying to add a protected keeper as an authorized caller
     error CANNOT_ADD_PROTECTED_KEEPER();
+    /// @notice Thrown when update timestamp is not monotonically increasing
+    error TIMESTAMP_NOT_MONOTONIC();
+    /// @notice Thrown when the provided maxStaleness is less than the minimum required staleness
+    error MAX_STALENESS_TOO_LOW();
 
     /*//////////////////////////////////////////////////////////////
                             VAULT CREATION

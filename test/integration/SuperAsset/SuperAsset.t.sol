@@ -116,7 +116,7 @@ contract SuperAssetTest is PeripheryHelpers {
         console.log("SuperGovernor Roles Granted");
 
         // Deploy implementation contracts first
-        address vaultImpl = address(new SuperVault());
+        address vaultImpl = address(new SuperVault(address(superGovernor)));
         address strategyImpl = address(new SuperVaultStrategy(address(superGovernor)));
         address escrowImpl = address(new SuperVaultEscrow());
 

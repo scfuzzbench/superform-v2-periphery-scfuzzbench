@@ -27,6 +27,8 @@ import { ISuperVaultAggregator } from "../../../src/interfaces/SuperVault/ISuper
 import { IECDSAPPSOracle } from "../../../src/interfaces/oracles/IECDSAPPSOracle.sol";
 import { MerkleReader } from "../../utils/merkle/helper/MerkleReader.sol";
 import { ISuperHookInspector } from "@superform-v2-core/src/interfaces/ISuperHook.sol";
+import { SuperVaultExecuteHooksHook } from "../../mocks/SuperVaultExecuteHooksHook.sol";
+import { SuperVaultManageYieldSourceHook } from "../../mocks/SuperVaultManageYieldSourceHook.sol";
 
 contract BaseSuperVaultTest is MerkleReader, BaseTest {
     using MessageHashUtils for bytes32;
@@ -213,6 +215,89 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         returns (address vaultAddr, address strategyAddr, address escrowAddr)
     {
         return _deployVault(address(asset), _superVaultSymbol);
+    }
+
+    /**
+     * @notice Deploys a new SuperVault with a smart account strategist
+     * @param smartAccountStrategist The address of the smart account to use as strategist
+     * @return vaultAddr The address of the deployed SuperVault
+     * @return strategyAddr The address of the deployed SuperVaultStrategy
+     * @return escrowAddr The address of the deployed SuperVaultEscrow
+     */
+    function _deployVaultWithSmartAccountStrategist(address smartAccountStrategist)
+        internal
+        returns (address vaultAddr, address strategyAddr, address escrowAddr)
+    {
+        vm.startPrank(SV_MANAGER);
+
+        // Deploy the vault trio with smart account strategist
+        (vaultAddr, strategyAddr, escrowAddr) = aggregator.createVault(
+            ISuperVaultAggregator.VaultCreationParams({
+                asset: address(asset),
+                name: "SuperVault SA",
+                symbol: "SV_SA_USDC",
+                mainStrategist: smartAccountStrategist, // Use smart account instead of EOA
+                minUpdateInterval: 5,
+                maxStaleness: 300,
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: address(this) })
+            })
+        );
+
+        // Label the contracts for easier identification
+        vm.label(vaultAddr, "SuperVault SA_USDC");
+        vm.label(strategyAddr, "SuperVaultStrategy SA_USDC");
+        vm.label(escrowAddr, "SuperVaultEscrow SA_USDC");
+
+        vm.stopPrank();
+
+        return (vaultAddr, strategyAddr, escrowAddr);
+    }
+
+    /**
+     * @notice Helper function to manage yield sources via smart account strategist
+     * @param strategistAccount The smart account that will execute the management calls
+     * @param targetStrategy The strategy to manage yield sources for
+     */
+    function _manageYieldSourcesViaSmartAccount(
+        AccountInstance memory strategistAccount,
+        SuperVaultStrategy targetStrategy
+    )
+        internal
+    {
+        // Create ManageYieldSourcesArgs for both vaults
+        address[] memory sources = new address[](2);
+        sources[0] = address(fluidVault);
+        sources[1] = address(aaveVault);
+
+        address[] memory oracles = new address[](2);
+        oracles[0] = _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY);
+        oracles[1] = _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY);
+
+        uint8[] memory actionTypes = new uint8[](2);
+        actionTypes[0] = 0; // Add yield source
+        actionTypes[1] = 0; // Add yield source
+
+        bool[] memory activates = new bool[](2);
+        activates[0] = true; // Activate
+        activates[1] = true; // Activate
+
+        SuperVaultManageYieldSourceHook.ManageYieldSourcesArgs memory args = SuperVaultManageYieldSourceHook
+            .ManageYieldSourcesArgs({ sources: sources, oracles: oracles, actionTypes: actionTypes, activates: activates });
+
+        // Deploy the SuperVaultManageYieldSourceHook
+        address manageYieldSourceHook = address(new SuperVaultManageYieldSourceHook(address(targetStrategy)));
+
+        // Execute via the smart account using our custom hook
+        address[] memory hooksAddresses = new address[](1);
+        hooksAddresses[0] = manageYieldSourceHook;
+
+        bytes[] memory hooksData = new bytes[](1);
+        hooksData[0] = abi.encode(args);
+
+        ISuperExecutor.ExecutorEntry memory entry =
+            ISuperExecutor.ExecutorEntry({ hooksAddresses: hooksAddresses, hooksData: hooksData });
+        UserOpData memory userOpData = _getExecOps(strategistAccount, superExecutorOnEth, abi.encode(entry));
+        executeOp(userOpData);
     }
 
     function __deposit(AccountInstance memory accInst, uint256 depositAmount) internal {
@@ -481,6 +566,102 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         uint256 shares = depositAmount.mulDiv(strategy.PRECISION(), pricePerShare);
 
         _trackDeposit(accountEth, shares, depositAmount);
+    }
+
+    function _depositFreeAssetsFromSingleAmountViaSmartAccount(
+        uint256 depositAmount,
+        address vault1,
+        address vault2,
+        AccountInstance memory strategistAccount,
+        SuperVaultStrategy targetStrategy
+    )
+        internal
+    {
+        DepositViaSmartAccountVars memory vars;
+
+        vars.depositHookAddress = _getHookAddress(ETH, APPROVE_AND_DEPOSIT_4626_VAULT_HOOK_KEY);
+
+        vars.fulfillHooksAddresses = new address[](2);
+        vars.fulfillHooksAddresses[0] = vars.depositHookAddress;
+        vars.fulfillHooksAddresses[1] = vars.depositHookAddress;
+
+        vars.fulfillHooksData = new bytes[](2);
+
+        // Split the deposit between two hooks
+        vars.halfAmount = depositAmount / 2;
+        vars.fulfillHooksData[0] = _createApproveAndDeposit4626HookData(
+            _getYieldSourceOracleId(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
+            vault1,
+            address(asset),
+            vars.halfAmount,
+            false,
+            address(0),
+            0
+        );
+
+        vars.fulfillHooksData[1] = _createApproveAndDeposit4626HookData(
+            _getYieldSourceOracleId(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
+            vault2,
+            address(asset),
+            depositAmount - vars.halfAmount,
+            false,
+            address(0),
+            0
+        );
+
+        vars.expectedAssetsOrSharesOut = new uint256[](2);
+        vars.expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).convertToShares(vars.halfAmount);
+        vars.expectedAssetsOrSharesOut[1] = IERC4626(address(vault2)).convertToShares(depositAmount - vars.halfAmount);
+
+        vars.argsForProofs = new bytes[](2);
+        vars.argsForProofs[0] = ISuperHookInspector(vars.fulfillHooksAddresses[0]).inspect(vars.fulfillHooksData[0]);
+        vars.argsForProofs[1] = ISuperHookInspector(vars.fulfillHooksAddresses[1]).inspect(vars.fulfillHooksData[1]);
+
+        // Create the ExecuteArgs for the strategy
+        vars.executeArgs = ISuperVaultStrategy.ExecuteArgs({
+            hooks: vars.fulfillHooksAddresses,
+            hookCalldata: vars.fulfillHooksData,
+            expectedAssetsOrSharesOut: vars.expectedAssetsOrSharesOut,
+            globalProofs: _getMerkleProofsForHooks(vars.fulfillHooksAddresses, vars.argsForProofs),
+            strategyProofs: new bytes32[][](2)
+        });
+
+        // Deploy the SuperVaultExecuteHooksHook
+        vars.executeHooksHook = address(new SuperVaultExecuteHooksHook(address(targetStrategy)));
+
+        // Execute via the smart account using our custom hook
+        vars.hooksAddresses = new address[](1);
+        vars.hooksAddresses[0] = vars.executeHooksHook;
+
+        vars.hooksData = new bytes[](1);
+        vars.hooksData[0] = abi.encode(vars.executeArgs);
+
+        vars.entry = ISuperExecutor.ExecutorEntry({ hooksAddresses: vars.hooksAddresses, hooksData: vars.hooksData });
+        vars.userOpData = _getExecOps(strategistAccount, superExecutorOnEth, abi.encode(vars.entry));
+        executeOp(vars.userOpData);
+
+        (vars.pricePerShare) = _getSuperVaultPricePerShare();
+        vars.shares = depositAmount.mulDiv(targetStrategy.PRECISION(), vars.pricePerShare);
+
+        _trackDeposit(accountEth, vars.shares, depositAmount);
+    }
+
+    // Local variables struct for _depositFreeAssetsFromSingleAmountViaSmartAccount
+    struct DepositViaSmartAccountVars {
+        address depositHookAddress;
+        address[] fulfillHooksAddresses;
+        bytes[] fulfillHooksData;
+        uint256 halfAmount;
+        uint256[] expectedAssetsOrSharesOut;
+        bytes[] argsForProofs;
+        ISuperVaultStrategy.ExecuteArgs executeArgs;
+        address executeHooksHook;
+        address[] hooksAddresses;
+        bytes[] hooksData;
+        ISuperExecutor.ExecutorEntry entry;
+        UserOpData userOpData;
+        uint256 pricePerShare;
+        uint256 shares;
     }
 
     // Local variables struct for _fulfillRedeem

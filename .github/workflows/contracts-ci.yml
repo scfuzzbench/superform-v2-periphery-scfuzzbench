@@ -76,6 +76,14 @@ jobs:
         working-directory: ./lib/v2-core/lib/modulekit
         run: pnpm install
 
+      - name: "Install Nexus"
+        working-directory: ./lib/v2-core/lib/nexus
+        run: yarn
+
+      - name: "Install Safe7579"
+        working-directory: ./lib/v2-core/lib/safe7579
+        run: yarn
+
       - name: "Build the contracts and print their size"
         run: "FOUNDRY_PROFILE=ci-sizes forge build --sizes"
 
@@ -108,7 +116,15 @@ jobs:
       - name: "Install ModuleKit"
         working-directory: ./lib/v2-core/lib/modulekit
         run: pnpm install
-        
+
+      - name: "Install Nexus"
+        working-directory: ./lib/v2-core/lib/nexus
+        run: yarn
+
+      - name: "Install Safe7579"
+        working-directory: ./lib/v2-core/lib/safe7579
+        run: yarn
+
       - name: "Install merkle-js dependencies"
         working-directory: ./test/utils/merkle/merkle-js
         run: npm install
@@ -172,6 +188,14 @@ jobs:
       - name: "Install ModuleKit"
         working-directory: ./lib/v2-core/lib/modulekit
         run: pnpm install
+
+      - name: "Install Nexus"
+        working-directory: ./lib/v2-core/lib/nexus
+        run: yarn
+
+      - name: "Install Safe7579"
+        working-directory: ./lib/v2-core/lib/safe7579
+        run: yarn
 
       - name: "Install Tenderly CLI"
         run: curl https://raw.githubusercontent.com/Tenderly/tenderly-cli/master/scripts/install-linux.sh | sudo sh
@@ -251,6 +275,14 @@ jobs:
         working-directory: ./lib/v2-core/lib/modulekit
         run: pnpm install
         
+      - name: "Install Nexus"
+        working-directory: ./lib/v2-core/lib/nexus
+        run: yarn
+
+      - name: "Install Safe7579"
+        working-directory: ./lib/v2-core/lib/safe7579
+        run: yarn
+
       - name: "Install merkle-js dependencies"
         working-directory: ./test/utils/merkle/merkle-js
         run: npm install

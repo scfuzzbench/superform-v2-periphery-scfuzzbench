@@ -149,9 +149,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _superVaultEscrows.add(escrow);
 
         // Get asset decimals
-        (vars.success, vars.assetDecimals) = params.asset.tryGetAssetDecimals();
-        vars.underlyingDecimals = vars.success ? vars.assetDecimals : 18;
-        vars.initialPPS = 10 ** vars.underlyingDecimals; // 1.0 as initial PPS
+        (bool success, uint8 assetDecimals) = params.asset.tryGetAssetDecimals();
+        if (!success) revert INVALID_ASSET();
+        vars.initialPPS = 10 ** assetDecimals; // 1.0 as initial PPS
+
+        // Validate maxStaleness against minimum required staleness
+        if (params.maxStaleness < SUPER_GOVERNOR.getMinStaleness()) {
+            revert MAX_STALENESS_TOO_LOW();
+        }
 
         // Initialize StrategyData individually to avoid mapping assignment issues
         _strategyData[strategy].pps = vars.initialPPS;
@@ -209,6 +214,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         if (
             strategiesLength != args.ppss.length || strategiesLength != args.ppsStdevs.length
                 || strategiesLength != args.validatorSets.length || strategiesLength != args.timestamps.length
+                || strategiesLength != args.totalValidators.length
         ) {
             revert ARRAY_LENGTH_MISMATCH();
         }
@@ -232,6 +238,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             // Skip invalid strategies without reverting
             if (!_superVaultStrategies.contains(args.strategies[i])) continue;
 
+            uint256 upkeepCost = upkeepPerStrategy;
+            if (upkeepCost > 0) {
+                // check exemption due to staleness of a given strategy
+                if (block.timestamp - args.timestamps[i] > _strategyData[args.strategies[i]].maxStaleness) {
+                    upkeepCost = 0;
+                    emit StaleUpdate(args.strategies[i], address(0), args.timestamps[i]);
+                }
+            }
+
             // Forward update, not exempt from upkeep in batch updates
             _forwardPPS(
                 ForwardPPSArgs({
@@ -242,7 +257,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                     validatorSet: args.validatorSets[i],
                     totalValidators: args.totalValidators[i],
                     timestamp: args.timestamps[i],
-                    upkeepCost: upkeepPerStrategy
+                    upkeepCost: upkeepCost
                 })
             );
         }
@@ -826,6 +841,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         uint256 lastUpdate = _strategyData[args.strategy].lastUpdateTimestamp;
         if (block.timestamp - lastUpdate < minInterval) {
             revert UPDATE_TOO_FREQUENT();
+        }
+
+        // Ensure timestamp is monotonically increasing to prevent out-of-order updates
+        if (args.timestamp <= lastUpdate) {
+            revert TIMESTAMP_NOT_MONOTONIC();
         }
 
         // Get the strategy's strategist to deduct upkeep cost from
