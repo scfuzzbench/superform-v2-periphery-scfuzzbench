@@ -252,6 +252,227 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     }
 
     // =============================================================
+    // Emergency Strategist Replacement Tests
+    // =============================================================
+
+    /// @notice Tests emergency strategist replacement clears pending proposals
+    function test_ChangePrimaryStrategist_ClearsPendingProposals() public {
+        // Setup: Create pending strategist proposal
+        address newStrategist = _deployAccount(0xC, "NewStrategist");
+
+        // Secondary strategist proposes a change
+        vm.prank(secondaryStrategist);
+        superVaultAggregator.proposeChangePrimaryStrategist(strategy, newStrategist);
+
+        // SuperGovernor performs emergency replacement
+        address emergencyStrategist = _deployAccount(0xD, "EmergencyStrategist");
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+
+        // Verify new strategist is set
+        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
+        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be set");
+    }
+
+    /// @notice Tests emergency replacement clears all secondary strategists
+    function test_ChangePrimaryStrategist_ClearsSecondaryStrategists() public {
+        // Setup: Add multiple secondary strategists
+        address secondaryStrategist2 = _deployAccount(0xE, "SecondaryStrategist2");
+        address secondaryStrategist3 = _deployAccount(0xF, "SecondaryStrategist3");
+
+        vm.startPrank(strategist);
+        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist2);
+        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist3);
+        vm.stopPrank();
+
+        // Verify secondary strategists exist
+        address[] memory secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
+        assertEq(secondaryStrategists.length, 3, "Should have 3 secondary strategists");
+
+        // SuperGovernor performs emergency replacement
+        address emergencyStrategist = _deployAccount(0x10, "EmergencyStrategist");
+
+        // Expect SecondaryStrategistRemoved events for all secondary strategists
+        vm.expectEmit(true, true, false, false);
+        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist);
+        vm.expectEmit(true, true, false, false);
+        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist2);
+        vm.expectEmit(true, true, false, false);
+        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist3);
+
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+
+        // Verify all secondary strategists were cleared
+        secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
+        assertEq(secondaryStrategists.length, 0, "All secondary strategists should be cleared");
+    }
+
+    /// @notice Tests emergency replacement clears pending hook root proposals
+    function test_ChangePrimaryStrategist_ClearsPendingHookProposals() public {
+        // Setup: Create pending hook root proposal
+        bytes32 newHookRoot = keccak256("new_hook_root");
+
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, newHookRoot);
+
+        // Verify hook proposal exists
+        (bytes32 proposedRoot, uint256 effectiveTime) = superVaultAggregator.getProposedStrategyHooksRoot(strategy);
+        assertEq(proposedRoot, newHookRoot, "Hook proposal should exist");
+        assertTrue(effectiveTime > 0, "Hook effective time should be set");
+
+        // SuperGovernor performs emergency replacement
+        address emergencyStrategist = _deployAccount(0x11, "EmergencyStrategist");
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+
+        // Verify hook proposal was cleared
+        (proposedRoot, effectiveTime) = superVaultAggregator.getProposedStrategyHooksRoot(strategy);
+        assertEq(proposedRoot, bytes32(0), "Hook proposal should be cleared");
+        assertEq(effectiveTime, 0, "Hook effective time should be cleared");
+    }
+
+    /// @notice Tests the complete attack scenario - malicious strategist cannot regain control
+    function test_ChangePrimaryStrategist_PreventsAttackScenario() public {
+        // Setup malicious scenario:
+        // 1. Malicious strategist has secondary strategists under their control
+        address maliciousSecondary1 = _deployAccount(0x12, "MaliciousSecondary1");
+        address maliciousSecondary2 = _deployAccount(0x13, "MaliciousSecondary2");
+
+        vm.startPrank(strategist); // strategist is acting maliciously
+        superVaultAggregator.addSecondaryStrategist(strategy, maliciousSecondary1);
+        superVaultAggregator.addSecondaryStrategist(strategy, maliciousSecondary2);
+        vm.stopPrank();
+
+        // 2. Malicious strategist creates a proposal to regain control after emergency replacement
+        address controlledAccount = _deployAccount(0x14, "ControlledAccount");
+        vm.prank(maliciousSecondary1);
+        superVaultAggregator.proposeChangePrimaryStrategist(strategy, controlledAccount);
+
+        // 3. SuperGovernor detects malicious behavior and performs emergency replacement
+        address emergencyStrategist = _deployAccount(0x15, "EmergencyStrategist");
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+
+        // 4. Verify the attack is thwarted:
+
+        // a) All secondary strategists are removed
+        address[] memory secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
+        assertEq(secondaryStrategists.length, 0, "All malicious secondary strategists should be removed");
+
+        // b) Emergency strategist is in control
+        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
+        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be in control");
+
+        // 5. Malicious accounts can no longer propose changes
+        vm.prank(maliciousSecondary1);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.proposeChangePrimaryStrategist(strategy, controlledAccount);
+
+        vm.prank(maliciousSecondary2);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.proposeChangePrimaryStrategist(strategy, controlledAccount);
+    }
+
+    /// @notice Tests that only SuperGovernor can call changePrimaryStrategist
+    function test_ChangePrimaryStrategist_OnlySuperGovernor() public {
+        address newStrategist = _deployAccount(0x16, "NewStrategist");
+
+        // Test unauthorized callers
+        vm.prank(strategist);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+
+        vm.prank(secondaryStrategist);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+
+        vm.prank(user);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+
+        // Test that SuperGovernor can call it
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+
+        // Verify change was successful
+        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
+        assertEq(currentStrategist, newStrategist, "New strategist should be set");
+    }
+
+    /// @notice Tests emergency replacement with zero address reverts
+    function test_ChangePrimaryStrategist_RevertZeroAddress() public {
+        vm.prank(address(superGovernor));
+        vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
+        superVaultAggregator.changePrimaryStrategist(strategy, address(0));
+    }
+
+    /// @notice Tests emergency replacement with unknown strategy reverts
+    function test_ChangePrimaryStrategist_RevertUnknownStrategy() public {
+        address unknownStrategy = _deployAccount(0x17, "UnknownStrategy");
+        address newStrategist = _deployAccount(0x18, "NewStrategist");
+
+        vm.prank(address(superGovernor));
+        vm.expectRevert(ISuperVaultAggregator.UNKNOWN_STRATEGY.selector);
+        superVaultAggregator.changePrimaryStrategist(unknownStrategy, newStrategist);
+    }
+
+    /// @notice Tests emergency replacement works when no pending proposals exist
+    function test_ChangePrimaryStrategist_NoPendingProposals() public {
+        // Emergency replacement should still work
+        address emergencyStrategist = _deployAccount(0x19, "EmergencyStrategist");
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+
+        // Verify change was successful
+        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
+        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be set");
+    }
+
+    /// @notice Tests emergency replacement works when no secondary strategists exist
+    function test_ChangePrimaryStrategist_NoSecondaryStrategists() public {
+        // Remove the existing secondary strategist
+        vm.prank(strategist);
+        superVaultAggregator.removeSecondaryStrategist(strategy, secondaryStrategist);
+
+        // Verify no secondary strategists exist
+        address[] memory secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
+        assertEq(secondaryStrategists.length, 0, "No secondary strategists should exist");
+
+        // Emergency replacement should still work
+        address emergencyStrategist = _deployAccount(0x1A, "EmergencyStrategist");
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+
+        // Verify change was successful
+        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
+        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be set");
+    }
+
+    /// @notice Tests that emergency replacement emits proper events
+    function test_ChangePrimaryStrategist_EmitsEvents() public {
+        // Setup: Add secondary strategists for event testing
+        address secondaryStrategist2 = _deployAccount(0x1B, "SecondaryStrategist2");
+        vm.prank(strategist);
+        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist2);
+
+        address emergencyStrategist = _deployAccount(0x1C, "EmergencyStrategist");
+
+        // Expect SecondaryStrategistRemoved events first (during the clearing loop)
+        vm.expectEmit(true, true, false, false);
+        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist);
+        vm.expectEmit(true, true, false, false);
+        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist2);
+
+        // Then expect PrimaryStrategistChanged event (emitted at the end)
+        vm.expectEmit(true, true, true, false);
+        emit ISuperVaultAggregator.PrimaryStrategistChanged(strategy, strategist, emergencyStrategist);
+
+        vm.prank(address(superGovernor));
+        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+    }
+
+    // =============================================================
     // Security Integration Tests
     // =============================================================
 
@@ -687,5 +908,187 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         // Verify timestamps were updated for both strategies
         assertEq(superVaultAggregator.getLastUpdateTimestamp(strategy), timestamps[0]);
         assertEq(superVaultAggregator.getLastUpdateTimestamp(strategy2), timestamps[1]);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           HOOK VALIDATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Tests hook validation with single-leaf merkle tree (empty global proof)
+    function test_ValidateHook_SingleLeafGlobalTree() public {
+        // Create hook arguments
+        bytes memory hookArgs = abi.encode("test_hook_call", 123);
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookArgs))));
+
+        // Set global root to be the leaf itself (single-leaf tree)
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf);
+
+        // Fast forward past timelock
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        // Execute the root update
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Test with empty proofs (should work for single-leaf tree)
+        bytes32[] memory emptyGlobalProof = new bytes32[](0);
+        bytes32[] memory emptyStrategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(strategy, hookArgs, emptyGlobalProof, emptyStrategyProof);
+
+        assertTrue(isValid, "Hook should be valid with empty proof for single-leaf global tree");
+    }
+
+    /// @notice Tests hook validation with single-leaf merkle tree (empty strategy proof)
+    function test_ValidateHook_SingleLeafStrategyTree() public {
+        // Create hook arguments
+        bytes memory hookArgs = abi.encode("test_hook_call", 456);
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookArgs))));
+
+        // Set strategy root to be the leaf itself (single-leaf tree)
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
+
+        // Fast forward past timelock
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        // Execute the root update
+        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+
+        // Test with empty proofs (should work for single-leaf tree)
+        bytes32[] memory emptyGlobalProof = new bytes32[](0);
+        bytes32[] memory emptyStrategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(strategy, hookArgs, emptyGlobalProof, emptyStrategyProof);
+
+        assertTrue(isValid, "Hook should be valid with empty proof for single-leaf strategy tree");
+    }
+
+    /// @notice Tests hook validation fails when leaf doesn't match single-leaf tree root
+    function test_ValidateHook_SingleLeafTreeWrongLeaf() public {
+        // Create hook arguments and different leaf
+        bytes memory hookArgs = abi.encode("test_hook_call", 789);
+        bytes memory differentHookArgs = abi.encode("different_hook_call", 999);
+        bytes32 correctLeaf = keccak256(bytes.concat(keccak256(abi.encode(differentHookArgs))));
+
+        // Set global root to be a different leaf (single-leaf tree)
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(correctLeaf);
+
+        // Fast forward past timelock
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        // Execute the root update
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Test with empty proofs and wrong hook args (should fail)
+        bytes32[] memory emptyGlobalProof = new bytes32[](0);
+        bytes32[] memory emptyStrategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(strategy, hookArgs, emptyGlobalProof, emptyStrategyProof);
+
+        assertFalse(isValid, "Hook should be invalid when leaf doesn't match single-leaf tree root");
+    }
+
+    /// @notice Tests hook validation with vetoed roots
+    function test_ValidateHook_VetoedRoots() public {
+        // Create hook arguments
+        bytes memory hookArgs = abi.encode("test_hook_call", 101_112);
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookArgs))));
+
+        // Set both global and strategy roots to be the leaf (single-leaf trees)
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf);
+
+        vm.warp(block.timestamp + 24 hours + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
+
+        vm.warp(block.timestamp + 24 hours + 1);
+        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+
+        // Veto both roots
+        vm.prank(address(superGovernor));
+        superVaultAggregator.setGlobalHooksRootVetoStatus(true);
+
+        vm.prank(address(superGovernor));
+        superVaultAggregator.setStrategyHooksRootVetoStatus(strategy, true);
+
+        // Test with empty proofs (should fail because both are vetoed)
+        bytes32[] memory emptyGlobalProof = new bytes32[](0);
+        bytes32[] memory emptyStrategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(strategy, hookArgs, emptyGlobalProof, emptyStrategyProof);
+
+        assertFalse(isValid, "Hook should be invalid when both roots are vetoed");
+    }
+
+    /// @notice Tests hook validation when one root is vetoed but the other is valid
+    function test_ValidateHook_OneRootVetoed() public {
+        // Create hook arguments
+        bytes memory hookArgs = abi.encode("test_hook_call", 131_415);
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookArgs))));
+
+        // Set strategy root to be the leaf (single-leaf tree)
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
+
+        vm.warp(block.timestamp + 24 hours + 1);
+        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+
+        // Veto global root (which is zero anyway)
+        vm.prank(address(superGovernor));
+        superVaultAggregator.setGlobalHooksRootVetoStatus(true);
+
+        // Test with empty proofs (should work because strategy root is valid)
+        bytes32[] memory emptyGlobalProof = new bytes32[](0);
+        bytes32[] memory emptyStrategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(strategy, hookArgs, emptyGlobalProof, emptyStrategyProof);
+
+        assertTrue(isValid, "Hook should be valid when only one root is available and not vetoed");
+    }
+
+    /// @notice Tests batch hook validation with mixed single-leaf and multi-leaf scenarios
+    function test_ValidateHooks_BatchValidation() public {
+        // Create multiple hook arguments
+        bytes memory hookArgs1 = abi.encode("hook1", 1);
+        bytes memory hookArgs2 = abi.encode("hook2", 2);
+        bytes32 leaf1 = keccak256(bytes.concat(keccak256(abi.encode(hookArgs1))));
+        bytes32 leaf2 = keccak256(bytes.concat(keccak256(abi.encode(hookArgs2))));
+
+        // Set global root to first leaf (single-leaf tree)
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf1);
+
+        vm.warp(block.timestamp + 24 hours + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Set strategy root to second leaf (single-leaf tree)
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf2);
+
+        vm.warp(block.timestamp + 24 hours + 1);
+        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+
+        // Prepare batch data
+        bytes[] memory hooksArgs = new bytes[](2);
+        hooksArgs[0] = hookArgs1;
+        hooksArgs[1] = hookArgs2;
+
+        bytes32[][] memory globalProofs = new bytes32[][](2);
+        globalProofs[0] = new bytes32[](0); // Empty proof for single-leaf tree
+        globalProofs[1] = new bytes32[](0); // Empty proof
+
+        bytes32[][] memory strategyProofs = new bytes32[][](2);
+        strategyProofs[0] = new bytes32[](0); // Empty proof
+        strategyProofs[1] = new bytes32[](0); // Empty proof for single-leaf tree
+
+        bool[] memory validHooks = superVaultAggregator.validateHooks(strategy, hooksArgs, globalProofs, strategyProofs);
+
+        assertTrue(validHooks[0], "First hook should be valid against global root");
+        assertTrue(validHooks[1], "Second hook should be valid against strategy root");
     }
 }

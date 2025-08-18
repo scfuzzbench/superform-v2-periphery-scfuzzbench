@@ -262,7 +262,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
 
         // Create message hash with all parameters
         bytes32 messageHash =
-            keccak256(abi.encodePacked(address(svStrategy), PPS, PPS_STDEV, uint256(2), uint256(3), block.timestamp));
+            keccak256(abi.encodePacked(address(svStrategy), PPS, PPS_STDEV, uint256(1), uint256(3), block.timestamp));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
         // Create proofs array
@@ -272,15 +272,72 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
             proofs[i] = abi.encodePacked(r, s, v);
         }
 
-        vm.expectRevert(IECDSAPPSOracle.INVALID_VALIDATOR.selector);
+        vm.expectRevert(IECDSAPPSOracle.INVALID_VALIDATOR_SET.selector);
         oracleECDSA.updatePPS(
             IECDSAPPSOracle.UpdatePPSArgs({
                 strategy: address(svStrategy),
                 proofs: proofs,
                 pps: PPS,
                 ppsStdev: PPS_STDEV,
-                validatorSet: 1,
+                validatorSet: 1, // Mismatch: 2 proofs but claiming only 1 validator
                 totalValidators: 3,
+                timestamp: block.timestamp
+            })
+        );
+    }
+
+    function test_UpdatePPS_InvalidValidatorSetReverts() public {
+        // Create proofs from 2 validators but claim validatorSet = 3
+        bytes[] memory proofs = _createValidProofs(
+            address(svStrategy),
+            PPS,
+            PPS_STDEV,
+            3, // Claim 3 validators signed
+            3, // totalValidators
+            block.timestamp,
+            new uint256[](0) // Will use default 2 validators (validator1, validator2)
+        );
+
+        // Remove one proof to create mismatch
+        bytes[] memory shorterProofs = new bytes[](2);
+        shorterProofs[0] = proofs[0];
+        shorterProofs[1] = proofs[1];
+
+        vm.expectRevert(IECDSAPPSOracle.INVALID_VALIDATOR_SET.selector);
+        oracleECDSA.updatePPS(
+            IECDSAPPSOracle.UpdatePPSArgs({
+                strategy: address(svStrategy),
+                proofs: shorterProofs, // Only 2 proofs
+                pps: PPS,
+                ppsStdev: PPS_STDEV,
+                validatorSet: 3, // But claiming 3 validators signed
+                totalValidators: 3,
+                timestamp: block.timestamp
+            })
+        );
+    }
+
+    function test_UpdatePPS_InvalidTotalValidatorsReverts() public {
+        // Create valid proofs but with incorrect totalValidators count
+        bytes[] memory proofs = _createValidProofs(
+            address(svStrategy),
+            PPS,
+            PPS_STDEV,
+            2, // validatorSet
+            5, // Claim 5 total validators (but we only have 3 registered)
+            block.timestamp,
+            new uint256[](0)
+        );
+
+        vm.expectRevert(IECDSAPPSOracle.INVALID_TOTAL_VALIDATORS.selector);
+        oracleECDSA.updatePPS(
+            IECDSAPPSOracle.UpdatePPSArgs({
+                strategy: address(svStrategy),
+                proofs: proofs,
+                pps: PPS,
+                ppsStdev: PPS_STDEV,
+                validatorSet: 2,
+                totalValidators: 5, // Incorrect: claiming 5 total validators but only 3 are registered
                 timestamp: block.timestamp
             })
         );

@@ -137,14 +137,18 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                 globalSVStrategy = SuperVaultAggregator(aggregator).STRATEGY_IMPLEMENTATION()
                     .predictDeterministicAddress(
                     keccak256(
-                        abi.encodePacked(existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "SV_USDC", uint256(0))
+                        abi.encode(
+                            SV_MANAGER, existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "SV_USDC", uint256(0)
+                        )
                     ),
                     aggregator
                 );
                 globalSVGearStrategy = SuperVaultAggregator(aggregator).STRATEGY_IMPLEMENTATION()
                     .predictDeterministicAddress(
                     keccak256(
-                        abi.encodePacked(existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "svGearbox", uint256(1))
+                        abi.encode(
+                            SV_MANAGER, existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "svGearbox", uint256(1)
+                        )
                     ),
                     aggregator
                 );
@@ -152,8 +156,8 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                 globalRuggableVault = SuperVaultAggregator(aggregator).STRATEGY_IMPLEMENTATION()
                     .predictDeterministicAddress(
                     keccak256(
-                        abi.encodePacked(
-                            existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "SV_USDC_RUG", uint256(1)
+                        abi.encode(
+                            SV_MANAGER, existingUnderlyingTokens[ETH][USDC_KEY], "SuperVault", "SV_USDC_RUG", uint256(1)
                         )
                     ),
                     aggregator
