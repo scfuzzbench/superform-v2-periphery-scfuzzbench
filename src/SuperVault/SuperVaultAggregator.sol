@@ -127,7 +127,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // Increment nonce before creating proxies
         vars.currentNonce = _vaultCreationNonce++;
-        vars.salt = keccak256(abi.encodePacked(params.asset, params.name, params.symbol, vars.currentNonce));
+        vars.salt = keccak256(abi.encode(msg.sender, params.asset, params.name, params.symbol, vars.currentNonce));
 
         // Create minimal proxies
         superVault = VAULT_IMPLEMENTATION.cloneDeterministic(vars.salt);
@@ -406,8 +406,23 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         address oldStrategist = _strategyData[strategy].mainStrategist;
 
-        // If new strategist is already a secondary strategist, remove them
-        _strategyData[strategy].secondaryStrategists.remove(newStrategist);
+        // SECURITY: Clear any pending strategist proposals to prevent malicious re-takeover
+        _strategyData[strategy].proposedStrategist = address(0);
+        _strategyData[strategy].strategistChangeEffectiveTime = 0;
+
+        // SECURITY: Clear any pending hooks root proposals to prevent malicious hook updates
+        _strategyData[strategy].proposedHooksRoot = bytes32(0);
+        _strategyData[strategy].hooksRootEffectiveTime = 0;
+
+        // SECURITY: Clear all secondary strategists as they may be controlled by malicious strategist
+        // Get all secondary strategists first to emit proper events
+        address[] memory clearedSecondaryStrategists = _strategyData[strategy].secondaryStrategists.values();
+
+        // Clear the entire secondary strategists set
+        for (uint256 i = 0; i < clearedSecondaryStrategists.length; i++) {
+            _strategyData[strategy].secondaryStrategists.remove(clearedSecondaryStrategists[i]);
+            emit SecondaryStrategistRemoved(strategy, clearedSecondaryStrategists[i]);
+        }
 
         // Set the new primary strategist
         _strategyData[strategy].mainStrategist = newStrategist;
@@ -749,15 +764,13 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         view
         returns (bool isValid)
     {
-        // If both roots are vetoed, all hook validations fail
-        bool globalHooksVetoed = _globalHooksRootVetoed;
-        bool strategyHooksVetoed = _strategyData[strategy].hooksRootVetoed;
-        if (globalHooksVetoed && strategyHooksVetoed) {
-            return false;
+        // Try to validate against global root first
+        if (_validateSingleHook(strategy, hookArgs, globalProof, true)) {
+            return true;
         }
 
-        return
-            _validateSingleHook(strategy, hookArgs, globalProof, strategyProof, globalHooksVetoed, strategyHooksVetoed);
+        // If global validation fails, try strategy root
+        return _validateSingleHook(strategy, hookArgs, strategyProof, false);
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -778,23 +791,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             revert INVALID_ARRAY_LENGTH();
         }
 
-        // Get veto statuses only once
-        bool globalHooksVetoed = _globalHooksRootVetoed;
-        bool strategyHooksVetoed = _strategyData[strategy].hooksRootVetoed;
-
-        // If both roots are vetoed, all hooks are invalid
-        if (globalHooksVetoed && strategyHooksVetoed) {
-            validHooks = new bool[](length);
-            // All values default to false in Solidity, so no need to set them
-            return validHooks;
-        }
-
         // Validate each hook
         validHooks = new bool[](length);
         for (uint256 i; i < length; i++) {
-            validHooks[i] = _validateSingleHook(
-                strategy, hooksArgs[i], globalProofs[i], strategyProofs[i], globalHooksVetoed, strategyHooksVetoed
-            );
+            // Try global root first, then strategy root
+            validHooks[i] = _validateSingleHook(strategy, hooksArgs[i], globalProofs[i], true)
+                || _validateSingleHook(strategy, hooksArgs[i], strategyProofs[i], false);
         }
 
         return validHooks;
@@ -968,55 +970,50 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /**
-     * @dev Internal function to validate a single hook
+     * @dev Internal function to validate a single hook against either global or strategy root
      * @param strategy Address of the strategy
      * @param hookArgs Hook arguments
-     * @param globalProof Merkle proof for global root
-     * @param strategyProof Merkle proof for strategy root
-     * @param globalVetoed Whether global hooks are vetoed
-     * @param strategyVetoed Whether strategy hooks are vetoed
+     * @param proof Merkle proof for the specified root
+     * @param isGlobalProof Whether to validate against global root (true) or strategy root (false)
      * @return True if hook is valid, false otherwise
      */
     function _validateSingleHook(
         address strategy,
         bytes calldata hookArgs,
-        bytes32[] calldata globalProof,
-        bytes32[] calldata strategyProof,
-        bool globalVetoed,
-        bool strategyVetoed
+        bytes32[] calldata proof,
+        bool isGlobalProof
     )
         internal
         view
         returns (bool)
     {
-        uint256 lengthGlobalProof = globalProof.length;
-        uint256 lengthStrategyProof = strategyProof.length;
-
-        // If both proofs are empty, the hook is not allowed
-        if (lengthGlobalProof == 0 && lengthStrategyProof == 0) {
-            return false;
-        }
-
         // Create leaf node from the hook arguments
         bytes32 leaf = _createLeaf(hookArgs);
 
-        // First try to verify against the global root if provided
-        if (lengthGlobalProof > 0 && !globalVetoed) {
-            // Only validate against global root if it exists
-            if (_globalHooksRoot != bytes32(0) && MerkleProof.verify(globalProof, _globalHooksRoot, leaf)) {
-                return true;
+        if (isGlobalProof) {
+            // Validate against global root
+            if (_globalHooksRootVetoed || _globalHooksRoot == bytes32(0)) {
+                return false;
             }
-        }
-
-        // Then try to verify against the strategy-specific root if provided
-        if (lengthStrategyProof > 0 && !strategyVetoed) {
+            // For single-leaf trees, empty proof is valid when root equals leaf
+            if (proof.length == 0) {
+                return _globalHooksRoot == leaf;
+            }
+            return MerkleProof.verify(proof, _globalHooksRoot, leaf);
+        } else {
+            // Validate against strategy root
+            if (_strategyData[strategy].hooksRootVetoed) {
+                return false;
+            }
             bytes32 strategyRoot = _strategyData[strategy].strategistHooksRoot;
-            if (strategyRoot != bytes32(0) && MerkleProof.verify(strategyProof, strategyRoot, leaf)) {
-                return true;
+            if (strategyRoot == bytes32(0)) {
+                return false;
             }
+            // For single-leaf trees, empty proof is valid when root equals leaf
+            if (proof.length == 0) {
+                return strategyRoot == leaf;
+            }
+            return MerkleProof.verify(proof, strategyRoot, leaf);
         }
-
-        // If we get here, verification failed
-        return false;
     }
 }

@@ -10,7 +10,6 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
     mapping(address bundlerAddress => Bundler bundlerData) public bundlers;
-    mapping(uint256 bundlerId => address bundlerAddress) public bundlerIds;
 
     constructor(address owner_) Ownable(owner_) { }
 
@@ -28,15 +27,8 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
     }
 
     /// @inheritdoc IBundlerRegistry
-    function getBundler(uint256 _bundlerId) external view returns (Bundler memory) {
-        Bundler memory bundler = bundlers[bundlerIds[_bundlerId]];
-        if (bundler.bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
-        return bundler;
-    }
-
-    /// @inheritdoc IBundlerRegistry
-    function getBundlerByAddress(address _addr) external view returns (Bundler memory) {
-        return bundlers[_addr];
+    function getBundler(address bundler) external view returns (Bundler memory) {
+        return bundlers[bundler];
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -50,60 +42,33 @@ contract BundlerRegistry is IBundlerRegistry, Ownable2Step {
         if (bundlerAddress == address(0)) revert INVALID_BUNDLER_ADDRESS();
         if (bundlers[bundlerAddress].bundlerAddress != address(0)) revert BUNDLER_ALREADY_REGISTERED();
 
-        IBundlerRegistry.Bundler memory bundler = IBundlerRegistry.Bundler({
-            id: uint256(keccak256(abi.encodePacked(bundlerAddress, _extraData, block.timestamp, block.chainid))),
-            bundlerAddress: bundlerAddress,
-            isActive: true,
-            extraData: _extraData
-        });
+        IBundlerRegistry.Bundler memory bundler =
+            IBundlerRegistry.Bundler({ bundlerAddress: bundlerAddress, isActive: true, extraData: _extraData });
 
         bundlers[bundlerAddress] = bundler;
-        bundlerIds[bundler.id] = bundlerAddress;
 
-        emit BundlerRegistered(bundler.id, bundlerAddress);
-    }
-
-    /// @notice Update a bundler's address
-    /// @param _bundlerId The id of the bundler
-    /// @param _newAddress The new address of the bundler
-    function updateBundlerAddress(uint256 _bundlerId, address _newAddress) external onlyOwner {
-        address bundlerAddress = bundlerIds[_bundlerId];
-        if (bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
-        if (_newAddress == address(0)) revert INVALID_BUNDLER_ADDRESS();
-
-        // Copy the bundler data to the new address
-        IBundlerRegistry.Bundler memory bundler = bundlers[bundlerAddress];
-        bundler.bundlerAddress = _newAddress;
-
-        // Update mappings
-        delete bundlers[bundlerAddress];
-        bundlers[_newAddress] = bundler;
-        bundlerIds[_bundlerId] = _newAddress;
-
-        emit BundlerAddressUpdated(_bundlerId, bundlerAddress, _newAddress);
+        emit BundlerRegistered(bundlerAddress);
     }
 
     /// @notice Update a bundler's extra data
-    /// @param _bundlerId The id of the bundler
+    /// @param bundlerAddress The address of the bundler
     /// @param _extraData The new extra data for the bundler
-    function updateBundlerExtraData(uint256 _bundlerId, bytes calldata _extraData) external onlyOwner {
-        address bundlerAddress = bundlerIds[_bundlerId];
-        if (bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
+    function updateBundlerExtraData(address bundlerAddress, bytes calldata _extraData) external onlyOwner {
+        if (bundlers[bundlerAddress].bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
 
         bundlers[bundlerAddress].extraData = _extraData;
 
-        emit BundlerExtraDataUpdated(_bundlerId, bundlerAddress, _extraData);
+        emit BundlerExtraDataUpdated(bundlerAddress, _extraData);
     }
 
     /// @notice Update a bundler's status
-    /// @param _bundlerId The id of the bundler
+    /// @param bundlerAddress The address of the bundler
     /// @param _isActive The new status of the bundler
-    function updateBundlerStatus(uint256 _bundlerId, bool _isActive) external onlyOwner {
-        address bundlerAddress = bundlerIds[_bundlerId];
-        if (bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
+    function updateBundlerStatus(address bundlerAddress, bool _isActive) external onlyOwner {
+        if (bundlers[bundlerAddress].bundlerAddress == address(0)) revert BUNDLER_NOT_FOUND();
 
         bundlers[bundlerAddress].isActive = _isActive;
 
-        emit BundlerStatusChanged(_bundlerId, bundlerAddress, _isActive);
+        emit BundlerStatusChanged(bundlerAddress, _isActive);
     }
 }

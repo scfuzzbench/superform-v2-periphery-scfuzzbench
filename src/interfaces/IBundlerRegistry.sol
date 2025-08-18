@@ -16,19 +16,16 @@ interface IBundlerRegistry {
                                 EVENTS
     //////////////////////////////////////////////////////////////*/
     /// @notice Emitted when a bundler is registered
-    event BundlerRegistered(uint256 indexed id, address indexed bundler);
-    /// @notice Emitted when the address of a bundler is updated
-    event BundlerAddressUpdated(uint256 indexed id, address indexed oldBundler, address indexed newBundler);
+    event BundlerRegistered(address indexed bundler);
     /// @notice Emitted when the extra data of a bundler is updated
-    event BundlerExtraDataUpdated(uint256 indexed id, address indexed bundler, bytes extraData);
+    event BundlerExtraDataUpdated(address indexed bundler, bytes extraData);
     /// @notice Emitted when the status of a bundler is changed
-    event BundlerStatusChanged(uint256 indexed id, address indexed bundler, bool isActive);
+    event BundlerStatusChanged(address indexed bundler, bool isActive);
 
     /*//////////////////////////////////////////////////////////////
                                 STRUCTS
     //////////////////////////////////////////////////////////////*/
     struct Bundler {
-        uint256 id; //unique identifier for the bundler
         address bundlerAddress; //address of the bundler
         bool isActive; //whether the bundler is active
         bytes extraData; //extra data for off-chain use
@@ -47,13 +44,8 @@ interface IBundlerRegistry {
     /// @return True if the bundler is active, false otherwise
     function isBundlerActive(address bundler) external view returns (bool);
 
-    /// @notice Get a bundler by its id
-    /// @param _bundlerId The id of the bundler
-    /// @return The bundler
-    function getBundler(uint256 _bundlerId) external view returns (Bundler memory);
-
     /// @notice Get a bundler by its address
-    /// @param _addr The address of the bundler
+    /// @param bundler The address of the bundler
     /// @return The bundler
-    function getBundlerByAddress(address _addr) external view returns (Bundler memory);
+    function getBundler(address bundler) external view returns (Bundler memory);
 }

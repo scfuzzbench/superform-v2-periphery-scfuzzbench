@@ -12,10 +12,9 @@ contract BundlerRegistryTest is PeripheryHelpers {
     address public constant NEW_BUNDLER_ADDRESS = address(0x456);
     bytes public constant NEW_EXTRA_DATA = "new_test_data";
 
-    event BundlerRegistered(uint256 indexed id, address indexed bundlerAddress);
-    event BundlerAddressUpdated(uint256 indexed id, address indexed oldAddress, address indexed newAddress);
-    event BundlerExtraDataUpdated(uint256 indexed id, address indexed bundlerAddress, bytes extraData);
-    event BundlerStatusChanged(uint256 indexed id, address indexed bundlerAddress, bool isActive);
+    event BundlerRegistered(address indexed bundlerAddress);
+    event BundlerExtraDataUpdated(address indexed bundlerAddress, bytes extraData);
+    event BundlerStatusChanged(address indexed bundlerAddress, bool isActive);
 
     function setUp() public {
         // Deploy BundlerRegistry with owner as this contract
@@ -27,7 +26,7 @@ contract BundlerRegistryTest is PeripheryHelpers {
         bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
 
         // Get the bundler data
-        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
+        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundler(BUNDLER);
 
         // Verify registration
         assertTrue(bundlerRegistry.isBundlerRegistered(BUNDLER), "Bundler should be registered");
@@ -39,60 +38,34 @@ contract BundlerRegistryTest is PeripheryHelpers {
         vm.stopPrank();
     }
 
-    function test_UpdateBundlerAddress() public {
-        // First register a bundler
-        bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
-        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
-        uint256 bundlerId = bundler.id;
-
-        // Update bundler address
-        vm.expectEmit(true, true, true, true);
-        emit BundlerAddressUpdated(bundlerId, BUNDLER, NEW_BUNDLER_ADDRESS);
-
-        bundlerRegistry.updateBundlerAddress(bundlerId, NEW_BUNDLER_ADDRESS);
-
-        IBundlerRegistry.Bundler memory updatedBundler = bundlerRegistry.getBundler(bundlerId);
-        assertEq(updatedBundler.bundlerAddress, NEW_BUNDLER_ADDRESS, "Bundler address not updated - getBundler");
-
-        // Verify update using getBundlerByAddress instead of getBundler
-        updatedBundler = bundlerRegistry.getBundlerByAddress(NEW_BUNDLER_ADDRESS);
-        assertEq(updatedBundler.bundlerAddress, NEW_BUNDLER_ADDRESS, "Bundler address not updated");
-        assertTrue(bundlerRegistry.isBundlerRegistered(NEW_BUNDLER_ADDRESS), "New address should be registered");
-        assertFalse(bundlerRegistry.isBundlerRegistered(BUNDLER), "Old address should not be registered");
-    }
-
     function test_UpdateBundlerExtraData() public {
         // First register a bundler
         bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
-        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
-        uint256 bundlerId = bundler.id;
 
         // Update extra data
-        vm.expectEmit(true, true, false, true);
-        emit BundlerExtraDataUpdated(bundlerId, BUNDLER, NEW_EXTRA_DATA);
+        vm.expectEmit(true, false, false, true);
+        emit BundlerExtraDataUpdated(BUNDLER, NEW_EXTRA_DATA);
 
-        bundlerRegistry.updateBundlerExtraData(bundlerId, NEW_EXTRA_DATA);
+        bundlerRegistry.updateBundlerExtraData(BUNDLER, NEW_EXTRA_DATA);
 
         // Verify update
-        IBundlerRegistry.Bundler memory updatedBundler = bundlerRegistry.getBundler(bundlerId);
+        IBundlerRegistry.Bundler memory updatedBundler = bundlerRegistry.getBundler(BUNDLER);
         assertEq(updatedBundler.extraData, NEW_EXTRA_DATA, "Extra data not updated");
     }
 
     function test_UpdateBundlerStatus() public {
         // First register a bundler
         bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
-        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
-        uint256 bundlerId = bundler.id;
 
         // Update status to inactive
-        vm.expectEmit(true, true, false, true);
-        emit BundlerStatusChanged(bundlerId, BUNDLER, false);
+        vm.expectEmit(true, false, false, true);
+        emit BundlerStatusChanged(BUNDLER, false);
 
-        bundlerRegistry.updateBundlerStatus(bundlerId, false);
+        bundlerRegistry.updateBundlerStatus(BUNDLER, false);
 
         // Verify update
         assertFalse(bundlerRegistry.isBundlerActive(BUNDLER), "Bundler should be inactive");
-        IBundlerRegistry.Bundler memory updatedBundler = bundlerRegistry.getBundler(bundlerId);
+        IBundlerRegistry.Bundler memory updatedBundler = bundlerRegistry.getBundler(BUNDLER);
         assertFalse(updatedBundler.isActive, "Bundler status not updated");
     }
 
@@ -107,28 +80,23 @@ contract BundlerRegistryTest is PeripheryHelpers {
     function test_RevertWhen_UnauthorizedUpdate() public {
         // First register a bundler
         bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
-        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
-        uint256 bundlerId = bundler.id;
 
         // Try to update from non-owner address
         address nonOwner = address(0x789);
         vm.startPrank(nonOwner);
 
         vm.expectRevert();
-        bundlerRegistry.updateBundlerAddress(bundlerId, NEW_BUNDLER_ADDRESS);
+        bundlerRegistry.updateBundlerExtraData(BUNDLER, NEW_EXTRA_DATA);
 
         vm.expectRevert();
-        bundlerRegistry.updateBundlerExtraData(bundlerId, NEW_EXTRA_DATA);
-
-        vm.expectRevert();
-        bundlerRegistry.updateBundlerStatus(bundlerId, false);
+        bundlerRegistry.updateBundlerStatus(BUNDLER, false);
 
         vm.stopPrank();
     }
 
     function test_GetNonExistentBundler() public view {
         // Try to get a non-existent bundler
-        IBundlerRegistry.Bundler memory nonExistentBundler = bundlerRegistry.getBundlerByAddress(address(0x999));
+        IBundlerRegistry.Bundler memory nonExistentBundler = bundlerRegistry.getBundler(address(0x999));
         assertEq(nonExistentBundler.bundlerAddress, address(0), "Non-existent bundler should have zero address");
         assertFalse(nonExistentBundler.isActive, "Non-existent bundler should be inactive");
     }
@@ -138,42 +106,18 @@ contract BundlerRegistryTest is PeripheryHelpers {
         bundlerRegistry.registerBundler(address(0), EXTRA_DATA);
     }
 
-    function test_RevertWhen_GetBundlerByInvalidId() public {
-        uint256 invalidBundlerId = 999_999;
+    function test_RevertWhen_UpdateBundlerExtraDataWithInvalidAddress() public {
+        address invalidBundlerAddress = address(0x999);
 
         vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
-        bundlerRegistry.getBundler(invalidBundlerId);
+        bundlerRegistry.updateBundlerExtraData(invalidBundlerAddress, NEW_EXTRA_DATA);
     }
 
-    function test_RevertWhen_UpdateBundlerAddressWithInvalidId() public {
-        uint256 invalidBundlerId = 999_999;
+    function test_RevertWhen_UpdateBundlerStatusWithInvalidAddress() public {
+        address invalidBundlerAddress = address(0x999);
 
         vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
-        bundlerRegistry.updateBundlerAddress(invalidBundlerId, NEW_BUNDLER_ADDRESS);
-    }
-
-    function test_RevertWhen_UpdateBundlerAddressWithZeroAddress() public {
-        // First register a bundler
-        bundlerRegistry.registerBundler(BUNDLER, EXTRA_DATA);
-        IBundlerRegistry.Bundler memory bundler = bundlerRegistry.getBundlerByAddress(BUNDLER);
-        uint256 bundlerId = bundler.id;
-
-        vm.expectRevert(IBundlerRegistry.INVALID_BUNDLER_ADDRESS.selector);
-        bundlerRegistry.updateBundlerAddress(bundlerId, address(0));
-    }
-
-    function test_RevertWhen_UpdateBundlerExtraDataWithInvalidId() public {
-        uint256 invalidBundlerId = 999_999;
-
-        vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
-        bundlerRegistry.updateBundlerExtraData(invalidBundlerId, NEW_EXTRA_DATA);
-    }
-
-    function test_RevertWhen_UpdateBundlerStatusWithInvalidId() public {
-        uint256 invalidBundlerId = 999_999;
-
-        vm.expectRevert(IBundlerRegistry.BUNDLER_NOT_FOUND.selector);
-        bundlerRegistry.updateBundlerStatus(invalidBundlerId, false);
+        bundlerRegistry.updateBundlerStatus(invalidBundlerAddress, false);
     }
 
     function test_RevertWhen_RegisterAlreadyRegisteredBundler() public {

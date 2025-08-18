@@ -167,6 +167,13 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
             seenSigners[i] = signer;
         }
 
+        // Validate that validatorSet matches actual number of valid signatures
+        if (validatorSet != proofsLength) revert INVALID_VALIDATOR_SET();
+
+        // Validate that totalValidators matches actual total number of validators
+        uint256 actualTotalValidators = SUPER_GOVERNOR.getValidators().length;
+        if (totalValidators != actualTotalValidators) revert INVALID_TOTAL_VALIDATORS();
+
         // Ensure we have enough valid signatures to meet quorum
         uint256 quorumRequirement = SUPER_GOVERNOR.getPPSOracleQuorum();
         if (proofsLength < quorumRequirement) revert QUORUM_NOT_MET();
