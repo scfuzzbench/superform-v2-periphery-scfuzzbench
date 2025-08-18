@@ -83,3 +83,19 @@ wrap_comments = true
 11155111 = { key = "${ETHERSCANV2_API_KEY_TEST}" }
 11155420 = { key = "${ETHERSCANV2_API_KEY_TEST}" }
 84532 = { key = "${ETHERSCANV2_API_KEY_TEST}" }
+
+
+[lint]
+exclude_lints = ["mixed-case-function"]
+ignore = [
+    "src/vendor/**", 
+    "src/vendor/**/*.sol",
+    "./src/vendor/**",
+    "**/vendor/**",
+    "lib/evm-gateway-contracts/**",
+    "./lib/evm-gateway-contracts/**",
+    "test/**", 
+    "test/**/*.sol",
+    "./test/**",
+    "**/test/**"
+]

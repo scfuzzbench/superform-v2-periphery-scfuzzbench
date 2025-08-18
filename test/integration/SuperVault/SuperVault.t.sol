@@ -2822,7 +2822,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         // do an initial allo
         _completeDepositFlow(vars.depositAmount);
-        IERC4626 newVault = IERC4626(CHAIN_1_EulerVault);
+        IERC4626 newVault = IERC4626(CHAIN_1_EULER_VAULT);
 
         //  -- add funds to the newVault to respect LARGE_DEPOSIT
         _getTokens(address(asset), address(this), 2 * LARGE_DEPOSIT);
@@ -3790,7 +3790,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _completeDepositFlow(vars.depositAmount);
 
         // Add Euler vault as a new yield source
-        address eulerVaultAddr = CHAIN_1_EulerVault;
+        address eulerVaultAddr = CHAIN_1_EULER_VAULT;
         vm.label(eulerVaultAddr, "EulerVault");
         IERC4626 eulerVault = IERC4626(eulerVaultAddr);
 

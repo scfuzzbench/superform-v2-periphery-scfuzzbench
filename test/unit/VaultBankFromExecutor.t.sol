@@ -66,8 +66,8 @@ contract VaultBankFromExecutor is
         underlying = CHAIN_1_USDC;
         ledgerConfig = address(new SuperLedgerConfiguration());
 
-        yieldSourceAddress = CHAIN_1_MorphoVault;
-        anotherYieldSourceAddress = CHAIN_1_YearnVault;
+        yieldSourceAddress = CHAIN_1_MORPHO_VAULT;
+        anotherYieldSourceAddress = CHAIN_1_YEARN_VAULT;
         yieldSourceOracle = address(new ERC4626YieldSourceOracle(address(ledgerConfig)));
         vaultInstance = IERC4626(yieldSourceAddress);
 
@@ -232,16 +232,17 @@ contract VaultBankFromExecutor is
         returns (bytes memory signatureData)
     {
         bytes32[] memory leaves = new bytes32[](1);
-        leaves[0] = _createSourceValidatorLeaf(userOpData.userOpHash, validUntil, 0, new uint64[](0), address(validator));
+        leaves[0] =
+            _createSourceValidatorLeaf(userOpData.userOpHash, validUntil, 0, new uint64[](0), address(validator));
 
         (bytes32[][] memory merkleProof, bytes32 merkleRoot) = _createValidatorMerkleTree(leaves);
 
         bytes memory signature =
             _createSignature(SuperValidatorBase(address(validator)).namespace(), merkleRoot, signer, signerPrvKey);
 
-
         uint64[] memory chainsWithDestExecutionNone = new uint64[](0);
         ISuperValidator.DstProof[] memory proofDst = new ISuperValidator.DstProof[](0);
-        signatureData = abi.encode(chainsWithDestExecutionNone, validUntil, 0, merkleRoot, merkleProof[0], proofDst, signature);
+        signatureData =
+            abi.encode(chainsWithDestExecutionNone, validUntil, 0, merkleRoot, merkleProof[0], proofDst, signature);
     }
 }
