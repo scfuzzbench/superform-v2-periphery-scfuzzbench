@@ -39,12 +39,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     // Governance
     ISuperGovernor public immutable SUPER_GOVERNOR;
+    
+    // Claimable upkeep
+    uint256 public claimableUpkeep;
 
     // Strategy data storage
     mapping(address strategy => StrategyData) private _strategyData;
 
     // Upkeep balances
     mapping(address strategist => uint256 upkeep) private _strategistUpkeepBalance;
+
 
     // Registry of created vaults
     EnumerableSet.AddressSet private _superVaults;
@@ -83,6 +87,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @notice Validates that a strategy exists (has been created by this aggregator)
     modifier validStrategy(address strategy) {
         if (!_superVaultStrategies.contains(strategy)) revert UNKNOWN_STRATEGY();
+        _;
+    }
+
+    // @notice Validates that msg.sender is the upkeep claimer
+    modifier onlyUpkeepClaimer() {
+        if (!SUPER_GOVERNOR.hasRole(keccak256("GOVERNOR_ROLE"), msg.sender)) {
+            revert CALLER_NOT_AUTHORIZED();
+        }
         _;
     }
 
@@ -280,6 +292,22 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategistUpkeepBalance[strategist] += amount;
 
         emit UpkeepDeposited(strategist, amount);
+    }
+
+    /// @inheritdoc ISuperVaultAggregator
+    function claimUpkeep() external onlyUpkeepClaimer {
+        if (claimableUpkeep == 0) revert INSUFFICIENT_UPKEEP();
+
+        // Get the UP token address from SUPER_GOVERNOR
+        address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
+
+        // Transfer UP tokens to msg.sender
+        address _superBank = _getSuperBank();
+        IERC20(upToken).safeTransfer(_superBank, claimableUpkeep);
+        emit UpkeepClaimed(_superBank, claimableUpkeep);
+
+        // Reset claimableUpkeep
+        claimableUpkeep = 0;
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -908,8 +936,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
             // Deduct the upkeep cost and emit event
             _strategistUpkeepBalance[strategist] -= args.upkeepCost;
+
+            // Add claimable upkeep for the `feeRecipient`
+            claimableUpkeep += args.upkeepCost;
+
             emit UpkeepSpent(strategist, args.upkeepCost);
-        }
+        } 
 
         // Update PPS, ppsStdev and timestamp in StrategyData
         _strategyData[args.strategy].pps = args.pps;
@@ -1015,5 +1047,13 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             }
             return MerkleProof.verify(proof, strategyRoot, leaf);
         }
+    }
+
+    /**
+     * @dev Internal function to return the `SuperBank` address
+     * @return superBank The superBank address
+     */
+    function _getSuperBank() internal view returns (address) {
+        return SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.SUPER_BANK());
     }
 }

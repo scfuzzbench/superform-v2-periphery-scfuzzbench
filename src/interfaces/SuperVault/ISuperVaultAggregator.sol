@@ -282,6 +282,11 @@ interface ISuperVaultAggregator {
     /// @param root The vetoed root value
     event StrategyHooksRootVetoed(address indexed guardian, address indexed strategy, bytes32 indexed root);
 
+    /// @notice Emitted when upkeep is claimed
+    /// @param superBank Address of the superBank
+    /// @param amount Amount of upkeep claimed
+    event UpkeepClaimed(address indexed superBank, uint256 amount);
+
     /*///////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -400,6 +405,9 @@ interface ISuperVaultAggregator {
     /// @notice Withdraws UP tokens from strategist upkeep balance
     /// @param amount Amount of UP tokens to withdraw
     function withdrawUpkeep(uint256 amount) external;
+
+    /// @notice Claims upkeep tokens from the contract
+    function claimUpkeep() external;
 
     /*//////////////////////////////////////////////////////////////
                         AUTHORIZED CALLER MANAGEMENT

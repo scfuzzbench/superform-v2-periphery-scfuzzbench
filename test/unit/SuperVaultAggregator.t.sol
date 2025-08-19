@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.30;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import { SuperGovernor } from "../../src/SuperGovernor.sol";
 import { SuperVaultAggregator } from "../../src/SuperVault/SuperVaultAggregator.sol";
 import { ISuperVaultAggregator } from "../../src/interfaces/SuperVault/ISuperVaultAggregator.sol";
@@ -10,6 +12,7 @@ import { SuperVaultEscrow } from "../../src/SuperVault/SuperVaultEscrow.sol";
 import { ISuperVaultStrategy } from "../../src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import { PeripheryHelpers } from "../utils/PeripheryHelpers.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
+import { Up } from "../../src/UP/Up.sol";
 
 contract SuperVaultAggregatorTest is PeripheryHelpers {
     SuperGovernor internal superGovernor;
@@ -27,6 +30,9 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     address internal normalKeeper1;
     address internal normalKeeper2;
     address internal strategy;
+    address internal upToken;
+    address internal superBank;
+
 
     // Role Hashes
     bytes32 internal constant SUPER_GOVERNOR_ROLE = keccak256("SUPER_GOVERNOR_ROLE");
@@ -82,6 +88,14 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.startPrank(governor);
         superGovernor.registerProtectedKeeper(protectedKeeper1);
         superGovernor.registerProtectedKeeper(protectedKeeper2);
+        vm.stopPrank();
+
+        // Register UP token on SuperGovernor
+        upToken = address(new Up(address(this)));
+        superBank = makeAddr("superBank");
+        vm.startPrank(sGovernor);
+        superGovernor.setAddress(superGovernor.UP(), upToken);
+        superGovernor.setAddress(superGovernor.SUPER_BANK(), superBank);
         vm.stopPrank();
     }
 
@@ -908,6 +922,80 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         // Verify timestamps were updated for both strategies
         assertEq(superVaultAggregator.getLastUpdateTimestamp(strategy), timestamps[0]);
         assertEq(superVaultAggregator.getLastUpdateTimestamp(strategy2), timestamps[1]);
+    }
+
+    function test_ForwardPPS_IncreaseClaimableUpkeep() public {
+        // Set up as PPS Oracle to be able to call forwardPPS
+        vm.startPrank(sGovernor);
+        superGovernor.setActivePPSOracle(address(this));
+        superGovernor.proposeUpkeepPaymentsChange(true);
+        vm.stopPrank();
+
+        vm.warp(8 days);
+        superGovernor.executeUpkeepPaymentsChange();
+
+        // Create second strategy for testing upkeep; otherwise is stale
+        vm.prank(strategist);
+        (, address strategy2,) = superVaultAggregator.createVault(
+            ISuperVaultAggregator.VaultCreationParams({
+                asset: address(asset),
+                mainStrategist: strategist,
+                name: "Test Vault 2",
+                symbol: "TV2",
+                minUpdateInterval: 5,
+                maxStaleness: 10 days,
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: strategist })
+            })
+        );
+        address _upToken = superGovernor.getAddress(superGovernor.UP());
+
+        deal(_upToken, address(this), 1e18);
+        IERC20(_upToken).approve(address(superVaultAggregator), 1e18);
+        superVaultAggregator.depositUpkeep(strategist, 1e18);
+
+        // Get initial timestamp
+        uint256 initialTimestamp = superVaultAggregator.getLastUpdateTimestamp(strategy2);
+
+        // Update with a newer timestamp (should succeed)
+        uint256 newerTimestamp = initialTimestamp + 10;
+
+        // Wait for minimum interval to pass
+        vm.warp(block.timestamp + 10);
+
+        vm.expectEmit(true, false, false, false);
+        emit ISuperVaultAggregator.PPSUpdated(strategy2, 1e18, 0, 1, 1, newerTimestamp);
+
+        superVaultAggregator.forwardPPS(
+            user,
+            ISuperVaultAggregator.ForwardPPSArgs({
+                strategy: strategy2,
+                isExempt: false,
+                pps: 1e18,
+                ppsStdev: 0,
+                validatorSet: 1,
+                totalValidators: 1,
+                timestamp: newerTimestamp,
+                upkeepCost: 0
+            })
+        );
+
+        // Check claimable
+        uint256 claimableUpkeep = superVaultAggregator.claimableUpkeep();
+        assertEq(claimableUpkeep, 1e18);
+
+        // Claim UP
+        address _superBank = superGovernor.getAddress(superGovernor.SUPER_BANK());
+        uint256 superBankBalanceBefore = IERC20(upToken).balanceOf(_superBank);
+        assertEq(superBankBalanceBefore, 0);
+        vm.startPrank(address(governor));
+        superVaultAggregator.claimUpkeep();
+        vm.stopPrank();
+        uint256 superBankBalanceAfter = IERC20(upToken).balanceOf(_superBank);
+        assertEq(superBankBalanceAfter, 1e18);
+
+        // Check claimable again
+        claimableUpkeep = superVaultAggregator.claimableUpkeep();
+        assertEq(claimableUpkeep, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
