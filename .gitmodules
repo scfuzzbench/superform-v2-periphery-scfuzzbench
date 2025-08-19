@@ -4,4 +4,4 @@
 [submodule "lib/v2-core"]
 	path = lib/v2-core
 	url = https://github.com/superform-xyz/v2-core
-	branch = joao-sup-13963-withHookBypass
+	branch = dev
