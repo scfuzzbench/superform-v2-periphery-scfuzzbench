@@ -101,6 +101,18 @@ interface ISuperVaultAggregator {
         ISuperVaultStrategy.FeeConfig feeConfig;
     }
 
+    /// @notice Struct to hold cached hook validation state variables to avoid stack too deep
+    /// @param globalHooksRootVetoed Cached global hooks root veto status
+    /// @param globalHooksRoot Cached global hooks root
+    /// @param strategyHooksRootVetoed Cached strategy hooks root veto status
+    /// @param strategyRoot Cached strategy hooks root
+    struct HookValidationCache {
+        bool globalHooksRootVetoed;
+        bytes32 globalHooksRoot;
+        bool strategyHooksRootVetoed;
+        bytes32 strategyRoot;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/

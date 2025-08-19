@@ -1042,13 +1042,13 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.prank(address(superGovernor));
         superVaultAggregator.setGlobalHooksRootVetoStatus(true);
 
-        // Test with empty proofs (should work because strategy root is valid)
+        // Test with empty proofs
         bytes32[] memory emptyGlobalProof = new bytes32[](0);
         bytes32[] memory emptyStrategyProof = new bytes32[](0);
 
         bool isValid = superVaultAggregator.validateHook(strategy, hookArgs, emptyGlobalProof, emptyStrategyProof);
 
-        assertTrue(isValid, "Hook should be valid when only one root is available and not vetoed");
+        assertFalse(isValid, "Hook should be invalid when global root is vetoed");
     }
 
     /// @notice Tests batch hook validation with mixed single-leaf and multi-leaf scenarios

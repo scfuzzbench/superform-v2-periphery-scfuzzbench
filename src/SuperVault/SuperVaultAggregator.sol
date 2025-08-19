@@ -67,8 +67,6 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     // Nonce for vault creation tracking
     uint256 private _vaultCreationNonce;
 
-    // No need for separate mappings since we now store this data in the StrategyData struct
-
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -764,13 +762,30 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         view
         returns (bool isValid)
     {
+        // Cache all state variables in struct
+        HookValidationCache memory cache = HookValidationCache({
+            globalHooksRootVetoed: _globalHooksRootVetoed,
+            globalHooksRoot: _globalHooksRoot,
+            strategyHooksRootVetoed: _strategyData[strategy].hooksRootVetoed,
+            strategyRoot: _strategyData[strategy].strategistHooksRoot
+        });
+
+        // Early return false if global hooks root is vetoed
+        if (cache.globalHooksRootVetoed) {
+            return false;
+        }
+
         // Try to validate against global root first
-        if (_validateSingleHook(strategy, hookArgs, globalProof, true)) {
+        if (_validateSingleHook(hookArgs, globalProof, true, cache)) {
             return true;
         }
 
-        // If global validation fails, try strategy root
-        return _validateSingleHook(strategy, hookArgs, strategyProof, false);
+        // If global validation fails, only try strategy root if strategy hooks root is NOT vetoed
+        if (cache.strategyHooksRootVetoed) {
+            return false;
+        }
+
+        return _validateSingleHook(hookArgs, strategyProof, false, cache);
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -791,12 +806,30 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             revert INVALID_ARRAY_LENGTH();
         }
 
+        // Cache all state variables in struct
+        HookValidationCache memory cache = HookValidationCache({
+            globalHooksRootVetoed: _globalHooksRootVetoed,
+            globalHooksRoot: _globalHooksRoot,
+            strategyHooksRootVetoed: _strategyData[strategy].hooksRootVetoed,
+            strategyRoot: _strategyData[strategy].strategistHooksRoot
+        });
+
+        // Early return all false if global hooks root is vetoed
+        if (cache.globalHooksRootVetoed) {
+            return new bool[](length); // Array initialized with all false values
+        }
+
         // Validate each hook
         validHooks = new bool[](length);
         for (uint256 i; i < length; i++) {
-            // Try global root first, then strategy root
-            validHooks[i] = _validateSingleHook(strategy, hooksArgs[i], globalProofs[i], true)
-                || _validateSingleHook(strategy, hooksArgs[i], strategyProofs[i], false);
+            // Try global root first
+            if (_validateSingleHook(hooksArgs[i], globalProofs[i], true, cache)) {
+                validHooks[i] = true;
+            } else if (!cache.strategyHooksRootVetoed) {
+                // Only try strategy root if strategy hooks root is NOT vetoed
+                validHooks[i] = _validateSingleHook(hooksArgs[i], strategyProofs[i], false, cache);
+            }
+            // If both conditions fail, validHooks[i] remains false (default value)
         }
 
         return validHooks;
@@ -971,20 +1004,20 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /**
      * @dev Internal function to validate a single hook against either global or strategy root
-     * @param strategy Address of the strategy
      * @param hookArgs Hook arguments
      * @param proof Merkle proof for the specified root
      * @param isGlobalProof Whether to validate against global root (true) or strategy root (false)
+     * @param cache Cached hook validation state variables
      * @return True if hook is valid, false otherwise
      */
     function _validateSingleHook(
-        address strategy,
         bytes calldata hookArgs,
         bytes32[] calldata proof,
-        bool isGlobalProof
+        bool isGlobalProof,
+        HookValidationCache memory cache
     )
         internal
-        view
+        pure
         returns (bool)
     {
         // Create leaf node from the hook arguments
@@ -992,28 +1025,24 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         if (isGlobalProof) {
             // Validate against global root
-            if (_globalHooksRootVetoed || _globalHooksRoot == bytes32(0)) {
+            if (cache.globalHooksRootVetoed || cache.globalHooksRoot == bytes32(0)) {
                 return false;
             }
             // For single-leaf trees, empty proof is valid when root equals leaf
             if (proof.length == 0) {
-                return _globalHooksRoot == leaf;
+                return cache.globalHooksRoot == leaf;
             }
-            return MerkleProof.verify(proof, _globalHooksRoot, leaf);
+            return MerkleProof.verify(proof, cache.globalHooksRoot, leaf);
         } else {
             // Validate against strategy root
-            if (_strategyData[strategy].hooksRootVetoed) {
-                return false;
-            }
-            bytes32 strategyRoot = _strategyData[strategy].strategistHooksRoot;
-            if (strategyRoot == bytes32(0)) {
+            if (cache.strategyHooksRootVetoed || cache.strategyRoot == bytes32(0)) {
                 return false;
             }
             // For single-leaf trees, empty proof is valid when root equals leaf
             if (proof.length == 0) {
-                return strategyRoot == leaf;
+                return cache.strategyRoot == leaf;
             }
-            return MerkleProof.verify(proof, strategyRoot, leaf);
+            return MerkleProof.verify(proof, cache.strategyRoot, leaf);
         }
     }
 }
