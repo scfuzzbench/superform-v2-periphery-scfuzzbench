@@ -301,7 +301,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         // Get the UP token address from SUPER_GOVERNOR
         address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
 
-        // Transfer UP tokens to msg.sender
+        // Transfer UP tokens to `SuperBank`
         address _superBank = _getSuperBank();
         IERC20(upToken).safeTransfer(_superBank, claimableUpkeep);
         emit UpkeepClaimed(_superBank, claimableUpkeep);
