@@ -798,9 +798,6 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
             emit YieldSourceReactivated(source);
         } else {
             if (!yieldSource.isActive) revert YIELD_SOURCE_NOT_ACTIVE();
-            if (IYieldSourceOracle(yieldSource.oracle).getTVLByOwnerOfShares(source, address(this)) > 0) {
-                revert INVALID_AMOUNT();
-            }
             yieldSource.isActive = false;
             emit YieldSourceDeactivated(source);
         }
