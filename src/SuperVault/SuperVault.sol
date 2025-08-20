@@ -146,7 +146,7 @@ contract SuperVault is
 
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        strategy.handleOperation(msg.sender, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
+        strategy.handleOperation(receiver, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
 
         _mint(receiver, shares);
 
@@ -165,7 +165,7 @@ contract SuperVault is
 
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        strategy.handleOperation(msg.sender, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
+        strategy.handleOperation(receiver, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
 
         _mint(receiver, shares);
 

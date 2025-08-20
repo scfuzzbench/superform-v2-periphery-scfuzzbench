@@ -240,3 +240,11 @@ Good to go.
 - Updated `SuperVault._update` to call new function instead of copying entire state
 - Added comprehensive tests covering transfer behavior, pro-rata movement, zero transfers, and audit attack scenario
 - All tests passing ✅
+
+✅ **Message 2/4 — Fix #10: deposit accounting must follow the minted receiver** — COMPLETED
+- Updated `SuperVault.deposit()` to pass `(receiver, receiver, assets, shares)` to strategy instead of `(msg.sender, receiver, assets, shares)`
+- Updated `SuperVault.mint()` to pass `(receiver, receiver, assets, shares)` to strategy instead of `(msg.sender, receiver, assets, shares)`
+- Verified `SuperVaultStrategy._handleDeposit` correctly keys accumulator by controller (first parameter)
+- Added comprehensive tests verifying receiver gets accumulator shares/cost basis, not sender
+- Added test verifying receiver can successfully redeem after receiving deposit from another user
+- All tests passing ✅

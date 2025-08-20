@@ -3000,6 +3000,138 @@ contract SuperVaultTest is BaseSuperVaultTest {
     }
 
     /*//////////////////////////////////////////////////////////////
+                       AUDIT FIX #10 - DEPOSIT RECEIVER TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test that deposit accounting follows the minted receiver, not the controller/sender
+    function test_Fix10_DepositAccountingFollowsReceiver() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: get tokens for user A (sender)
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        
+        // User A will be the sender/controller, User B will be the receiver
+        address sender = accInstances[0].account;
+        address receiver = accInstances[1].account;
+        
+        // Record initial accumulator states
+        ISuperVaultStrategy.SuperVaultState memory senderStateBefore = strategy.getSuperVaultState(sender);
+        ISuperVaultStrategy.SuperVaultState memory receiverStateBefore = strategy.getSuperVaultState(receiver);
+        
+        // User A deposits but specifies User B as receiver
+        vm.startPrank(sender);
+        asset.approve(address(vault), depositAmount);
+        uint256 shares = vault.deposit(depositAmount, receiver);
+        vm.stopPrank();
+        
+        // Verify shares were minted to receiver, not sender
+        assertEq(vault.balanceOf(sender), 0, "Sender should not have shares");
+        assertEq(vault.balanceOf(receiver), shares, "Receiver should have all shares");
+        
+        // Verify accumulator accounting follows the receiver
+        ISuperVaultStrategy.SuperVaultState memory senderStateAfter = strategy.getSuperVaultState(sender);
+        ISuperVaultStrategy.SuperVaultState memory receiverStateAfter = strategy.getSuperVaultState(receiver);
+        
+        // Sender's accumulator should not change
+        assertEq(senderStateAfter.accumulatorShares, senderStateBefore.accumulatorShares, "Sender accumulator shares should not change");
+        assertEq(senderStateAfter.accumulatorCostBasis, senderStateBefore.accumulatorCostBasis, "Sender accumulator cost basis should not change");
+        
+        // Receiver's accumulator should reflect the deposit
+        assertEq(receiverStateAfter.accumulatorShares, receiverStateBefore.accumulatorShares + shares, "Receiver should get accumulator shares");
+        assertEq(receiverStateAfter.accumulatorCostBasis, receiverStateBefore.accumulatorCostBasis + depositAmount, "Receiver should get accumulator cost basis");
+    }
+
+    /// @notice Test that mint accounting follows the minted receiver, not the controller/sender
+    function test_Fix10_MintAccountingFollowsReceiver() public {
+        uint256 mintShares = 1000e6;
+        uint256 expectedAssets = vault.previewMint(mintShares);
+        
+        // Setup: get tokens for user A (sender)
+        _getTokens(address(asset), accInstances[0].account, expectedAssets);
+        
+        // User A will be the sender/controller, User B will be the receiver
+        address sender = accInstances[0].account;
+        address receiver = accInstances[1].account;
+        
+        // Record initial accumulator states
+        ISuperVaultStrategy.SuperVaultState memory senderStateBefore = strategy.getSuperVaultState(sender);
+        ISuperVaultStrategy.SuperVaultState memory receiverStateBefore = strategy.getSuperVaultState(receiver);
+        
+        // User A mints but specifies User B as receiver
+        vm.startPrank(sender);
+        asset.approve(address(vault), expectedAssets);
+        uint256 assetsUsed = vault.mint(mintShares, receiver);
+        vm.stopPrank();
+        
+        // Verify shares were minted to receiver, not sender
+        assertEq(vault.balanceOf(sender), 0, "Sender should not have shares");
+        assertEq(vault.balanceOf(receiver), mintShares, "Receiver should have all shares");
+        
+        // Verify accumulator accounting follows the receiver
+        ISuperVaultStrategy.SuperVaultState memory senderStateAfter = strategy.getSuperVaultState(sender);
+        ISuperVaultStrategy.SuperVaultState memory receiverStateAfter = strategy.getSuperVaultState(receiver);
+        
+        // Sender's accumulator should not change
+        assertEq(senderStateAfter.accumulatorShares, senderStateBefore.accumulatorShares, "Sender accumulator shares should not change");
+        assertEq(senderStateAfter.accumulatorCostBasis, senderStateBefore.accumulatorCostBasis, "Sender accumulator cost basis should not change");
+        
+        // Receiver's accumulator should reflect the mint
+        assertEq(receiverStateAfter.accumulatorShares, receiverStateBefore.accumulatorShares + mintShares, "Receiver should get accumulator shares");
+        assertEq(receiverStateAfter.accumulatorCostBasis, receiverStateBefore.accumulatorCostBasis + assetsUsed, "Receiver should get accumulator cost basis");
+    }
+
+    /// @notice Test that receiver can successfully redeem after receiving deposit from another user
+    function test_Fix10_ReceiverCanRedeemAfterReceivingDeposit() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: get tokens for user A (sender)
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        
+        // User A will be the sender/controller, User B will be the receiver
+        address sender = accInstances[0].account;
+        address receiver = accInstances[1].account;
+        
+        // User A deposits but specifies User B as receiver
+        vm.startPrank(sender);
+        asset.approve(address(vault), depositAmount);
+        uint256 shares = vault.deposit(depositAmount, receiver);
+        vm.stopPrank();
+        
+        // Allocate assets to yield sources
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        // User B (receiver) should be able to request redeem for their shares
+        vm.startPrank(receiver);
+        vault.requestRedeem(shares, receiver, receiver);
+        vm.stopPrank();
+        
+        // Verify redeem request was successful
+        assertEq(strategy.pendingRedeemRequest(receiver), shares, "Receiver should have pending redeem request");
+        assertEq(vault.balanceOf(address(escrow)), shares, "Shares should be in escrow");
+        
+        // Fulfill the redeem request
+        address[] memory controllers = new address[](1);
+        controllers[0] = receiver;
+        _fulfillRedeemForUsers(controllers, shares / 2, shares / 2, address(fluidVault), address(aaveVault));
+        
+        // Verify redemption was fulfilled
+        assertEq(strategy.pendingRedeemRequest(receiver), 0, "Pending redeem should be cleared");
+        assertGt(strategy.claimableWithdraw(receiver), 0, "Receiver should have claimable assets");
+        
+        // User B should be able to claim their assets
+        uint256 claimableAssets = strategy.claimableWithdraw(receiver);
+        uint256 initialAssetBalance = asset.balanceOf(receiver);
+        
+        vm.startPrank(receiver);
+        vault.withdraw(claimableAssets, receiver, receiver);
+        vm.stopPrank();
+        
+        // Verify assets were transferred to receiver
+        assertEq(asset.balanceOf(receiver), initialAssetBalance + claimableAssets, "Receiver should receive their assets");
+        assertEq(strategy.claimableWithdraw(receiver), 0, "Claimable should be cleared");
+    }
+
+    /*//////////////////////////////////////////////////////////////
                        AUDIT FIX #1 - TRANSFER TESTS
     //////////////////////////////////////////////////////////////*/
 
