@@ -771,8 +771,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             strategyRoot: _strategyData[strategy].strategistHooksRoot
         });
 
-        // Early return false if global hooks root is vetoed
-        if (cache.globalHooksRootVetoed) {
+        // Early return false if either global or strategy hooks root is vetoed
+        if (cache.globalHooksRootVetoed || cache.strategyHooksRootVetoed) {
             return false;
         }
 
@@ -781,11 +781,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             return true;
         }
 
-        // If global validation fails, only try strategy root if strategy hooks root is NOT vetoed
-        if (cache.strategyHooksRootVetoed) {
-            return false;
-        }
-
+        // If global validation fails, try strategy root
         return _validateSingleHook(hookAddress, hookArgs, strategyProof, false, cache);
     }
 
@@ -816,8 +812,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             strategyRoot: _strategyData[strategy].strategistHooksRoot
         });
 
-        // Early return all false if global hooks root is vetoed
-        if (cache.globalHooksRootVetoed) {
+        // Early return all false if either global or strategy hooks root is vetoed
+        if (cache.globalHooksRootVetoed || cache.strategyHooksRootVetoed) {
             return new bool[](length); // Array initialized with all false values
         }
 
@@ -827,8 +823,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             // Try global root first
             if (_validateSingleHook(hookAddresses[i], hooksArgs[i], globalProofs[i], true, cache)) {
                 validHooks[i] = true;
-            } else if (!cache.strategyHooksRootVetoed) {
-                // Only try strategy root if strategy hooks root is NOT vetoed
+            } else {
+                // Try strategy root
                 validHooks[i] = _validateSingleHook(hookAddresses[i], hooksArgs[i], strategyProofs[i], false, cache);
             }
             // If both conditions fail, validHooks[i] remains false (default value)
