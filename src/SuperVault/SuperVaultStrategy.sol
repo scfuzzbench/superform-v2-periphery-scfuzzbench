@@ -992,7 +992,9 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         SuperVaultState storage state = superVaultState[controller];
         uint256 pendingShares = state.pendingRedeemRequest;
         if (pendingShares == 0) revert REQUEST_NOT_FOUND();
-        delete superVaultState[controller];
+        // Only clear pending request metadata
+        state.pendingRedeemRequest = 0;
+        state.averageRequestPPS = 0;
         emit RedeemRequestCanceled(controller, pendingShares);
     }
 

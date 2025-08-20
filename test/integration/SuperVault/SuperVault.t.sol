@@ -3518,6 +3518,203 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertEq(stateB.averageWithdrawPrice, 0, "User B should have no averageWithdrawPrice");
     }
 
+    /*//////////////////////////////////////////////////////////////
+                            FIX #45 TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test that cancel → re-request → fulfill works (no permanent lockout)
+    function test_Fix45_CancelReRequestFulfillWorks() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User deposits and gets shares
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        uint256 userShares = vault.balanceOf(accInstances[0].account);
+        uint256 redeemShares = userShares / 2;
+        
+        // Get initial accumulator state
+        ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
+        uint256 initialAccumulatorShares = initialState.accumulatorShares;
+        uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
+        
+        // Step 1: Request redeem
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        
+        // Verify request was placed
+        uint256 pendingAfterRequest = strategy.pendingRedeemRequest(accInstances[0].account);
+        assertEq(pendingAfterRequest, redeemShares, "Should have pending request");
+        
+        // Step 2: Cancel redeem
+        vm.prank(accInstances[0].account);
+        vault.cancelRedeem(accInstances[0].account);
+        
+        // Verify cancel cleared pending fields but preserved accumulators
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel = strategy.getSuperVaultState(accInstances[0].account);
+        assertEq(stateAfterCancel.pendingRedeemRequest, 0, "Pending request should be cleared");
+        assertEq(stateAfterCancel.averageRequestPPS, 0, "Average request PPS should be cleared");
+        assertEq(stateAfterCancel.accumulatorShares, initialAccumulatorShares, "Accumulator shares should be preserved");
+        assertEq(stateAfterCancel.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be preserved");
+        assertEq(stateAfterCancel.maxWithdraw, initialState.maxWithdraw, "Max withdraw should be preserved");
+        assertEq(stateAfterCancel.averageWithdrawPrice, initialState.averageWithdrawPrice, "Average withdraw price should be preserved");
+        
+        // Step 3: Re-request redeem (should work without INSUFFICIENT_SHARES)
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        
+        // Verify re-request worked
+        uint256 pendingAfterReRequest = strategy.pendingRedeemRequest(accInstances[0].account);
+        assertEq(pendingAfterReRequest, redeemShares, "Should have pending request after re-request");
+        
+        // Step 4: Fulfill redeem (should work without errors)
+        address[] memory redeemUsers = new address[](1);
+        redeemUsers[0] = accInstances[0].account;
+        _fulfillRedeemForUsers(redeemUsers, redeemShares / 2, redeemShares / 2, address(fluidVault), address(aaveVault));
+        
+        // Verify fulfillment worked
+        uint256 claimableAssets = strategy.claimableWithdraw(accInstances[0].account);
+        assertGt(claimableAssets, 0, "Should have claimable assets after fulfillment");
+        
+        // Verify accumulator was properly debited
+        ISuperVaultStrategy.SuperVaultState memory finalState = strategy.getSuperVaultState(accInstances[0].account);
+        assertLt(finalState.accumulatorShares, initialAccumulatorShares, "Accumulator shares should be debited");
+        assertLt(finalState.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be debited");
+    }
+
+    /// @notice Test that maxWithdraw and averageWithdrawPrice remain unchanged by cancel
+    function test_Fix45_CancelPreservesClaimableState() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User deposits, requests, gets partially fulfilled to create claimable state
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        uint256 userShares = vault.balanceOf(accInstances[0].account);
+        uint256 firstRedeemShares = userShares / 3;
+        
+        // First redeem request and fulfillment to create claimable state
+        _requestRedeemForAccount(accInstances[0], firstRedeemShares);
+        address[] memory redeemUsers = new address[](1);
+        redeemUsers[0] = accInstances[0].account;
+        _fulfillRedeemForUsers(redeemUsers, firstRedeemShares / 2, firstRedeemShares / 2, address(fluidVault), address(aaveVault));
+        
+        // Get state after first fulfillment
+        ISuperVaultStrategy.SuperVaultState memory stateAfterFirstFulfill = strategy.getSuperVaultState(accInstances[0].account);
+        uint256 maxWithdrawBefore = stateAfterFirstFulfill.maxWithdraw;
+        uint256 averageWithdrawPriceBefore = stateAfterFirstFulfill.averageWithdrawPrice;
+        uint256 accumulatorSharesBefore = stateAfterFirstFulfill.accumulatorShares;
+        uint256 accumulatorCostBasisBefore = stateAfterFirstFulfill.accumulatorCostBasis;
+        
+        assertGt(maxWithdrawBefore, 0, "Should have claimable assets");
+        assertGt(averageWithdrawPriceBefore, 0, "Should have average withdraw price");
+        
+        // Second redeem request
+        uint256 secondRedeemShares = userShares / 3;
+        _requestRedeemForAccount(accInstances[0], secondRedeemShares);
+        
+        // Cancel the second request
+        vm.prank(accInstances[0].account);
+        vault.cancelRedeem(accInstances[0].account);
+        
+        // Verify claimable state is preserved
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel = strategy.getSuperVaultState(accInstances[0].account);
+        assertEq(stateAfterCancel.maxWithdraw, maxWithdrawBefore, "Max withdraw should be unchanged by cancel");
+        assertEq(stateAfterCancel.averageWithdrawPrice, averageWithdrawPriceBefore, "Average withdraw price should be unchanged by cancel");
+        assertEq(stateAfterCancel.accumulatorShares, accumulatorSharesBefore, "Accumulator shares should be unchanged by cancel");
+        assertEq(stateAfterCancel.accumulatorCostBasis, accumulatorCostBasisBefore, "Accumulator cost basis should be unchanged by cancel");
+        
+        // Verify only pending fields were cleared
+        assertEq(stateAfterCancel.pendingRedeemRequest, 0, "Pending request should be cleared");
+        assertEq(stateAfterCancel.averageRequestPPS, 0, "Average request PPS should be cleared");
+    }
+
+    /// @notice Test that accumulators remain unchanged by cancel
+    function test_Fix45_CancelPreservesAccumulators() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User deposits and gets shares
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        uint256 userShares = vault.balanceOf(accInstances[0].account);
+        uint256 redeemShares = userShares / 2;
+        
+        // Get initial accumulator state
+        ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
+        uint256 initialAccumulatorShares = initialState.accumulatorShares;
+        uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
+        
+        assertGt(initialAccumulatorShares, 0, "Should have accumulator shares");
+        assertGt(initialAccumulatorCostBasis, 0, "Should have accumulator cost basis");
+        
+        // Request redeem
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        
+        // Cancel redeem
+        vm.prank(accInstances[0].account);
+        vault.cancelRedeem(accInstances[0].account);
+        
+        // Verify accumulators are exactly the same
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel = strategy.getSuperVaultState(accInstances[0].account);
+        assertEq(stateAfterCancel.accumulatorShares, initialAccumulatorShares, "Accumulator shares should be unchanged");
+        assertEq(stateAfterCancel.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be unchanged");
+        
+        // User should still be able to make future redeems
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        uint256 pendingAfterNewRequest = strategy.pendingRedeemRequest(accInstances[0].account);
+        assertEq(pendingAfterNewRequest, redeemShares, "Should be able to make new redeem request");
+    }
+
+    /// @notice Test that multiple cancel cycles work correctly
+    function test_Fix45_MultipleCancelCycles() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User deposits and gets shares
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        uint256 userShares = vault.balanceOf(accInstances[0].account);
+        uint256 redeemShares = userShares / 4;
+        
+        // Get initial accumulator state
+        ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
+        uint256 initialAccumulatorShares = initialState.accumulatorShares;
+        uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
+        
+        // Cycle 1: Request → Cancel
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        vm.prank(accInstances[0].account);
+        vault.cancelRedeem(accInstances[0].account);
+        
+        // Verify state after first cancel
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel1 = strategy.getSuperVaultState(accInstances[0].account);
+        assertEq(stateAfterCancel1.pendingRedeemRequest, 0, "Pending should be cleared after cancel 1");
+        assertEq(stateAfterCancel1.accumulatorShares, initialAccumulatorShares, "Accumulators preserved after cancel 1");
+        
+        // Cycle 2: Request → Cancel
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        vm.prank(accInstances[0].account);
+        vault.cancelRedeem(accInstances[0].account);
+        
+        // Verify state after second cancel
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel2 = strategy.getSuperVaultState(accInstances[0].account);
+        assertEq(stateAfterCancel2.pendingRedeemRequest, 0, "Pending should be cleared after cancel 2");
+        assertEq(stateAfterCancel2.accumulatorShares, initialAccumulatorShares, "Accumulators preserved after cancel 2");
+        
+        // Cycle 3: Request → Fulfill (should work)
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+        address[] memory redeemUsers = new address[](1);
+        redeemUsers[0] = accInstances[0].account;
+        _fulfillRedeemForUsers(redeemUsers, redeemShares / 2, redeemShares / 2, address(fluidVault), address(aaveVault));
+        
+        // Verify final fulfillment worked
+        uint256 claimableAssets = strategy.claimableWithdraw(accInstances[0].account);
+        assertGt(claimableAssets, 0, "Should have claimable assets after final fulfillment");
+    }
+
     function _rebalanceFromAaveToFluid(
         RebalanceVars memory vars,
         address[] memory hooksAddresses,
