@@ -486,10 +486,13 @@ contract SuperVault is
     /// @param to The address of the recipient
     /// @param value The amount of shares being transferred
     function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable) {
-        /// @dev Copy user state only between actual users, not to/from infrastructure contracts
+        /// @dev Move only accumulators pro-rata between actual users, not to/from infrastructure contracts
         if (from != address(0) && to != address(0) && to != address(escrow) && from != address(escrow)) {
-            ISuperVaultStrategy.SuperVaultState memory state = strategy.getSuperVaultState(from);
-            strategy.updateSuperVaultState(to, state);
+            uint256 shares = value;
+            // Zero-value transfers are legal: treat as accounting no-op.
+            if (shares > 0) {
+                strategy.moveAccumulatorOnTransfer(from, to, shares);
+            }
         }
         super._update(from, to, value);
     }

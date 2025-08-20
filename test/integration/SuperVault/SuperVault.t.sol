@@ -2999,6 +2999,251 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertEq(vault.balanceOf(accInstances[1].account), 0);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                       AUDIT FIX #1 - TRANSFER TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test that transfer only moves accumulators, never touches request/claim state
+    function test_Fix1_TransferDoesNotAffectRequestClaimState() public {
+        // Setup: Deposit, allocate, request redeem, then partially fulfill to create claimable state
+        uint256 depositAmount = 1000e6;
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+
+        uint256 shares = vault.balanceOf(accInstances[0].account);
+        uint256 redeemShares = shares / 2;
+
+        // Request redeem to create pending state
+        _requestRedeemForAccount(accInstances[0], redeemShares);
+
+        // Fulfill redeem to create claimable state
+        address[] memory redeemUsers = new address[](1);
+        redeemUsers[0] = accInstances[0].account;
+        _fulfillRedeemForUsers(redeemUsers, redeemShares / 2, redeemShares / 2, address(fluidVault), address(aaveVault));
+
+        // Record state before transfer
+        uint256 pendingBefore = strategy.pendingRedeemRequest(accInstances[0].account);
+        uint256 maxWithdrawBefore = strategy.claimableWithdraw(accInstances[0].account);
+        uint256 avgRequestPPSBefore = strategy.getSuperVaultState(accInstances[0].account).averageRequestPPS;
+        uint256 avgWithdrawPriceBefore = strategy.getAverageWithdrawPrice(accInstances[0].account);
+
+        // Transfer remaining shares to another user
+        uint256 remainingShares = vault.balanceOf(accInstances[0].account);
+        vm.prank(accInstances[0].account);
+        IERC20(address(vault)).transfer(accInstances[1].account, remainingShares);
+
+        // Verify request/claim state unchanged for sender
+        assertEq(
+            strategy.pendingRedeemRequest(accInstances[0].account),
+            pendingBefore,
+            "pendingRedeemRequest should not change"
+        );
+        assertEq(
+            strategy.claimableWithdraw(accInstances[0].account), maxWithdrawBefore, "maxWithdraw should not change"
+        );
+        assertEq(
+            strategy.getSuperVaultState(accInstances[0].account).averageRequestPPS,
+            avgRequestPPSBefore,
+            "averageRequestPPS should not change"
+        );
+        assertEq(
+            strategy.getAverageWithdrawPrice(accInstances[0].account),
+            avgWithdrawPriceBefore,
+            "averageWithdrawPrice should not change"
+        );
+
+        // Verify receiver has no request/claim state (since they didn't have any before)
+        assertEq(
+            strategy.pendingRedeemRequest(accInstances[1].account), 0, "Receiver should have no pendingRedeemRequest"
+        );
+        assertEq(strategy.claimableWithdraw(accInstances[1].account), 0, "Receiver should have no claimable");
+        assertEq(
+            strategy.getSuperVaultState(accInstances[1].account).averageRequestPPS,
+            0,
+            "Receiver should have no averageRequestPPS"
+        );
+        assertEq(
+            strategy.getAverageWithdrawPrice(accInstances[1].account), 0, "Receiver should have no averageWithdrawPrice"
+        );
+    }
+
+    /// @notice Test that transfer moves accumulators pro-rata and conserves total cost basis
+    function test_Fix1_TransferMovesAccumulatorsProRata() public {
+        uint256 depositAmount = 1000e6;
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+
+        uint256 totalShares = vault.balanceOf(accInstances[0].account);
+        uint256 transferShares = totalShares / 3; // Transfer 1/3 of shares
+
+        // Record state before transfer
+        ISuperVaultStrategy.SuperVaultState memory fromStateBefore =
+            strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory toStateBefore = strategy.getSuperVaultState(accInstances[1].account);
+
+        // Calculate expected pro-rata movement
+        uint256 expectedMovedCostBasis =
+            transferShares * fromStateBefore.accumulatorCostBasis / fromStateBefore.accumulatorShares;
+
+        // Transfer shares
+        vm.prank(accInstances[0].account);
+        IERC20(address(vault)).transfer(accInstances[1].account, transferShares);
+
+        // Record state after transfer
+        ISuperVaultStrategy.SuperVaultState memory fromStateAfter = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory toStateAfter = strategy.getSuperVaultState(accInstances[1].account);
+
+        // Verify sender's accumulator updated correctly
+        assertEq(
+            fromStateAfter.accumulatorShares,
+            fromStateBefore.accumulatorShares - transferShares,
+            "Sender accumulator shares incorrect"
+        );
+        assertEq(
+            fromStateAfter.accumulatorCostBasis,
+            fromStateBefore.accumulatorCostBasis - expectedMovedCostBasis,
+            "Sender accumulator cost basis incorrect"
+        );
+
+        // Verify receiver's accumulator updated correctly
+        assertEq(
+            toStateAfter.accumulatorShares,
+            toStateBefore.accumulatorShares + transferShares,
+            "Receiver accumulator shares incorrect"
+        );
+        assertEq(
+            toStateAfter.accumulatorCostBasis,
+            toStateBefore.accumulatorCostBasis + expectedMovedCostBasis,
+            "Receiver accumulator cost basis incorrect"
+        );
+
+        // Verify total cost basis is conserved (within 1 wei tolerance for rounding)
+        uint256 totalCostBasisBefore = fromStateBefore.accumulatorCostBasis + toStateBefore.accumulatorCostBasis;
+        uint256 totalCostBasisAfter = fromStateAfter.accumulatorCostBasis + toStateAfter.accumulatorCostBasis;
+        assertApproxEqAbs(totalCostBasisAfter, totalCostBasisBefore, 1, "Total cost basis not conserved");
+    }
+
+    /// @notice Test that zero-value transfer is a no-op
+    function test_Fix1_ZeroValueTransferIsNoOp() public {
+        uint256 depositAmount = 1000e6;
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+
+        // Record state before zero transfer
+        ISuperVaultStrategy.SuperVaultState memory fromStateBefore =
+            strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory toStateBefore = strategy.getSuperVaultState(accInstances[1].account);
+
+        // Perform zero-value transfer
+        vm.prank(accInstances[0].account);
+        IERC20(address(vault)).transfer(accInstances[1].account, 0);
+
+        // Record state after zero transfer
+        ISuperVaultStrategy.SuperVaultState memory fromStateAfter = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory toStateAfter = strategy.getSuperVaultState(accInstances[1].account);
+
+        // Verify no state changes occurred
+        assertEq(
+            fromStateAfter.accumulatorShares,
+            fromStateBefore.accumulatorShares,
+            "Sender accumulator shares should not change"
+        );
+        assertEq(
+            fromStateAfter.accumulatorCostBasis,
+            fromStateBefore.accumulatorCostBasis,
+            "Sender accumulator cost basis should not change"
+        );
+        assertEq(
+            toStateAfter.accumulatorShares,
+            toStateBefore.accumulatorShares,
+            "Receiver accumulator shares should not change"
+        );
+        assertEq(
+            toStateAfter.accumulatorCostBasis,
+            toStateBefore.accumulatorCostBasis,
+            "Receiver accumulator cost basis should not change"
+        );
+
+        // Verify all other fields unchanged
+        assertEq(
+            fromStateAfter.pendingRedeemRequest,
+            fromStateBefore.pendingRedeemRequest,
+            "pendingRedeemRequest should not change"
+        );
+        assertEq(fromStateAfter.maxWithdraw, fromStateBefore.maxWithdraw, "maxWithdraw should not change");
+        assertEq(
+            fromStateAfter.averageRequestPPS, fromStateBefore.averageRequestPPS, "averageRequestPPS should not change"
+        );
+        assertEq(
+            fromStateAfter.averageWithdrawPrice,
+            fromStateBefore.averageWithdrawPrice,
+            "averageWithdrawPrice should not change"
+        );
+    }
+
+    /// @notice Test that audit #1 attack scenario fails - no clone/overwrite of claimable
+    function test_Fix1_AuditAttackScenarioFails() public {
+        uint256 depositAmount = 1000e6;
+
+        // User A deposits
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+
+        uint256 sharesA = vault.balanceOf(accInstances[0].account);
+        uint256 transferShares = sharesA / 2; // Transfer half, keep half for redeem
+
+        // User B makes a deposit (gets fresh shares with no claimable)
+        _getTokens(address(asset), accInstances[1].account, depositAmount);
+        __deposit(accInstances[1], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+
+        uint256 claimableBBefore = strategy.claimableWithdraw(accInstances[1].account);
+        assertEq(claimableBBefore, 0, "User B should have no claimable assets initially");
+
+        // User A transfers half their shares to User B BEFORE redeem request
+        vm.prank(accInstances[0].account);
+        IERC20(address(vault)).transfer(accInstances[1].account, transferShares);
+
+        // User A then requests redeem with remaining shares and gets claimable assets
+        uint256 remainingSharesA = vault.balanceOf(accInstances[0].account);
+        _requestRedeemForAccount(accInstances[0], remainingSharesA);
+
+        address[] memory redeemUsers = new address[](1);
+        redeemUsers[0] = accInstances[0].account;
+        _fulfillRedeemForUsers(
+            redeemUsers, remainingSharesA / 2, remainingSharesA / 2, address(fluidVault), address(aaveVault)
+        );
+
+        uint256 claimableA = strategy.claimableWithdraw(accInstances[0].account);
+        assertGt(claimableA, 0, "User A should have claimable assets");
+
+        // Verify attack failed: User B should not have gained User A's claimable assets
+        uint256 claimableBAfter = strategy.claimableWithdraw(accInstances[1].account);
+        assertEq(claimableBAfter, 0, "Attack failed: User B should not have claimable assets from User A");
+
+        // Verify User A retains their claimable assets
+        uint256 claimableAAfter = strategy.claimableWithdraw(accInstances[0].account);
+        assertEq(claimableAAfter, claimableA, "User A should retain their claimable assets");
+
+        // Verify only accumulators moved during transfer
+        ISuperVaultStrategy.SuperVaultState memory stateA = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateB = strategy.getSuperVaultState(accInstances[1].account);
+
+        // User B should have accumulator from the transfer but no request/claim state
+        assertGt(stateB.accumulatorShares, 0, "User B should have accumulator shares from transfer");
+        assertEq(stateB.pendingRedeemRequest, 0, "User B should have no pending requests");
+        assertEq(stateB.maxWithdraw, 0, "User B should have no maxWithdraw");
+        assertEq(stateB.averageRequestPPS, 0, "User B should have no averageRequestPPS");
+        assertEq(stateB.averageWithdrawPrice, 0, "User B should have no averageWithdrawPrice");
+    }
+
     function _rebalanceFromAaveToFluid(
         RebalanceVars memory vars,
         address[] memory hooksAddresses,

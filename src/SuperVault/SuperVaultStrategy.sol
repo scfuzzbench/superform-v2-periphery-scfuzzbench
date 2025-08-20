@@ -293,6 +293,34 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         superVaultState[controller] = state;
     }
 
+    /// @inheritdoc ISuperVaultStrategy
+    function moveAccumulatorOnTransfer(address from, address to, uint256 shares) external {
+        _requireVault();
+        if (shares == 0) return;
+
+        SuperVaultState storage fromState = superVaultState[from];
+        SuperVaultState storage toState = superVaultState[to];
+
+        // Only move accumulator proportional to what's available
+        // (accumulator shares may be less than ERC20 shares due to pending redeems)
+        // see test_Fix1_AuditAttackScenarioFails
+        uint256 availableAccumulatorShares = fromState.accumulatorShares;
+        if (availableAccumulatorShares == 0) return; // No accumulator to move
+
+        uint256 sharesToMove = shares > availableAccumulatorShares ? availableAccumulatorShares : shares;
+
+        // Pro-rata move of cost basis (NO PPS here; preserves fee correctness)
+        uint256 movedCostBasis = sharesToMove * fromState.accumulatorCostBasis / fromState.accumulatorShares;
+
+        fromState.accumulatorShares -= sharesToMove;
+        fromState.accumulatorCostBasis -= movedCostBasis;
+
+        toState.accumulatorShares += sharesToMove;
+        toState.accumulatorCostBasis += movedCostBasis;
+
+        // Never touch: pendingRedeemRequest, averageRequestPPS, maxWithdraw, averageWithdrawPrice
+    }
+
     /*//////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
