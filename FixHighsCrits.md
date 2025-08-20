@@ -248,3 +248,10 @@ Good to go.
 - Added comprehensive tests verifying receiver gets accumulator shares/cost basis, not sender
 - Added test verifying receiver can successfully redeem after receiving deposit from another user
 - All tests passing ✅
+
+✅ **Message 3/4 — Fix #15: enforce owner==controller on redeem to match controller-keyed accounting** — COMPLETED
+- Added `CONTROLLER_MUST_EQUAL_OWNER()` error to `ISuperVault` interface
+- Added controller != owner validation check in `SuperVault.requestRedeem()` that reverts with `CONTROLLER_MUST_EQUAL_OWNER()`
+- Added defense-in-depth check in `SuperVaultStrategy._handleRequestRedeem()` that asserts controller has accumulator shares
+- Added comprehensive tests covering controller/owner mismatch revert, happy path success, fulfillment correctness, and defense-in-depth scenario
+- All tests passing ✅

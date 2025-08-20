@@ -180,6 +180,9 @@ contract SuperVault is
         if (owner != msg.sender && !isOperator[owner][msg.sender]) revert INVALID_OWNER_OR_OPERATOR();
         if (balanceOf(owner) < shares) revert INVALID_AMOUNT();
 
+        // Enforce auditor's invariant for current accounting model
+        if (controller != owner) revert CONTROLLER_MUST_EQUAL_OWNER();
+
         // Transfer shares to escrow for temporary locking
         _approve(owner, escrow, shares);
         ISuperVaultEscrow(escrow).escrowShares(owner, shares);

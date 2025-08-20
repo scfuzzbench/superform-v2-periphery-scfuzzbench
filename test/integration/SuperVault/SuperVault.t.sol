@@ -3132,6 +3132,148 @@ contract SuperVaultTest is BaseSuperVaultTest {
     }
 
     /*//////////////////////////////////////////////////////////////
+                       AUDIT FIX #15 - CONTROLLER/OWNER TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test that requestRedeem reverts when controller != owner
+    function test_Fix15_RevertWhen_ControllerNotEqualOwner() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User A deposits and gets shares
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        address owner = accInstances[0].account;
+        address controller = accInstances[1].account; // Different from owner
+        uint256 shares = vault.balanceOf(owner);
+        
+        // Set operator permission so the call doesn't fail on authorization
+        vm.prank(owner);
+        vault.setOperator(controller, true);
+        
+        // Try to request redeem with controller != owner - should revert
+        vm.startPrank(controller);
+        vm.expectRevert(ISuperVault.CONTROLLER_MUST_EQUAL_OWNER.selector);
+        vault.requestRedeem(shares, controller, owner);
+        vm.stopPrank();
+    }
+
+    /// @notice Test that requestRedeem succeeds when controller == owner
+    function test_Fix15_SucceedsWhen_ControllerEqualsOwner() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User A deposits and gets shares
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        address ownerController = accInstances[0].account; // Same address for both
+        uint256 shares = vault.balanceOf(ownerController);
+        
+        // Request redeem with controller == owner - should succeed
+        vm.startPrank(ownerController);
+        uint256 requestId = vault.requestRedeem(shares, ownerController, ownerController);
+        vm.stopPrank();
+        
+        // Verify redeem request was successful
+        assertEq(requestId, 0, "Should return request ID 0");
+        assertEq(strategy.pendingRedeemRequest(ownerController), shares, "Should have pending redeem request");
+        assertEq(vault.balanceOf(address(escrow)), shares, "Shares should be in escrow");
+    }
+
+    /// @notice Test that fulfillment works correctly when controller == owner (no INSUFFICIENT_SHARES)
+    function test_Fix15_FulfillmentWorksWithMatchedControllerOwner() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User A deposits and gets shares
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        address ownerController = accInstances[0].account;
+        uint256 shares = vault.balanceOf(ownerController);
+        
+        // Request redeem with controller == owner
+        vm.startPrank(ownerController);
+        vault.requestRedeem(shares, ownerController, ownerController);
+        vm.stopPrank();
+        
+        // Fulfill the redeem request - should not revert with INSUFFICIENT_SHARES
+        address[] memory controllers = new address[](1);
+        controllers[0] = ownerController;
+        _fulfillRedeemForUsers(controllers, shares / 2, shares / 2, address(fluidVault), address(aaveVault));
+        
+        // Verify fulfillment was successful
+        assertEq(strategy.pendingRedeemRequest(ownerController), 0, "Pending redeem should be cleared");
+        assertGt(strategy.claimableWithdraw(ownerController), 0, "Should have claimable assets");
+        
+        // User should be able to claim their assets
+        uint256 claimableAssets = strategy.claimableWithdraw(ownerController);
+        uint256 initialAssetBalance = asset.balanceOf(ownerController);
+        
+        vm.startPrank(ownerController);
+        vault.withdraw(claimableAssets, ownerController, ownerController);
+        vm.stopPrank();
+        
+        // Verify assets were transferred correctly
+        assertEq(asset.balanceOf(ownerController), initialAssetBalance + claimableAssets, "Should receive assets");
+        assertEq(strategy.claimableWithdraw(ownerController), 0, "Claimable should be cleared");
+    }
+
+    /// @notice Test that redeem request reverts when controller has no accumulator shares (defense-in-depth)
+    function test_Fix15_RevertWhen_ControllerHasNoAccumulatorShares() public {
+        uint256 depositAmount = 1000e6;
+        
+        // Setup: User A has shares but no accumulator (simulate a fresh user receiving shares)
+        // We'll use a user that has never deposited but receives shares from someone else
+        address userA = accInstances[0].account;
+        address userNoAccumulator = accInstances[1].account;
+        
+        // User A deposits and gets shares
+        _getTokens(address(asset), userA, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
+        
+        uint256 shares = vault.balanceOf(userA);
+        
+        // User A transfers all shares to userNoAccumulator (this moves accumulators via Fix #1)
+        vm.prank(userA);
+        IERC20(address(vault)).transfer(userNoAccumulator, shares);
+        
+        // Now userNoAccumulator has shares AND accumulator (from the transfer)
+        // To create a scenario where someone has shares but NO accumulator, we need to 
+        // manually manipulate state or use a different approach
+        
+        // Create a fresh user with zero accumulator by minting shares directly (bypassing deposit logic)
+        address freshUser = accInstances[2].account;
+        
+        // Give fresh user some shares by having them receive a deposit but with controller != receiver
+        // Actually, let's use a different approach - modify accumulator directly via updateSuperVaultState
+        
+        // Transfer some shares to fresh user from userNoAccumulator
+        vm.prank(userNoAccumulator);
+        IERC20(address(vault)).transfer(freshUser, shares / 4);
+        
+        // Now manually remove the accumulator for freshUser to create the test scenario
+        // This simulates an edge case where shares exist but accumulator is somehow zero
+        ISuperVaultStrategy.SuperVaultState memory emptyState;
+        vm.prank(address(vault));
+        strategy.updateSuperVaultState(freshUser, emptyState);
+        
+        // Verify freshUser has shares but no accumulator
+        assertGt(vault.balanceOf(freshUser), 0, "Fresh user should have shares");
+        ISuperVaultStrategy.SuperVaultState memory stateFresh = strategy.getSuperVaultState(freshUser);
+        assertEq(stateFresh.accumulatorShares, 0, "Fresh user should have no accumulator shares");
+        
+        // Fresh user tries to request redeem - should revert due to no accumulator shares
+        vm.startPrank(freshUser);
+        vm.expectRevert(ISuperVaultStrategy.INSUFFICIENT_SHARES.selector);
+        vault.requestRedeem(shares / 4, freshUser, freshUser);
+        vm.stopPrank();
+    }
+
+    /*//////////////////////////////////////////////////////////////
                        AUDIT FIX #1 - TRANSFER TESTS
     //////////////////////////////////////////////////////////////*/
 
