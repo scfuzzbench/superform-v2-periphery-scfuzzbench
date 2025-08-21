@@ -1770,14 +1770,18 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.totalValidators = 1;
 
         // Create the message hash with all parameters
-        vars.messageHash = keccak256(
+        bytes32 structHash = keccak256(
             abi.encodePacked(
-                strategyAddr, vars.pps, vars.ppsStdev, vars.validatorSet, vars.totalValidators, vars.timestamp
+                ecdsappsOracle.UPDATE_PPS_TYPEHASH(),
+                strategyAddr,
+                vars.pps,
+                vars.ppsStdev,
+                vars.validatorSet,
+                vars.totalValidators,
+                vars.timestamp
             )
         );
-
-        // Create the Ethereum signed message hash
-        vars.ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", vars.messageHash));
+        vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
 
         // Create signature (r, s, v) components using the constant KEEPER address
         (vars.v, vars.r, vars.s) = vm.sign(VALIDATOR_KEY, vars.ethSignedMessageHash);

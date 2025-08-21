@@ -86,7 +86,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         );
 
         // Create a new ECDSAPPSOracle with our custom governor
-        oracleECDSA = new ECDSAPPSOracle(address(governor));
+        oracleECDSA = new ECDSAPPSOracle(address(governor), ECDSAPPS_ORACLE_KEY, ECDSAPPS_ORACLE_VERSION);
 
         vm.startPrank(governorAddress);
         governor.grantRole(governor.GOVERNOR_ROLE(), governorAddress);
@@ -128,7 +128,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
     function test_Constructor_ZeroAddressReverts() public {
         // Test constructor reverts with invalid address
         vm.expectRevert(IECDSAPPSOracle.INVALID_VALIDATOR.selector);
-        new ECDSAPPSOracle(address(0));
+        new ECDSAPPSOracle(address(0), ECDSAPPS_ORACLE_KEY, ECDSAPPS_ORACLE_VERSION);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -168,14 +168,24 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         signerKeys[1] = nonValidatorPrivKey;
 
         // Create message hash with all parameters
-        bytes32 messageHash =
-            keccak256(abi.encodePacked(address(svStrategy), PPS, PPS_STDEV, uint256(2), uint256(3), block.timestamp));
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        bytes32 structHash = keccak256(
+            abi.encodePacked(
+                oracleECDSA.UPDATE_PPS_TYPEHASH(),
+                address(svStrategy),
+                PPS,
+                PPS_STDEV,
+                uint256(2),
+                uint256(3),
+                block.timestamp
+            )
+        );
+        bytes32 domainSeparator = oracleECDSA.domainSeparator();
+        bytes32 digest = MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
 
         // Create proofs array
         bytes[] memory proofs = new bytes[](signerKeys.length);
         for (uint256 i = 0; i < signerKeys.length; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], ethSignedMessageHash);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], digest);
             proofs[i] = abi.encodePacked(r, s, v);
         }
 
@@ -230,12 +240,22 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         // Create proof with the same validator signing twice
         bytes[] memory proofs = new bytes[](2);
 
-        bytes32 messageHash =
-            keccak256(abi.encodePacked(address(strategy), PPS, PPS_STDEV, uint256(2), uint256(3), block.timestamp));
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        bytes32 structHash = keccak256(
+            abi.encodePacked(
+                oracleECDSA.UPDATE_PPS_TYPEHASH(),
+                address(strategy),
+                PPS,
+                PPS_STDEV,
+                uint256(2),
+                uint256(3),
+                block.timestamp
+            )
+        );
+        bytes32 domainSeparator = oracleECDSA.domainSeparator();
+        bytes32 digest = MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
 
         // Use validator1 to sign both proofs
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(validator1PrivateKey, ethSignedMessageHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(validator1PrivateKey, digest);
         proofs[0] = abi.encodePacked(r, s, v);
         proofs[1] = abi.encodePacked(r, s, v); // Same signature again
 
@@ -260,15 +280,25 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         signerKeys[0] = validator1PrivateKey;
         signerKeys[1] = validator2PrivateKey;
 
-        // Create message hash with all parameters
-        bytes32 messageHash =
-            keccak256(abi.encodePacked(address(svStrategy), PPS, PPS_STDEV, uint256(1), uint256(3), block.timestamp));
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        // Create digest with all parameters
+         bytes32 structHash = keccak256(
+            abi.encodePacked(
+                oracleECDSA.UPDATE_PPS_TYPEHASH(),
+                address(svStrategy),
+                PPS,
+                PPS_STDEV,
+                uint256(1),
+                uint256(3),
+                block.timestamp
+            )
+        );
+        bytes32 domainSeparator = oracleECDSA.domainSeparator();
+        bytes32 digest = MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
 
         // Create proofs array
         bytes[] memory proofs = new bytes[](signerKeys.length);
         for (uint256 i = 0; i < signerKeys.length; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], ethSignedMessageHash);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], digest);
             proofs[i] = abi.encodePacked(r, s, v);
         }
 
@@ -642,10 +672,20 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         view
         returns (bytes[] memory)
     {
-        // Create message hash with all parameters
-        bytes32 messageHash =
-            keccak256(abi.encodePacked(strategy_, pps, ppsStdev, validatorSet, totalValidators, timestamp));
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        // Create digest with all parameters
+        bytes32 structHash = keccak256(
+            abi.encodePacked(
+                oracleECDSA.UPDATE_PPS_TYPEHASH(),
+                strategy_,
+                pps,
+                ppsStdev,
+                validatorSet,
+                totalValidators,
+                timestamp
+            )
+        );
+        bytes32 domainSeparator = oracleECDSA.domainSeparator();
+        bytes32 digest = MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
 
         // If specific signer keys are provided, use them; otherwise, use default validators
         uint256[] memory signerKeys;
@@ -666,7 +706,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         // Create proofs array
         bytes[] memory proofs = new bytes[](signerKeys.length);
         for (uint256 i = 0; i < signerKeys.length; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], ethSignedMessageHash);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], digest);
             proofs[i] = abi.encodePacked(r, s, v);
         }
 

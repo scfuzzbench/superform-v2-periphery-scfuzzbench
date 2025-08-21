@@ -117,7 +117,7 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             vm.label(address(PA[i].oracleRegistry), SUPER_ORACLE_KEY);
             contractAddresses[chainIds[i]][SUPER_ORACLE_KEY] = address(PA[i].oracleRegistry);
 
-            PA[i].ecdsappsOracle = new ECDSAPPSOracle(address(PA[i].superGovernor));
+            PA[i].ecdsappsOracle = new ECDSAPPSOracle(address(PA[i].superGovernor), ECDSAPPS_ORACLE_KEY, ECDSAPPS_ORACLE_VERSION);
             vm.label(address(PA[i].ecdsappsOracle), ECDSAPPS_ORACLE_KEY);
             contractAddresses[chainIds[i]][ECDSAPPS_ORACLE_KEY] = address(PA[i].ecdsappsOracle);
 

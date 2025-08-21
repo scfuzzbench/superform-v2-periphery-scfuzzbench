@@ -257,7 +257,7 @@ contract DeployV2Periphery is DeployV2Base, ConfigPeriphery {
             chainId,
             __getSalt(ECDSAPPS_ORACLE_KEY),
             abi.encodePacked(
-                vm.getCode("script/locked-bytecode/ECDSAPPSOracle.json"), abi.encode(peripheryContracts.superGovernor)
+                vm.getCode("script/locked-bytecode/ECDSAPPSOracle.json"), abi.encode(peripheryContracts.superGovernor, ECDSAPPS_ORACLE_KEY, ECDSAPPS_ORACLE_VERSION)
             )
         );
 
