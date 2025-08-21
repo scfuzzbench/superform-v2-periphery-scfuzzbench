@@ -255,6 +255,49 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         );
     }
 
+    function test_UpdatePPS_UnsortedSignersReverts() public {
+        // Create proofs with signers in descending order (should fail)
+        uint256[] memory signerKeys = new uint256[](2);
+        
+        // Determine which validator has a higher address and put it first
+        address addr1 = vm.addr(validator1PrivateKey);
+        address addr2 = vm.addr(validator2PrivateKey);
+        
+        if (addr1 > addr2) {
+            signerKeys[0] = validator1PrivateKey; // Higher address first
+            signerKeys[1] = validator2PrivateKey; // Lower address second
+        } else {
+            signerKeys[0] = validator2PrivateKey; // Higher address first
+            signerKeys[1] = validator1PrivateKey; // Lower address second
+        }
+
+        bytes32 messageHash =
+            keccak256(abi.encodePacked(address(strategy), PPS, PPS_STDEV, uint256(2), uint256(3), block.timestamp));
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+
+        // Create proofs array in wrong order (descending)
+        bytes[] memory proofs = new bytes[](2);
+        for (uint256 i = 0; i < 2; i++) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], ethSignedMessageHash);
+            proofs[i] = abi.encodePacked(r, s, v);
+        }
+
+        // Call should revert because signers are not in ascending order
+        vm.prank(user);
+        vm.expectRevert(IECDSAPPSOracle.INVALID_PROOF.selector);
+        oracleECDSA.updatePPS(
+            IECDSAPPSOracle.UpdatePPSArgs({
+                strategy: address(strategy),
+                proofs: proofs,
+                pps: PPS,
+                ppsStdev: PPS_STDEV,
+                validatorSet: 2,
+                totalValidators: 3,
+                timestamp: block.timestamp
+            })
+        );
+    }
+
     function test_UpdatePPS_ValidatorCountMismatchReverts() public {
         uint256[] memory signerKeys = new uint256[](2);
         signerKeys[0] = validator1PrivateKey;
@@ -663,6 +706,9 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
             }
         }
 
+        // Sort signer keys by their corresponding addresses to ensure ascending order
+        _sortSignerKeysByAddress(signerKeys);
+
         // Create proofs array
         bytes[] memory proofs = new bytes[](signerKeys.length);
         for (uint256 i = 0; i < signerKeys.length; i++) {
@@ -671,5 +717,26 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         }
 
         return proofs;
+    }
+
+    /// @notice Sorts signer keys by their corresponding addresses in ascending order
+    /// @param signerKeys Array of private keys to sort
+    function _sortSignerKeysByAddress(uint256[] memory signerKeys) internal pure {
+        uint256 length = signerKeys.length;
+        
+        // Simple bubble sort - sufficient for small arrays in tests
+        for (uint256 i = 0; i < length - 1; i++) {
+            for (uint256 j = 0; j < length - i - 1; j++) {
+                address addr1 = vm.addr(signerKeys[j]);
+                address addr2 = vm.addr(signerKeys[j + 1]);
+                
+                if (addr1 > addr2) {
+                    // Swap
+                    uint256 temp = signerKeys[j];
+                    signerKeys[j] = signerKeys[j + 1];
+                    signerKeys[j + 1] = temp;
+                }
+            }
+        }
     }
 }

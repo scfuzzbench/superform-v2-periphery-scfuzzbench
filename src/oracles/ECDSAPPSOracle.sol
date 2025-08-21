@@ -146,7 +146,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
         uint256 proofsLength = proofs.length;
-        address[] memory seenSigners = new address[](proofsLength);
+        address lastSigner;
 
         if (proofsLength == 0) revert ZERO_LENGTH_ARRAY();
 
@@ -158,13 +158,9 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
             // Verify the signer is a registered validator
             if (!SUPER_GOVERNOR.isValidator(signer)) revert INVALID_VALIDATOR();
 
-            // Check for duplicate signers and revert if found
-            for (uint256 j; j < i; j++) {
-                if (seenSigners[j] == signer) revert INVALID_PROOF();
-            }
-
-            // Mark this signer as seen and increment count
-            seenSigners[i] = signer;
+            // Check for duplicates or improper ordering - signers must be in ascending order
+            if (signer <= lastSigner) revert INVALID_PROOF();
+            lastSigner = signer;
         }
 
         // Validate that validatorSet matches actual number of valid signatures
