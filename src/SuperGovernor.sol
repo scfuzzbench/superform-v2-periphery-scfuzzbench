@@ -556,6 +556,15 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         emit FeeUpdated(feeType, _feeValues[feeType]);
     }
 
+    /// @inheritdoc ISuperGovernor
+    function executeUpkeepClaim(uint256 amount) external onlyRole(_GOVERNOR_ROLE) {
+        address aggregator = _addressRegistry[SUPER_VAULT_AGGREGATOR];
+        if (aggregator == address(0)) revert CONTRACT_NOT_FOUND();
+
+        ISuperVaultAggregator(aggregator).claimUpkeep(amount);
+    }
+
+
     /*//////////////////////////////////////////////////////////////
                         UPKEEP COST MANAGEMENT
     //////////////////////////////////////////////////////////////*/

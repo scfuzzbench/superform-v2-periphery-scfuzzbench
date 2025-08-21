@@ -476,6 +476,10 @@ interface ISuperGovernor is IAccessControl {
     /// @param feeType The type of ffee to execute the update for
     function executeFeeUpdate(FeeType feeType) external;
 
+    /// @notice Executes an upkeep claim on `SuperVaultAggregator`
+    /// @param amount The amount to claim
+    function executeUpkeepClaim(uint256 amount) external;
+
     /*//////////////////////////////////////////////////////////////
                       UPKEEP COST MANAGEMENT
     //////////////////////////////////////////////////////////////*/

@@ -39,12 +39,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     // Governance
     ISuperGovernor public immutable SUPER_GOVERNOR;
+    
+    // Claimable upkeep
+    uint256 public claimableUpkeep;
 
     // Strategy data storage
     mapping(address strategy => StrategyData) private _strategyData;
 
     // Upkeep balances
     mapping(address strategist => uint256 upkeep) private _strategistUpkeepBalance;
+
 
     // Registry of created vaults
     EnumerableSet.AddressSet private _superVaults;
@@ -278,6 +282,25 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategistUpkeepBalance[strategist] += amount;
 
         emit UpkeepDeposited(strategist, amount);
+    }
+
+    /// @inheritdoc ISuperVaultAggregator
+    function claimUpkeep(uint256 amount) external {
+        // Only SUPER_GOVERNOR can claim upkeep
+        if (msg.sender != address(SUPER_GOVERNOR)) {
+            revert CALLER_NOT_AUTHORIZED();
+        }
+
+        if (claimableUpkeep < amount) revert INSUFFICIENT_UPKEEP();
+        claimableUpkeep -= amount;
+
+        // Get the UP token address from SUPER_GOVERNOR
+        address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
+
+        // Transfer UP tokens to `SuperBank`
+        address _superBank = _getSuperBank();
+        IERC20(upToken).safeTransfer(_superBank, amount);
+        emit UpkeepClaimed(_superBank, amount);
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -943,8 +966,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
             // Deduct the upkeep cost and emit event
             _strategistUpkeepBalance[strategist] -= args.upkeepCost;
+
+            // Add claimable upkeep for the `feeRecipient`
+            claimableUpkeep += args.upkeepCost;
+
             emit UpkeepSpent(strategist, args.upkeepCost);
-        }
+        } 
 
         // Update PPS, ppsStdev and timestamp in StrategyData
         _strategyData[args.strategy].pps = args.pps;
@@ -1051,5 +1078,13 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             }
             return MerkleProof.verify(proof, cache.strategyRoot, leaf);
         }
+    }
+
+    /**
+     * @dev Internal function to return the `SuperBank` address
+     * @return superBank The superBank address
+     */
+    function _getSuperBank() internal view returns (address) {
+        return SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.SUPER_BANK());
     }
 }
