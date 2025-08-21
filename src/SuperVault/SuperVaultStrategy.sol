@@ -90,18 +90,18 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     /*//////////////////////////////////////////////////////////////
                             INITIALIZATION
     //////////////////////////////////////////////////////////////*/
-    function initialize(address vault_, FeeConfig memory feeConfig_) external initializer {
-        if (vault_ == address(0)) revert INVALID_VAULT();
-        if (feeConfig_.performanceFeeBps > 0 && feeConfig_.recipient == address(0)) revert ZERO_ADDRESS();
-        if (feeConfig_.performanceFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
+    function initialize(address vaultAddress, FeeConfig memory feeConfigData) external initializer {
+        if (vaultAddress == address(0)) revert INVALID_VAULT();
+        if (feeConfigData.performanceFeeBps > 0 && feeConfigData.recipient == address(0)) revert ZERO_ADDRESS();
+        if (feeConfigData.performanceFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
 
         __ReentrancyGuard_init();
 
-        _vault = vault_;
-        _asset = IERC20(IERC4626(vault_).asset());
-        _vaultDecimals = IERC20Metadata(vault_).decimals();
+        _vault = vaultAddress;
+        _asset = IERC20(IERC4626(vaultAddress).asset());
+        _vaultDecimals = IERC20Metadata(vaultAddress).decimals();
         PRECISION = 10 ** _vaultDecimals;
-        feeConfig = feeConfig_;
+        feeConfig = feeConfigData;
         _maxPPSSlippage = 500; // 5% as a start, configurable later
 
         emit Initialized(_vault);
@@ -298,10 +298,10 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
 
     // @inheritdoc ISuperVaultStrategy
-    function getVaultInfo() external view returns (address vault_, address asset_, uint8 vaultDecimals_) {
-        vault_ = _vault;
-        asset_ = address(_asset);
-        vaultDecimals_ = _vaultDecimals;
+    function getVaultInfo() external view returns (address vault, address asset, uint8 vaultDecimals) {
+        vault = _vault;
+        asset = address(_asset);
+        vaultDecimals = _vaultDecimals;
     }
 
     // @inheritdoc ISuperVaultStrategy

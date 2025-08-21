@@ -42,8 +42,8 @@ contract SuperBank is ISuperBank, Bank {
     receive() external payable { }
 
     /// @inheritdoc ISuperBank
-    function distribute(uint256 upAmount_) external onlyBankManager {
-        if (upAmount_ == 0) revert ZERO_LENGTH_ARRAY();
+    function distribute(uint256 upAmount) external onlyBankManager {
+        if (upAmount == 0) revert ZERO_LENGTH_ARRAY();
 
         // Get UP token address from SuperGovernor
         address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
@@ -54,15 +54,15 @@ contract SuperBank is ISuperBank, Bank {
         uint256 revenueShare = SUPER_GOVERNOR.getFee(FeeType.REVENUE_SHARE);
 
         // Calculate amounts for sUP and Treasury
-        uint256 supAmount = upAmount_.mulDiv(revenueShare, BPS_MAX);
+        uint256 supAmount = upAmount.mulDiv(revenueShare, BPS_MAX);
 
-        uint256 treasuryAmount = upAmount_ - supAmount;
+        uint256 treasuryAmount = upAmount - supAmount;
 
         // Get the UP token instance
         IERC20 up = IERC20(upToken);
 
         // Ensure we have the tokens
-        if (up.balanceOf(address(this)) < upAmount_) revert INVALID_UP_AMOUNT_TO_DISTRIBUTE();
+        if (up.balanceOf(address(this)) < upAmount) revert INVALID_UP_AMOUNT_TO_DISTRIBUTE();
 
         // Transfer tokens to sUP and Treasury
         if (supAmount > 0) {

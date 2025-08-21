@@ -191,9 +191,9 @@ interface ISuperVaultStrategy {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Initializes the strategy with required parameters
-    /// @param vault_ Address of the associated SuperVault
-    /// @param feeConfig_ Fee configuration
-    function initialize(address vault_, FeeConfig memory feeConfig_) external;
+    /// @param vaultAddress Address of the associated SuperVault
+    /// @param feeConfigData Fee configuration
+    function initialize(address vaultAddress, FeeConfig memory feeConfigData) external;
 
     /// @notice Handles asynchronous redeem operations initiated by the Vault.
     /// @param controller Controller address for the redeem operation.

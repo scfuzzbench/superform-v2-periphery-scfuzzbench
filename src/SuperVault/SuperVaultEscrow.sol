@@ -37,15 +37,15 @@ contract SuperVaultEscrow {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Initialize the escrow with required parameters
-    /// @param vault_ The vault contract address
-    /// @param strategy_ The strategy contract address
-    function initialize(address vault_, address strategy_) external {
+    /// @param vaultAddress The vault contract address
+    /// @param strategyAddress The strategy contract address
+    function initialize(address vaultAddress, address strategyAddress) external {
         if (initialized) revert ALREADY_INITIALIZED();
-        if (vault_ == address(0) || strategy_ == address(0)) revert ZERO_ADDRESS();
+        if (vaultAddress == address(0) || strategyAddress == address(0)) revert ZERO_ADDRESS();
 
         initialized = true;
-        vault = vault_;
-        strategy = strategy_;
+        vault = vaultAddress;
+        strategy = strategyAddress;
     }
 
     /*//////////////////////////////////////////////////////////////

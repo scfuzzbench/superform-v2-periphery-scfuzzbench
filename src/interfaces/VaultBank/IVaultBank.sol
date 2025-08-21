@@ -68,12 +68,26 @@ interface IVaultBankDestination {
     /// @param srcChainId The source chain ID
     /// @param srcAsset The source asset
     /// @param yieldSourceOracleId The yield source oracle ID
-    function getSuperPositionForAsset(uint64 srcChainId, address srcAsset, bytes32 yieldSourceOracleId) external view returns (address);
+    function getSuperPositionForAsset(
+        uint64 srcChainId,
+        address srcAsset,
+        bytes32 yieldSourceOracleId
+    )
+        external
+        view
+        returns (address);
     /// @notice Get the source asset for a synthetic asset
     /// @param srcChainId The source chain ID
     /// @param superPosition The synthetic asset
     /// @param yieldSourceOracleId The yield source oracle ID
-    function getAssetForSuperPosition(uint64 srcChainId, address superPosition, bytes32 yieldSourceOracleId) external view returns (address);
+    function getAssetForSuperPosition(
+        uint64 srcChainId,
+        address superPosition,
+        bytes32 yieldSourceOracleId
+    )
+        external
+        view
+        returns (address);
     /// @notice Check if a synthetic asset exists
     /// @param superPosition The synthetic asset
     function isSuperPositionCreated(address superPosition) external view returns (bool);
@@ -176,11 +190,17 @@ interface IVaultBank is IHookExecutionData {
 
     /// @notice Burns a synthetic asset
     /// @dev Should be requested by the account owning the SP assets
-    /// @param amount_ The amount of the asset to burn
-    /// @param spAddress_ The synthetic asset address
-    /// @param forChainId_ The destination chain ID
-    /// @param yieldSourceOracleId_ The yield source oracle ID
-    function burnSuperPosition(uint256 amount_, address spAddress_, uint64 forChainId_, bytes32 yieldSourceOracleId_) external;
+    /// @param amount The amount of the asset to burn
+    /// @param spAddress The synthetic asset address
+    /// @param forChainId The destination chain ID
+    /// @param yieldSourceOracleId The yield source oracle ID
+    function burnSuperPosition(
+        uint256 amount,
+        address spAddress,
+        uint64 forChainId,
+        bytes32 yieldSourceOracleId
+    )
+        external;
 
     // ------------------ REMOVE SYNTHETIC ASSETS ------------------
     /// @notice Unlock an asset for an account
