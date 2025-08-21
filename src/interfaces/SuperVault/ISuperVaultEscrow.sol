@@ -17,9 +17,9 @@ interface ISuperVaultEscrow {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Initialize the escrow with required parameters
-    /// @param vault_ The vault contract address
-    /// @param strategy_ The strategy contract address
-    function initialize(address vault_, address strategy_) external;
+    /// @param vaultAddress The vault contract address
+    /// @param strategyAddress The strategy contract address
+    function initialize(address vaultAddress, address strategyAddress) external;
 
     /*//////////////////////////////////////////////////////////////
                             VAULT FUNCTIONS

@@ -48,6 +48,6 @@ interface ISuperBank is IHookExecutionData {
 
     /// @notice Distributes UP tokens based on governance-agreed revenue share.
     /// @dev Transfers X% (REVENUE_SHARE) of UP tokens to sUP, and the remainder to Superform Treasury.
-    /// @param upAmount_ The amount of UP tokens to distribute.
-    function distribute(uint256 upAmount_) external;
+    /// @param upAmount The amount of UP tokens to distribute.
+    function distribute(uint256 upAmount) external;
 }

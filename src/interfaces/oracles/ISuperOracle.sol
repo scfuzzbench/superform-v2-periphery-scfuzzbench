@@ -203,7 +203,7 @@ interface ISuperOracle {
     function setEmergencyPrice(address token, uint256 price) external;
 
     /// @notice Set the emergency price for multiple tokens in a batch
-    /// @param tokens_ Array of token addresses
-    /// @param prices_ Array of emergency prices
-    function batchSetEmergencyPrice(address[] calldata tokens_, uint256[] calldata prices_) external;
+    /// @param tokens Array of token addresses
+    /// @param prices Array of emergency prices
+    function batchSetEmergencyPrice(address[] calldata tokens, uint256[] calldata prices) external;
 }

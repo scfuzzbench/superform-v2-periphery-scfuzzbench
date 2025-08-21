@@ -300,21 +300,21 @@ interface ISuperGovernor is IAccessControl {
                         PERIPHERY CONFIGURATIONS
     //////////////////////////////////////////////////////////////*/
     /// @notice Sets the prover address
-    /// @param prover_ The address of the prover
-    function setProver(address prover_) external;
+    /// @param prover The address of the prover
+    function setProver(address prover) external;
 
     /// @notice Change the primary strategist for a strategy
     /// @dev Only SuperGovernor can call this function directly
-    /// @param strategy_ The strategy address
-    /// @param newStrategist_ The new primary strategist address
-    function changePrimaryStrategist(address strategy_, address newStrategist_) external;
+    /// @param strategy The strategy address
+    /// @param newStrategist The new primary strategist address
+    function changePrimaryStrategist(address strategy, address newStrategist) external;
 
     /// @notice Permanently freezes all strategist takeovers globally
     function freezeStrategistTakeover() external;
 
     /// @notice Changes the hooks root update timelock duration
-    /// @param newTimelock_ New timelock duration in seconds
-    function changeHooksRootUpdateTimelock(uint256 newTimelock_) external;
+    /// @param newTimelock New timelock duration in seconds
+    function changeHooksRootUpdateTimelock(uint256 newTimelock) external;
 
     /// @notice Proposes a new global hooks Merkle root
     /// @dev Only GOVERNOR_ROLE can call this function
@@ -346,60 +346,60 @@ interface ISuperGovernor is IAccessControl {
     function removeICCFromWhitelist(address icc) external;
 
     /// @notice Sets the maximum staleness period for all oracle feeds
-    /// @param newMaxStaleness_ The new maximum staleness period in seconds
-    function setOracleMaxStaleness(uint256 newMaxStaleness_) external;
+    /// @param newMaxStaleness The new maximum staleness period in seconds
+    function setOracleMaxStaleness(uint256 newMaxStaleness) external;
 
     /// @notice Sets the maximum staleness period for a specific oracle feed
-    /// @param feed_ The address of the feed to set staleness for
-    /// @param newMaxStaleness_ The new maximum staleness period in seconds
-    function setOracleFeedMaxStaleness(address feed_, uint256 newMaxStaleness_) external;
+    /// @param feed The address of the feed to set staleness for
+    /// @param newMaxStaleness The new maximum staleness period in seconds
+    function setOracleFeedMaxStaleness(address feed, uint256 newMaxStaleness) external;
 
     /// @notice Sets the maximum staleness periods for multiple oracle feeds in batch
-    /// @param feeds_ The addresses of the feeds to set staleness for
-    /// @param newMaxStalenessList_ The new maximum staleness periods in seconds
+    /// @param feeds The addresses of the feeds to set staleness for
+    /// @param newMaxStalenessList The new maximum staleness periods in seconds
     function setOracleFeedMaxStalenessBatch(
-        address[] calldata feeds_,
-        uint256[] calldata newMaxStalenessList_
+        address[] calldata feeds,
+        uint256[] calldata newMaxStalenessList
     )
         external;
 
     /// @notice Queues an oracle update for execution after timelock period
-    /// @param bases_ Base asset addresses
-    /// @param quotes_ Quote asset addresses
-    /// @param providers_ Provider identifiers
-    /// @param feeds_ Feed addresses
+    /// @param bases Base asset addresses
+    /// @param quotes Quote asset addresses
+    /// @param providers Provider identifiers
+    /// @param feeds Feed addresses
     function queueOracleUpdate(
-        address[] calldata bases_,
-        address[] calldata quotes_,
-        bytes32[] calldata providers_,
-        address[] calldata feeds_
+        address[] calldata bases,
+        address[] calldata quotes,
+        bytes32[] calldata providers,
+        address[] calldata feeds
     )
         external;
 
     /// @notice Queues a provider removal for execution after timelock period
-    /// @param providers_ The providers to remove
-    function queueOracleProviderRemoval(bytes32[] calldata providers_) external;
+    /// @param providers The providers to remove
+    function queueOracleProviderRemoval(bytes32[] calldata providers) external;
 
     /// @notice Sets uptime feeds for multiple data oracles in batch (Layer 2 only)
-    /// @param dataOracles_ Array of data oracle addresses to set uptime feeds for
-    /// @param uptimeOracles_ Array of uptime feed addresses to set
-    /// @param gracePeriods_ Array of grace periods in seconds after sequencer restart
+    /// @param dataOracles Array of data oracle addresses to set uptime feeds for
+    /// @param uptimeOracles Array of uptime feed addresses to set
+    /// @param gracePeriods Array of grace periods in seconds after sequencer restart
     function batchSetOracleUptimeFeed(
-        address[] calldata dataOracles_,
-        address[] calldata uptimeOracles_,
-        uint256[] calldata gracePeriods_
+        address[] calldata dataOracles,
+        address[] calldata uptimeOracles,
+        uint256[] calldata gracePeriods
     )
         external;
 
     /// @notice Sets the emergency price for a token
-    /// @param token_ The address of the token
-    /// @param price_ The emergency price to set
-    function setEmergencyPrice(address token_, uint256 price_) external;
+    /// @param token The address of the token
+    /// @param price The emergency price to set
+    function setEmergencyPrice(address token, uint256 price) external;
 
     /// @notice Sets the emergency price for multiple tokens o
-    /// @param tokens_ Array of token addresses
-    /// @param prices_ Array of emergency prices
-    function batchSetEmergencyPrices(address[] calldata tokens_, uint256[] calldata prices_) external;
+    /// @param tokens Array of token addresses
+    /// @param prices Array of emergency prices
+    function batchSetEmergencyPrices(address[] calldata tokens, uint256[] calldata prices) external;
 
     /*//////////////////////////////////////////////////////////////
                           HOOK MANAGEMENT

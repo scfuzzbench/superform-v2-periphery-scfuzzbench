@@ -191,17 +191,17 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                     PERIPHERY CONFIGURATIONS
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function setProver(address prover_) external onlyRole(_SUPER_GOVERNOR_ROLE) {
-        if (prover_ == address(0)) revert INVALID_ADDRESS();
+    function setProver(address prover) external onlyRole(_SUPER_GOVERNOR_ROLE) {
+        if (prover == address(0)) revert INVALID_ADDRESS();
 
-        _prover = prover_;
-        emit ProverSet(prover_);
+        _prover = prover;
+        emit ProverSet(prover);
     }
 
     /// @inheritdoc ISuperGovernor
     function changePrimaryStrategist(
-        address strategy_,
-        address newStrategist_
+        address strategy,
+        address newStrategist
     )
         external
         onlyRole(_SUPER_GOVERNOR_ROLE)
@@ -214,7 +214,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
         // Call the interface method to change the strategist
         // This function can only be called by the SuperGovernor and bypasses the timelock
-        ISuperVaultAggregator(aggregator).changePrimaryStrategist(strategy_, newStrategist_);
+        ISuperVaultAggregator(aggregator).changePrimaryStrategist(strategy, newStrategist);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -229,12 +229,12 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function changeHooksRootUpdateTimelock(uint256 newTimelock_) external onlyRole(_SUPER_GOVERNOR_ROLE) {
+    function changeHooksRootUpdateTimelock(uint256 newTimelock) external onlyRole(_SUPER_GOVERNOR_ROLE) {
         address aggregator = _addressRegistry[SUPER_VAULT_AGGREGATOR];
         if (aggregator == address(0)) revert CONTRACT_NOT_FOUND();
 
         // Call the SuperVaultAggregator to change the hooks root update timelock
-        ISuperVaultAggregator(aggregator).setHooksRootUpdateTimelock(newTimelock_);
+        ISuperVaultAggregator(aggregator).setHooksRootUpdateTimelock(newTimelock);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -246,21 +246,21 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function setGlobalHooksRootVetoStatus(bool vetoed_) external onlyRole(_GUARDIAN_ROLE) {
+    function setGlobalHooksRootVetoStatus(bool vetoed) external onlyRole(_GUARDIAN_ROLE) {
         address aggregator = _addressRegistry[SUPER_VAULT_AGGREGATOR];
         if (aggregator == address(0)) revert CONTRACT_NOT_FOUND();
 
-        ISuperVaultAggregator(aggregator).setGlobalHooksRootVetoStatus(vetoed_);
+        ISuperVaultAggregator(aggregator).setGlobalHooksRootVetoStatus(vetoed);
     }
 
     /// @inheritdoc ISuperGovernor
-    function setStrategyHooksRootVetoStatus(address strategy_, bool vetoed_) external onlyRole(_GUARDIAN_ROLE) {
-        if (strategy_ == address(0)) revert INVALID_ADDRESS();
+    function setStrategyHooksRootVetoStatus(address strategy, bool vetoed) external onlyRole(_GUARDIAN_ROLE) {
+        if (strategy == address(0)) revert INVALID_ADDRESS();
 
         address aggregator = _addressRegistry[SUPER_VAULT_AGGREGATOR];
         if (aggregator == address(0)) revert CONTRACT_NOT_FOUND();
 
-        ISuperVaultAggregator(aggregator).setStrategyHooksRootVetoStatus(strategy_, vetoed_);
+        ISuperVaultAggregator(aggregator).setStrategyHooksRootVetoStatus(strategy, vetoed);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -291,22 +291,22 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function setOracleMaxStaleness(uint256 newMaxStaleness_) external onlyRole(_GOVERNOR_ROLE) {
-        if (newMaxStaleness_ < _minStaleness) revert MAX_STALENESS_TOO_LOW();
+    function setOracleMaxStaleness(uint256 newMaxStaleness) external onlyRole(_GOVERNOR_ROLE) {
+        if (newMaxStaleness < _minStaleness) revert MAX_STALENESS_TOO_LOW();
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
-        ISuperOracle(oracle).setMaxStaleness(newMaxStaleness_);
+        ISuperOracle(oracle).setMaxStaleness(newMaxStaleness);
     }
 
     /// @inheritdoc ISuperGovernor
-    function setOracleFeedMaxStaleness(address feed_, uint256 newMaxStaleness_) external onlyRole(_GOVERNOR_ROLE) {
-        if (feed_ == address(0)) revert INVALID_ADDRESS();
-        if (newMaxStaleness_ < _minStaleness) revert MAX_STALENESS_TOO_LOW();
+    function setOracleFeedMaxStaleness(address feed, uint256 newMaxStaleness) external onlyRole(_GOVERNOR_ROLE) {
+        if (feed == address(0)) revert INVALID_ADDRESS();
+        if (newMaxStaleness < _minStaleness) revert MAX_STALENESS_TOO_LOW();
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
-        ISuperOracle(oracle).setFeedMaxStaleness(feed_, newMaxStaleness_);
+        ISuperOracle(oracle).setFeedMaxStaleness(feed, newMaxStaleness);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -345,11 +345,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function queueOracleProviderRemoval(bytes32[] calldata providers_) external onlyRole(_GOVERNOR_ROLE) {
+    function queueOracleProviderRemoval(bytes32[] calldata providers) external onlyRole(_GOVERNOR_ROLE) {
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
-        ISuperOracle(oracle).queueProviderRemoval(providers_);
+        ISuperOracle(oracle).queueProviderRemoval(providers);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -368,11 +368,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function setEmergencyPrice(address token_, uint256 price_) external onlyRole(_GOVERNOR_ROLE) {
+    function setEmergencyPrice(address token, uint256 price) external onlyRole(_GOVERNOR_ROLE) {
         address oracle = _addressRegistry[SUPER_ORACLE];
         if (oracle == address(0)) revert CONTRACT_NOT_FOUND();
 
-        ISuperOracle(oracle).setEmergencyPrice(token_, price_);
+        ISuperOracle(oracle).setEmergencyPrice(token, price);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -393,28 +393,28 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                             HOOK MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function registerHook(address hook_, bool isFulfillRequestsHook_) external onlyRole(_GOVERNOR_ROLE) {
-        if (hook_ == address(0)) revert INVALID_ADDRESS();
+    function registerHook(address hook, bool isFulfillRequestsHook) external onlyRole(_GOVERNOR_ROLE) {
+        if (hook == address(0)) revert INVALID_ADDRESS();
 
-        if (isFulfillRequestsHook_ && _registeredFulfillRequestsHooks.add(hook_)) {
-            emit FulfillRequestsHookRegistered(hook_);
+        if (isFulfillRequestsHook && _registeredFulfillRequestsHooks.add(hook)) {
+            emit FulfillRequestsHookRegistered(hook);
         }
-        if (_registeredHooks.add(hook_)) {
-            emit HookApproved(hook_);
+        if (_registeredHooks.add(hook)) {
+            emit HookApproved(hook);
         }
     }
 
     /// @inheritdoc ISuperGovernor
-    function unregisterHook(address hook_) external onlyRole(_GOVERNOR_ROLE) {
-        if (_registeredFulfillRequestsHooks.remove(hook_)) {
-            emit FulfillRequestsHookUnregistered(hook_);
+    function unregisterHook(address hook) external onlyRole(_GOVERNOR_ROLE) {
+        if (_registeredFulfillRequestsHooks.remove(hook)) {
+            emit FulfillRequestsHookUnregistered(hook);
         }
-        if (_registeredHooks.remove(hook_)) {
+        if (_registeredHooks.remove(hook)) {
             // Clear merkle root data for the unregistered hook to prevent stale data
-            delete superBankHooksMerkleRoots[hook_];
-            delete vaultBankHooksMerkleRoots[hook_];
+            delete superBankHooksMerkleRoots[hook];
+            delete vaultBankHooksMerkleRoots[hook];
 
-            emit HookRemoved(hook_);
+            emit HookRemoved(hook);
         }
     }
 
@@ -422,36 +422,36 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                         EXECUTORS MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function addExecutor(address executor_) external onlyRole(_GOVERNOR_ROLE) {
-        if (executor_ == address(0)) revert INVALID_ADDRESS();
-        if (!_executors.add(executor_)) revert EXECUTOR_ALREADY_REGISTERED();
+    function addExecutor(address executor) external onlyRole(_GOVERNOR_ROLE) {
+        if (executor == address(0)) revert INVALID_ADDRESS();
+        if (!_executors.add(executor)) revert EXECUTOR_ALREADY_REGISTERED();
 
-        emit ExecutorAdded(executor_);
+        emit ExecutorAdded(executor);
     }
 
     /// @inheritdoc ISuperGovernor
-    function removeExecutor(address executor_) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_executors.remove(executor_)) revert EXECUTOR_NOT_REGISTERED();
+    function removeExecutor(address executor) external onlyRole(_GOVERNOR_ROLE) {
+        if (!_executors.remove(executor)) revert EXECUTOR_NOT_REGISTERED();
 
-        emit ExecutorRemoved(executor_);
+        emit ExecutorRemoved(executor);
     }
 
     /*//////////////////////////////////////////////////////////////
                           RELAYER MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function addRelayer(address relayer_) external onlyRole(_GOVERNOR_ROLE) {
-        if (relayer_ == address(0)) revert INVALID_ADDRESS();
-        if (!_relayers.add(relayer_)) revert RELAYER_ALREADY_REGISTERED();
+    function addRelayer(address relayer) external onlyRole(_GOVERNOR_ROLE) {
+        if (relayer == address(0)) revert INVALID_ADDRESS();
+        if (!_relayers.add(relayer)) revert RELAYER_ALREADY_REGISTERED();
 
-        emit RelayerAdded(relayer_);
+        emit RelayerAdded(relayer);
     }
 
     /// @inheritdoc ISuperGovernor
-    function removeRelayer(address relayer_) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_relayers.remove(relayer_)) revert RELAYER_NOT_REGISTERED();
+    function removeRelayer(address relayer) external onlyRole(_GOVERNOR_ROLE) {
+        if (!_relayers.remove(relayer)) revert RELAYER_NOT_REGISTERED();
 
-        emit RelayerRemoved(relayer_);
+        emit RelayerRemoved(relayer);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -569,11 +569,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                         UPKEEP COST MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function proposeUpkeepCostPerUpdate(uint256 newCost_) external onlyRole(_SUPER_GOVERNOR_ROLE) {
-        _proposedUpkeepCostPerUpdate = newCost_;
+    function proposeUpkeepCostPerUpdate(uint256 newCost) external onlyRole(_SUPER_GOVERNOR_ROLE) {
+        _proposedUpkeepCostPerUpdate = newCost;
         _upkeepCostEffectiveTime = block.timestamp + TIMELOCK;
 
-        emit UpkeepCostPerUpdateProposed(newCost_, _upkeepCostEffectiveTime);
+        emit UpkeepCostPerUpdateProposed(newCost, _upkeepCostEffectiveTime);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -616,11 +616,11 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                         MIN STALENESS MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function proposeMinStaleness(uint256 newMinStaleness_) external onlyRole(_SUPER_GOVERNOR_ROLE) {
-        _proposedMinStaleness = newMinStaleness_;
+    function proposeMinStaleness(uint256 newMinStaleness) external onlyRole(_SUPER_GOVERNOR_ROLE) {
+        _proposedMinStaleness = newMinStaleness;
         _minStalenesEffectiveTime = block.timestamp + TIMELOCK;
 
-        emit MinStalenesProposed(newMinStaleness_, _minStalenesEffectiveTime);
+        emit MinStalenesProposed(newMinStaleness, _minStalenesEffectiveTime);
     }
 
     /// @inheritdoc ISuperGovernor
