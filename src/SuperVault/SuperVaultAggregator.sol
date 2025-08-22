@@ -392,6 +392,34 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
+    function changeGlobalLeavesStatus(
+        bytes32[] memory leaves,
+        bool[] memory statuses,
+        address strategy
+    )
+        external
+        validStrategy(strategy)
+    {
+        // Only the primary strategist can change global leaves status
+        if (msg.sender != _strategyData[strategy].mainStrategist) {
+            revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        }
+        uint256 leavesLen = leaves.length;
+        // Check array lengths match
+        if (leavesLen != statuses.length) {
+            revert MISMATCHED_ARRAY_LENGTHS();
+        }
+
+        // Update banned status for each leaf
+        for (uint256 i; i < leavesLen; i++) {
+            _strategyData[strategy].bannedLeaves[leaves[i]] = statuses[i];
+        }
+
+        // Emit event
+        emit GlobalLeavesStatusChanged(strategy, leaves, statuses);
+    }
+
+    /// @inheritdoc ISuperVaultAggregator
     function changePrimaryStrategist(address strategy, address newStrategist) external validStrategy(strategy) {
         // Only SuperGovernor can call this
         if (msg.sender != address(SUPER_GOVERNOR)) {
@@ -754,10 +782,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @inheritdoc ISuperVaultAggregator
     function validateHook(
         address strategy,
-        address hookAddress,
-        bytes calldata hookArgs,
-        bytes32[] calldata globalProof,
-        bytes32[] calldata strategyProof
+        ValidateHookArgs calldata args
     )
         external
         view
@@ -777,32 +802,24 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         }
 
         // Try to validate against global root first
-        if (_validateSingleHook(hookAddress, hookArgs, globalProof, true, cache)) {
+        if (_validateSingleHook(args.hookAddress, args.hookArgs, args.globalProof, true, cache, strategy)) {
             return true;
         }
 
         // If global validation fails, try strategy root
-        return _validateSingleHook(hookAddress, hookArgs, strategyProof, false, cache);
+        return _validateSingleHook(args.hookAddress, args.hookArgs, args.strategyProof, false, cache, strategy);
     }
 
     /// @inheritdoc ISuperVaultAggregator
     function validateHooks(
         address strategy,
-        address[] calldata hookAddresses,
-        bytes[] calldata hooksArgs,
-        bytes32[][] calldata globalProofs,
-        bytes32[][] calldata strategyProofs
+        ValidateHookArgs[] calldata argsArray
     )
         external
         view
         returns (bool[] memory validHooks)
     {
-        uint256 length = hooksArgs.length;
-
-        // Ensure array lengths match
-        if (hookAddresses.length != length || globalProofs.length != length || strategyProofs.length != length) {
-            revert INVALID_ARRAY_LENGTH();
-        }
+        uint256 length = argsArray.length;
 
         // Cache all state variables in struct
         HookValidationCache memory cache = HookValidationCache({
@@ -821,11 +838,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         validHooks = new bool[](length);
         for (uint256 i; i < length; i++) {
             // Try global root first
-            if (_validateSingleHook(hookAddresses[i], hooksArgs[i], globalProofs[i], true, cache)) {
+            if (_validateSingleHook(argsArray[i].hookAddress, argsArray[i].hookArgs, argsArray[i].globalProof, true, cache, strategy)) {
                 validHooks[i] = true;
             } else {
                 // Try strategy root
-                validHooks[i] = _validateSingleHook(hookAddresses[i], hooksArgs[i], strategyProofs[i], false, cache);
+                validHooks[i] = _validateSingleHook(argsArray[i].hookAddress, argsArray[i].hookArgs, argsArray[i].strategyProof, false, cache, strategy);
             }
             // If both conditions fail, validHooks[i] remains false (default value)
         }
@@ -1010,6 +1027,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
      * @param proof Merkle proof for the specified root
      * @param isGlobalProof Whether to validate against global root (true) or strategy root (false)
      * @param cache Cached hook validation state variables
+     * @param strategy Address of the strategy (needed to check banned leaves for global proofs)
      * @return True if hook is valid, false otherwise
      */
     function _validateSingleHook(
@@ -1017,10 +1035,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         bytes calldata hookArgs,
         bytes32[] calldata proof,
         bool isGlobalProof,
-        HookValidationCache memory cache
+        HookValidationCache memory cache,
+        address strategy
     )
         internal
-        pure
+        view
         returns (bool)
     {
         // Create leaf node from the hook address and arguments
@@ -1031,6 +1050,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             if (cache.globalHooksRootVetoed || cache.globalHooksRoot == bytes32(0)) {
                 return false;
             }
+
+            // Check if this leaf is banned by the strategist
+            if (_strategyData[strategy].bannedLeaves[leaf]) {
+                return false;
+            }
+
             // For single-leaf trees, empty proof is valid when root equals leaf
             if (proof.length == 0) {
                 return cache.globalHooksRoot == leaf;
