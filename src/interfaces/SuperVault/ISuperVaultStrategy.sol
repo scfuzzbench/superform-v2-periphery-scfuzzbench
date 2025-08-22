@@ -216,7 +216,7 @@ interface ISuperVaultStrategy {
 
     /// @notice Execute hooks for general strategy management (rebalancing, etc.).
     /// @param args Execution arguments containing hooks, calldata, proofs, expectations.
-    function executeHooks(ExecuteArgs calldata args) external;
+    function executeHooks(ExecuteArgs calldata args) external payable;
 
     /// @notice Fulfills pending redeem requests by executing specific fulfill hooks.
     /// @param args Execution arguments containing fulfill hooks, calldata, and expected outputs (proofs ignored).

@@ -87,6 +87,10 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         _disableInitializers();
     }
 
+    /// @notice Allows the contract to receive native ETH
+    /// @dev Required for hooks that may send ETH back to the strategy
+    receive() external payable { }
+
     /*//////////////////////////////////////////////////////////////
                             INITIALIZATION
     //////////////////////////////////////////////////////////////*/
@@ -141,7 +145,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc ISuperVaultStrategy
-    function executeHooks(ExecuteArgs calldata args) external nonReentrant {
+    function executeHooks(ExecuteArgs calldata args) external payable nonReentrant {
         _isStrategist(msg.sender);
 
         uint256 hooksLength = args.hooks.length;

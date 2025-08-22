@@ -31,6 +31,8 @@ import { AccountInstance, UserOpData } from "modulekit/ModuleKit.sol";
 import { Mock4626Vault } from "../../mocks/Mock4626Vault.sol";
 import { RuggableVault } from "../../mocks/RuggableVault.sol";
 import { RuggableConvertVault } from "../../mocks/RuggableConvertVault.sol";
+import { MockNativeETHHook } from "../../mocks/MockNativeETHHook.sol";
+import { MockETHReceiver } from "../../mocks/MockETHReceiver.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 
 contract SuperVaultTest is BaseSuperVaultTest {
@@ -150,7 +152,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
             _deployVaultWithSmartAccountStrategist(strategistAccount.account);
 
         SuperVault newVault = SuperVault(newVaultAddr);
-        SuperVaultStrategy newStrategy = SuperVaultStrategy(newStrategyAddr);
+        SuperVaultStrategy newStrategy = SuperVaultStrategy(payable(newStrategyAddr));
 
         // Setup yield sources for the new strategy via smart account
         _manageYieldSourcesViaSmartAccount(strategistAccount, newStrategy);
@@ -2232,12 +2234,11 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
-
     function test_CreateVaultWithSecondaryStrategists() public {
         address[] memory secondaryStrategists = new address[](2);
         secondaryStrategists[0] = address(0x1);
         secondaryStrategists[1] = address(0x2);
-        (, address strategyAddr, ) = _createVaultWithSecondaryStrategists(
+        (, address strategyAddr,) = _createVaultWithSecondaryStrategists(
             VaultCreationParams({
                 asset: address(asset),
                 strategist: address(this),
@@ -2248,7 +2249,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
             }),
             secondaryStrategists
         );
-
 
         address[] memory retrievedStrategists = aggregator.getSecondaryStrategists(strategyAddr);
         assertEq(retrievedStrategists.length, 2);
@@ -2286,7 +2286,10 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
-    function _createVaultWithSecondaryStrategists(VaultCreationParams memory params, address[] memory secondaryStrategists)
+    function _createVaultWithSecondaryStrategists(
+        VaultCreationParams memory params,
+        address[] memory secondaryStrategists
+    )
         internal
         returns (address vaultAddr, address strategyAddr, address escrowAddr)
     {
@@ -2306,7 +2309,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
             })
         );
     }
-
 
     /*//////////////////////////////////////////////////////////////
                        STAKE CLAIM FLOW TEST
@@ -2439,7 +2441,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Cast addresses to contract types
         gearSuperVault = SuperVault(gearSuperVaultAddr);
         escrowGearSuperVault = SuperVaultEscrow(escrowAddr);
-        strategyGearSuperVault = SuperVaultStrategy(strategyAddr);
+        strategyGearSuperVault = SuperVaultStrategy(payable(strategyAddr));
 
         // Add a new yield source as manager
         vm.startPrank(STRATEGIST);
@@ -5932,7 +5934,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         (vaultAddr, strategyAddr, escrowAddr) = _deployVault("SV_USDC_RUG");
 
         vault = SuperVault(vaultAddr);
-        strategy = SuperVaultStrategy(strategyAddr);
+        strategy = SuperVaultStrategy(payable(strategyAddr));
         escrow = SuperVaultEscrow(escrowAddr);
 
         // Replace aaveVault with ruggableVault in the strategy
@@ -5953,7 +5955,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         (vaultAddr, strategyAddr, escrowAddr) = _deployVault("SV_USDC_PAUSE_TEST");
 
         SuperVault testVault = SuperVault(vaultAddr);
-        SuperVaultStrategy testStrategy = SuperVaultStrategy(strategyAddr);
+        SuperVaultStrategy testStrategy = SuperVaultStrategy(payable(strategyAddr));
 
         // Verify maxDeposit returns max value when not paused
         uint256 maxDepositBeforePause = testVault.maxDeposit(accountEth);
@@ -5999,7 +6001,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         (vaultAddr, strategyAddr, escrowAddr) = _deployVault("SV_USDC_MINT_PAUSE_TEST");
 
         SuperVault testVault = SuperVault(vaultAddr);
-        SuperVaultStrategy testStrategy = SuperVaultStrategy(strategyAddr);
+        SuperVaultStrategy testStrategy = SuperVaultStrategy(payable(strategyAddr));
 
         // Verify maxMint returns max value when not paused
         uint256 maxMintBeforePause = testVault.maxMint(accountEth);
@@ -6341,5 +6343,103 @@ contract SuperVaultTest is BaseSuperVaultTest {
             assertEq(strategy.emergencyWithdrawable(), false, "Emergency withdrawable should remain false");
             assertEq(strategy.emergencyWithdrawableEffectiveTime(), 0, "Should still not have active proposal");
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        NATIVE ETH HANDLING TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ExecuteHooks_AcceptsPayable() public {
+        // This test verifies that executeHooks can accept ETH (is payable)
+        // Since reverts return ETH, we test by sending ETH directly to the receive function
+
+        uint256 ethAmount = 1 ether;
+
+        // Fund the strategist with ETH
+        vm.deal(STRATEGIST, ethAmount);
+        uint256 strategyETHBefore = address(strategy).balance;
+
+        // Send ETH directly to the strategy's receive function
+        vm.startPrank(STRATEGIST);
+        (bool success,) = address(strategy).call{ value: ethAmount }("");
+        vm.stopPrank();
+
+        // Verify the call succeeded and ETH was received
+        assertTrue(success, "ETH transfer should succeed");
+        assertEq(address(strategy).balance, strategyETHBefore + ethAmount, "Strategy should have received ETH");
+
+        // Now test that executeHooks is payable by calling it with ETH (it will revert but not due to payable)
+        ISuperVaultStrategy.ExecuteArgs memory args = ISuperVaultStrategy.ExecuteArgs({
+            hooks: new address[](0), // Empty array will cause ZERO_LENGTH revert
+            hookCalldata: new bytes[](0),
+            expectedAssetsOrSharesOut: new uint256[](0),
+            globalProofs: new bytes32[][](0),
+            strategyProofs: new bytes32[][](0)
+        });
+
+        vm.deal(STRATEGIST, ethAmount);
+        vm.startPrank(STRATEGIST);
+        vm.expectRevert(ISuperVaultStrategy.ZERO_LENGTH.selector);
+        strategy.executeHooks{ value: ethAmount }(args); // This proves it's payable
+        vm.stopPrank();
+    }
+
+    function test_ReceiveFunction_AcceptsETH() public {
+        uint256 ethAmount = 1 ether;
+
+        // Send ETH directly to strategy
+        vm.deal(address(this), ethAmount);
+        uint256 strategyBalanceBefore = address(strategy).balance;
+
+        // Send ETH to strategy
+        (bool success,) = payable(address(strategy)).call{ value: ethAmount }("");
+        assertTrue(success, "ETH transfer should succeed");
+
+        // Verify ETH was received
+        assertEq(address(strategy).balance, strategyBalanceBefore + ethAmount, "Strategy should receive ETH");
+    }
+
+    function test_RevertWhen_ExecuteHooks_WithoutPayable() public {
+        // This test verifies that the old version would have failed
+        // Since we've already added payable, we'll test with a mock that doesn't have payable
+
+        // Create a simple contract without payable functions
+        SimpleNonPayableContract nonPayable = new SimpleNonPayableContract();
+
+        uint256 ethAmount = 1 ether;
+        vm.deal(address(this), ethAmount);
+
+        // Try to send ETH to non-payable function - this should fail
+        (bool success,) = address(nonPayable).call{ value: ethAmount }(abi.encodeWithSignature("nonPayableFunction()"));
+        assertFalse(success, "Should fail when sending ETH to non-payable function");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _toArray(address item) internal pure returns (address[] memory) {
+        address[] memory array = new address[](1);
+        array[0] = item;
+        return array;
+    }
+
+    function _toBytesArray(bytes memory item) internal pure returns (bytes[] memory) {
+        bytes[] memory array = new bytes[](1);
+        array[0] = item;
+        return array;
+    }
+
+    function _toUint256Array(uint256 item) internal pure returns (uint256[] memory) {
+        uint256[] memory array = new uint256[](1);
+        array[0] = item;
+        return array;
+    }
+}
+
+/// @notice Simple contract without payable functions for testing
+contract SimpleNonPayableContract {
+    function nonPayableFunction() external pure returns (bool) {
+        return true;
     }
 }

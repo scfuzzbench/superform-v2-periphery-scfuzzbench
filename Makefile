@@ -77,7 +77,7 @@ coverage :; $(MAKE) ensure-merkle-cache-coverage && FOUNDRY_PROFILE=coverage for
 
 coverage-ci :; $(MAKE) ensure-merkle-cache-coverage && FOUNDRY_PROFILE=coverage forge coverage --jobs 10 --ir-minimum --report lcov
 
-test-vvv :; $(MAKE) ensure-merkle-cache && forge test --match-test test_gasReport_ClaimRedeem  -vvvv --jobs 10
+test-vvv :; $(MAKE) ensure-merkle-cache && forge test --match-test test_FulfillRedeemRequests_WithNativeETH  -vvvv --jobs 10
 
 test-integration :; $(MAKE) ensure-merkle-cache && forge test --match-test test_DeBridgeCancelOrderHook -vvvv --jobs 10
 

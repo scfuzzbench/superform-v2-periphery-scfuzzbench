@@ -127,7 +127,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         aaveVault = IERC4626(aaveVaultAddr);
 
         vault = SuperVault(vaultAddr);
-        strategy = SuperVaultStrategy(strategyAddr);
+        strategy = SuperVaultStrategy(payable(strategyAddr));
         escrow = SuperVaultEscrow(escrowAddr);
 
         // Deploy TotalAssetHelper
