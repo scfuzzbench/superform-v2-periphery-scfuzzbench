@@ -273,6 +273,12 @@ interface ISuperVaultStrategy {
     /// @param state The super vault state
     function updateSuperVaultState(address controller, SuperVaultState memory state) external;
 
+    /// @notice Move accumulator shares and cost basis pro-rata during share transfers
+    /// @param from The address transferring shares
+    /// @param to The address receiving shares
+    /// @param shares The amount of shares being transferred
+    function moveAccumulatorOnTransfer(address from, address to, uint256 shares) external;
+
     /*//////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/

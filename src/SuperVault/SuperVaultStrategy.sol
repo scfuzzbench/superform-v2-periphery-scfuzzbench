@@ -293,6 +293,36 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         superVaultState[controller] = state;
     }
 
+    /// @inheritdoc ISuperVaultStrategy
+    function moveAccumulatorOnTransfer(address from, address to, uint256 shares) external {
+        _requireVault();
+        if (shares == 0) return;
+
+        SuperVaultState storage fromState = superVaultState[from];
+        SuperVaultState storage toState = superVaultState[to];
+
+        // Only move accumulator proportional to what's available
+        // (accumulator shares may be less than ERC20 shares due to pending redeems)
+        // see test_Fix1_AuditAttackScenarioFails
+        uint256 availableAccumulatorShares = fromState.accumulatorShares;
+        if (availableAccumulatorShares == 0) return; // No accumulator to move
+
+        uint256 sharesToMove = shares > availableAccumulatorShares ? availableAccumulatorShares : shares;
+
+        // Pro-rata move of cost basis (NO PPS here; preserves fee correctness)
+        uint256 movedCostBasis = sharesToMove == availableAccumulatorShares
+            ? fromState.accumulatorCostBasis
+            : Math.mulDiv(sharesToMove, fromState.accumulatorCostBasis, availableAccumulatorShares, Math.Rounding.Floor);
+
+        fromState.accumulatorShares -= sharesToMove;
+        fromState.accumulatorCostBasis -= movedCostBasis;
+
+        toState.accumulatorShares += sharesToMove;
+        toState.accumulatorCostBasis += movedCostBasis;
+
+        // Never touch: pendingRedeemRequest, averageRequestPPS, maxWithdraw, averageWithdrawPrice
+    }
+
     /*//////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -929,6 +959,9 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         if (controller == address(0)) revert ZERO_ADDRESS();
         SuperVaultState storage state = superVaultState[controller];
 
+        // Defense-in-depth: assert controller has accumulator shares
+        if (state.accumulatorShares == 0) revert INSUFFICIENT_SHARES();
+
         // Get current PPS from aggregator to use as baseline for slippage protection
         uint256 currentPPS = getStoredPPS();
         if (currentPPS == 0) revert INVALID_PPS();
@@ -961,7 +994,9 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         SuperVaultState storage state = superVaultState[controller];
         uint256 pendingShares = state.pendingRedeemRequest;
         if (pendingShares == 0) revert REQUEST_NOT_FOUND();
-        delete superVaultState[controller];
+        // Only clear pending request metadata
+        state.pendingRedeemRequest = 0;
+        state.averageRequestPPS = 0;
         emit RedeemRequestCanceled(controller, pendingShares);
     }
 

@@ -26,6 +26,7 @@ interface ISuperVault {
     error CAP_EXCEEDED();
     error INVALID_PPS();
     error INVALID_CONTROLLER();
+    error CONTROLLER_MUST_EQUAL_OWNER();
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS

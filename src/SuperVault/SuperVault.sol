@@ -146,7 +146,7 @@ contract SuperVault is
 
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        strategy.handleOperation(msg.sender, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
+        strategy.handleOperation(receiver, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
 
         _mint(receiver, shares);
 
@@ -165,7 +165,7 @@ contract SuperVault is
 
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        strategy.handleOperation(msg.sender, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
+        strategy.handleOperation(receiver, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
 
         _mint(receiver, shares);
 
@@ -179,6 +179,9 @@ contract SuperVault is
         if (owner == address(0) || controller == address(0)) revert ZERO_ADDRESS();
         if (owner != msg.sender && !isOperator[owner][msg.sender]) revert INVALID_OWNER_OR_OPERATOR();
         if (balanceOf(owner) < shares) revert INVALID_AMOUNT();
+
+        // Enforce auditor's invariant for current accounting model
+        if (controller != owner) revert CONTROLLER_MUST_EQUAL_OWNER();
 
         // Transfer shares to escrow for temporary locking
         _approve(owner, escrow, shares);
@@ -486,10 +489,13 @@ contract SuperVault is
     /// @param to The address of the recipient
     /// @param value The amount of shares being transferred
     function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable) {
-        /// @dev Copy user state only between actual users, not to/from infrastructure contracts
+        /// @dev Move only accumulators pro-rata between actual users, not to/from infrastructure contracts
         if (from != address(0) && to != address(0) && to != address(escrow) && from != address(escrow)) {
-            ISuperVaultStrategy.SuperVaultState memory state = strategy.getSuperVaultState(from);
-            strategy.updateSuperVaultState(to, state);
+            uint256 shares = value;
+            // Zero-value transfers are legal: treat as accounting no-op.
+            if (shares > 0) {
+                strategy.moveAccumulatorOnTransfer(from, to, shares);
+            }
         }
         super._update(from, to, value);
     }
