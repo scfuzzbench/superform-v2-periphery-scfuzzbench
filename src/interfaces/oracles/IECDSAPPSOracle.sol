@@ -101,6 +101,21 @@ interface IECDSAPPSOracle {
     }
 
     /*//////////////////////////////////////////////////////////////
+                              VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    /// @notice Returns the current nonce
+    /// @return The current nonce
+    function nonce() external view returns (uint256);
+
+    /// @notice Returns the domain separator for the contract
+    /// @return The domain separator
+    function domainSeparator() external view returns (bytes32);
+
+    /// @notice Returns the signature typehash
+    /// @return The typehash
+    function UPDATE_PPS_TYPEHASH() external view returns (bytes32);
+
+    /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

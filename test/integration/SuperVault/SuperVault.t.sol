@@ -11,12 +11,13 @@ import { IERC165 } from "openzeppelin-contracts/contracts/interfaces/IERC165.sol
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { IERC4626 } from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import { MessageHashUtils } from "openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
+
 // superform
 import { ISuperVault } from "../../../src/interfaces/SuperVault/ISuperVault.sol";
 import { SuperVault } from "../../../src/SuperVault/SuperVault.sol";
 import { SuperVaultEscrow } from "../../../src/SuperVault/SuperVaultEscrow.sol";
 import { SuperVaultStrategy } from "../../../src/SuperVault/SuperVaultStrategy.sol";
-import { ISuperVaultEscrow } from "../../../src/interfaces/SuperVault/ISuperVaultEscrow.sol";
 import { IECDSAPPSOracle } from "../../../src/interfaces/oracles/IECDSAPPSOracle.sol";
 import { ISuperVaultAggregator } from "../../../src/interfaces/SuperVault/ISuperVaultAggregator.sol";
 import { IERC7540Redeem, IERC7741 } from "../../../src/vendor/standards/ERC7540/IERC7540Vault.sol";
@@ -2231,6 +2232,28 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
+    function test_CreateVaultWithSecondaryStrategists() public {
+        address[] memory secondaryStrategists = new address[](2);
+        secondaryStrategists[0] = address(0x1);
+        secondaryStrategists[1] = address(0x2);
+        (, address strategyAddr,) = _createVaultWithSecondaryStrategists(
+            VaultCreationParams({
+                asset: address(asset),
+                strategist: address(this),
+                minUpdateInterval: 1000,
+                maxStaleness: 10_000,
+                performanceFeeBps: 1000,
+                symbol: "TV"
+            }),
+            secondaryStrategists
+        );
+
+        address[] memory retrievedStrategists = aggregator.getSecondaryStrategists(strategyAddr);
+        assertEq(retrievedStrategists.length, 2);
+        assertEq(retrievedStrategists[0], address(0x1));
+        assertEq(retrievedStrategists[1], address(0x2));
+    }
+
     struct VaultCreationParams {
         address asset;
         address strategist;
@@ -2250,6 +2273,31 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 name: "SuperVault",
                 symbol: params.symbol,
                 mainStrategist: params.strategist,
+                secondaryStrategists: new address[](0),
+                minUpdateInterval: params.minUpdateInterval,
+                maxStaleness: params.maxStaleness,
+                feeConfig: ISuperVaultStrategy.FeeConfig({
+                    performanceFeeBps: params.performanceFeeBps,
+                    recipient: address(this)
+                })
+            })
+        );
+    }
+
+    function _createVaultWithSecondaryStrategists(
+        VaultCreationParams memory params,
+        address[] memory secondaryStrategists
+    )
+        internal
+        returns (address vaultAddr, address strategyAddr, address escrowAddr)
+    {
+        (vaultAddr, strategyAddr, escrowAddr) = aggregator.createVault(
+            ISuperVaultAggregator.VaultCreationParams({
+                asset: params.asset,
+                name: "SuperVault",
+                symbol: params.symbol,
+                mainStrategist: params.strategist,
+                secondaryStrategists: secondaryStrategists,
                 minUpdateInterval: params.minUpdateInterval,
                 maxStaleness: params.maxStaleness,
                 feeConfig: ISuperVaultStrategy.FeeConfig({
@@ -6719,14 +6767,19 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.totalValidators = 1;
 
         // Create the message hash with the deviating PPS
-        vars.messageHash = keccak256(
+        bytes32 structHash = keccak256(
             abi.encodePacked(
-                strategyAddr, newPPS, vars.ppsStdev, vars.validatorSet, vars.totalValidators, vars.timestamp
+                ecdsappsOracle.UPDATE_PPS_TYPEHASH(),
+                strategyAddr,
+                newPPS,
+                vars.ppsStdev,
+                vars.validatorSet,
+                vars.totalValidators,
+                vars.timestamp,
+                ecdsappsOracle.nonce()
             )
         );
-
-        // Create the Ethereum signed message hash
-        vars.ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", vars.messageHash));
+        vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
 
         // Create signature (r, s, v) components using the constant KEEPER address
         (vars.v, vars.r, vars.s) = vm.sign(VALIDATOR_KEY, vars.ethSignedMessageHash);
@@ -6770,14 +6823,19 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.totalValidators = 1;
 
         // Create the message hash with all parameters (exactly as in _updateSuperVaultPPS)
-        vars.messageHash = keccak256(
+        bytes32 structHash = keccak256(
             abi.encodePacked(
-                strategyAddr, vars.pps, vars.ppsStdev, vars.validatorSet, vars.totalValidators, vars.timestamp
+                ecdsappsOracle.UPDATE_PPS_TYPEHASH(),
+                strategyAddr,
+                vars.pps,
+                vars.ppsStdev,
+                vars.validatorSet,
+                vars.totalValidators,
+                vars.timestamp,
+                ecdsappsOracle.nonce()
             )
         );
-
-        // Create the Ethereum signed message hash (exactly as in _updateSuperVaultPPS)
-        vars.ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", vars.messageHash));
+        vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
 
         // Create signature (r, s, v) components using VALIDATOR_KEY (exactly as in _updateSuperVaultPPS)
         (vars.v, vars.r, vars.s) = vm.sign(VALIDATOR_KEY, vars.ethSignedMessageHash);

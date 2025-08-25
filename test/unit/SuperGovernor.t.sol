@@ -79,6 +79,7 @@ contract SuperGovernorTest is PeripheryHelpers {
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 mainStrategist: address(this),
+                secondaryStrategists: new address[](0),
                 name: "SUP",
                 symbol: "SUP",
                 minUpdateInterval: 5,

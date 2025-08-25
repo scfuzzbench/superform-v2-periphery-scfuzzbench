@@ -4,6 +4,8 @@ pragma solidity 0.8.30;
 // External
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+
 // Superform
 import { ISuperGovernor } from "../interfaces/ISuperGovernor.sol";
 import { ISuperVaultAggregator } from "../interfaces/SuperVault/ISuperVaultAggregator.sol";
@@ -13,15 +15,21 @@ import { IECDSAPPSOracle } from "../interfaces/oracles/IECDSAPPSOracle.sol";
 /// @author Superform Labs
 /// @notice PPS Oracle that validates price updates using ECDSA signatures
 /// @dev Implements the IECDSAPPSOracle interface for validating and forwarding PPS updates
-contract ECDSAPPSOracle is IECDSAPPSOracle {
+contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
     //////////////////////////////////////////////////////////////*/
+    uint256 public nonce;
+
     /// @notice The SuperGovernor contract for validator verification
     ISuperGovernor public immutable SUPER_GOVERNOR;
+    bytes32 public constant UPDATE_PPS_TYPEHASH = keccak256(
+        "UpdatePPS(address strategy,uint256 pps,uint256 ppsStdev,uint256 validatorSet,uint256 totalValidators,uint256 timestamp, uint256 nonce)"
+    );
+
     bytes32 private constant SUPER_VAULT_AGGREGATOR = keccak256("SUPER_VAULT_AGGREGATOR");
 
     /*//////////////////////////////////////////////////////////////
@@ -29,10 +37,18 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
     //////////////////////////////////////////////////////////////*/
     /// @notice Initializes the ECDSAPPSOracle contract
     /// @param superGovernor_ Address of the SuperGovernor contract
-    constructor(address superGovernor_) {
+    constructor(address superGovernor_, string memory name_, string memory version_) EIP712(name_, version_) {
         if (superGovernor_ == address(0)) revert INVALID_VALIDATOR();
 
         SUPER_GOVERNOR = ISuperGovernor(superGovernor_);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    /// @inheritdoc IECDSAPPSOracle
+    function domainSeparator() external view returns (bytes32) {
+        return _domainSeparatorV4();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -44,6 +60,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
         _validateProofs(
             args.strategy, args.proofs, args.pps, args.ppsStdev, args.validatorSet, args.totalValidators, args.timestamp
         );
+        nonce++;
 
         // Emit event that PPS has been validated
         emit PPSValidated(
@@ -99,6 +116,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
                 msg.sender
             );
         }
+        nonce++;
 
         ISuperVaultAggregator(SUPER_GOVERNOR.getAddress(SUPER_VAULT_AGGREGATOR)).batchForwardPPS(
             ISuperVaultAggregator.BatchForwardPPSArgs({
@@ -141,30 +159,36 @@ contract ECDSAPPSOracle is IECDSAPPSOracle {
 
         // Create message hash with all parameters- If anyare incorrect, the message hash will be different and the
         // derived signer address will be incorrect- resulting in a revert
-        bytes32 messageHash =
-            keccak256(abi.encodePacked(strategy, pps, ppsStdev, validatorSet, totalValidators, timestamp));
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        bytes32 structHash = keccak256(
+            abi.encodePacked(
+                UPDATE_PPS_TYPEHASH,
+                strategy,
+                pps,
+                ppsStdev,
+                validatorSet,
+                totalValidators,
+                timestamp,
+                nonce
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
 
         uint256 proofsLength = proofs.length;
-        address[] memory seenSigners = new address[](proofsLength);
+        address lastSigner;
 
         if (proofsLength == 0) revert ZERO_LENGTH_ARRAY();
 
         // Process each proof
         for (uint256 i; i < proofsLength; i++) {
             // Recover the signer from the proof
-            address signer = ethSignedMessageHash.recover(proofs[i]);
+            address signer = ECDSA.recover(digest, proofs[i]);
 
             // Verify the signer is a registered validator
             if (!SUPER_GOVERNOR.isValidator(signer)) revert INVALID_VALIDATOR();
 
-            // Check for duplicate signers and revert if found
-            for (uint256 j; j < i; j++) {
-                if (seenSigners[j] == signer) revert INVALID_PROOF();
-            }
-
-            // Mark this signer as seen and increment count
-            seenSigners[i] = signer;
+            // Check for duplicates or improper ordering - signers must be in ascending order
+            if (signer <= lastSigner) revert INVALID_PROOF();
+            lastSigner = signer;
         }
 
         // Validate that validatorSet matches actual number of valid signatures

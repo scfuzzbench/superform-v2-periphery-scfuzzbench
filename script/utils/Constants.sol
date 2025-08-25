@@ -37,6 +37,7 @@ abstract contract Constants {
     string internal constant VAULT_BANK_KEY = "VaultBank";
     string internal constant SUPER_VAULT_AGGREGATOR_KEY = "SuperVaultAggregator";
     string internal constant ECDSAPPS_ORACLE_KEY = "ECDSAPPSOracle";
+    string internal constant ECDSAPPS_ORACLE_VERSION = "1.0";
     string internal constant SUPER_ORACLE_KEY = "SuperOracle";
     string internal constant SUPER_BANK_KEY = "SuperBank";
     string internal constant BUNDLER_REGISTRY_KEY = "BundlerRegistry";

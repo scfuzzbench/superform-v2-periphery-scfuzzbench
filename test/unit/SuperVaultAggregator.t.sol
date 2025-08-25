@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.30;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import { SuperGovernor } from "../../src/SuperGovernor.sol";
 import { SuperVaultAggregator } from "../../src/SuperVault/SuperVaultAggregator.sol";
 import { ISuperVaultAggregator } from "../../src/interfaces/SuperVault/ISuperVaultAggregator.sol";
@@ -10,6 +12,7 @@ import { SuperVaultEscrow } from "../../src/SuperVault/SuperVaultEscrow.sol";
 import { ISuperVaultStrategy } from "../../src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import { PeripheryHelpers } from "../utils/PeripheryHelpers.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
+import { Up } from "../../src/UP/Up.sol";
 
 contract SuperVaultAggregatorTest is PeripheryHelpers {
     SuperGovernor internal superGovernor;
@@ -27,6 +30,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     address internal normalKeeper1;
     address internal normalKeeper2;
     address internal strategy;
+    address internal upToken;
+    address internal superBank;
 
     // Role Hashes
     bytes32 internal constant SUPER_GOVERNOR_ROLE = keccak256("SUPER_GOVERNOR_ROLE");
@@ -64,9 +69,10 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         (, address strategyAddress,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
                 name: "Test Vault",
                 symbol: "TV",
+                mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: strategist })
@@ -82,6 +88,14 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.startPrank(governor);
         superGovernor.registerProtectedKeeper(protectedKeeper1);
         superGovernor.registerProtectedKeeper(protectedKeeper2);
+        vm.stopPrank();
+
+        // Register UP token on SuperGovernor
+        upToken = address(new Up(address(this)));
+        superBank = makeAddr("superBank");
+        vm.startPrank(sGovernor);
+        superGovernor.setAddress(superGovernor.UP(), upToken);
+        superGovernor.setAddress(superGovernor.SUPER_BANK(), superBank);
         vm.stopPrank();
     }
 
@@ -497,6 +511,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
@@ -540,6 +555,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 mainStrategist: strategist2,
+                secondaryStrategists: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
@@ -701,6 +717,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
@@ -771,6 +788,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
@@ -848,6 +866,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
@@ -910,6 +929,85 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(superVaultAggregator.getLastUpdateTimestamp(strategy2), timestamps[1]);
     }
 
+    function test_ForwardPPS_IncreaseClaimableUpkeep() public {
+        // Set up as PPS Oracle to be able to call forwardPPS
+        vm.startPrank(sGovernor);
+        superGovernor.setActivePPSOracle(address(this));
+        superGovernor.proposeUpkeepPaymentsChange(true);
+        vm.stopPrank();
+
+        vm.warp(8 days);
+        superGovernor.executeUpkeepPaymentsChange();
+
+        vm.startPrank(sGovernor);
+        superGovernor.setAddress(superGovernor.SUPER_VAULT_AGGREGATOR(), address(superVaultAggregator));
+        vm.stopPrank();
+
+        // Create second strategy for testing upkeep; otherwise is stale
+        vm.prank(strategist);
+        (, address strategy2,) = superVaultAggregator.createVault(
+            ISuperVaultAggregator.VaultCreationParams({
+                asset: address(asset),
+                mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
+                name: "Test Vault 2",
+                symbol: "TV2",
+                minUpdateInterval: 5,
+                maxStaleness: 10 days,
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: strategist })
+            })
+        );
+        address _upToken = superGovernor.getAddress(superGovernor.UP());
+
+        deal(_upToken, address(this), 1e18);
+        IERC20(_upToken).approve(address(superVaultAggregator), 1e18);
+        superVaultAggregator.depositUpkeep(strategist, 1e18);
+
+        // Get initial timestamp
+        uint256 initialTimestamp = superVaultAggregator.getLastUpdateTimestamp(strategy2);
+
+        // Update with a newer timestamp (should succeed)
+        uint256 newerTimestamp = initialTimestamp + 10;
+
+        // Wait for minimum interval to pass
+        vm.warp(block.timestamp + 10);
+
+        vm.expectEmit(true, false, false, false);
+        emit ISuperVaultAggregator.PPSUpdated(strategy2, 1e18, 0, 1, 1, newerTimestamp);
+
+        superVaultAggregator.forwardPPS(
+            user,
+            ISuperVaultAggregator.ForwardPPSArgs({
+                strategy: strategy2,
+                isExempt: false,
+                pps: 1e18,
+                ppsStdev: 0,
+                validatorSet: 1,
+                totalValidators: 1,
+                timestamp: newerTimestamp,
+                upkeepCost: 0
+            })
+        );
+
+        // Check claimable
+        uint256 claimableUpkeep = superVaultAggregator.claimableUpkeep();
+        assertEq(claimableUpkeep, 1e18);
+
+        // Claim UP
+        address _superBank = superGovernor.getAddress(superGovernor.SUPER_BANK());
+        uint256 superBankBalanceBefore = IERC20(upToken).balanceOf(_superBank);
+        assertEq(superBankBalanceBefore, 0);
+        vm.startPrank(address(governor));
+        superGovernor.executeUpkeepClaim(superVaultAggregator.claimableUpkeep());
+        vm.stopPrank();
+        uint256 superBankBalanceAfter = IERC20(upToken).balanceOf(_superBank);
+        assertEq(superBankBalanceAfter, 1e18);
+
+        // Check claimable again
+        claimableUpkeep = superVaultAggregator.claimableUpkeep();
+        assertEq(claimableUpkeep, 0);
+    }
+
     /*//////////////////////////////////////////////////////////////
                            HOOK VALIDATION TESTS
     //////////////////////////////////////////////////////////////*/
@@ -937,8 +1035,15 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32[] memory emptyGlobalProof = new bytes32[](0);
         bytes32[] memory emptyStrategyProof = new bytes32[](0);
 
-        bool isValid =
-            superVaultAggregator.validateHook(strategy, mockHookAddress, hookArgs, emptyGlobalProof, emptyStrategyProof);
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: mockHookAddress,
+                hookArgs: hookArgs,
+                globalProof: emptyGlobalProof,
+                strategyProof: emptyStrategyProof
+            })
+        );
 
         assertTrue(isValid, "Hook should be valid with empty proof for single-leaf global tree");
     }
@@ -964,8 +1069,15 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32[] memory emptyGlobalProof = new bytes32[](0);
         bytes32[] memory emptyStrategyProof = new bytes32[](0);
 
-        bool isValid =
-            superVaultAggregator.validateHook(strategy, mockHookAddress, hookArgs, emptyGlobalProof, emptyStrategyProof);
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: mockHookAddress,
+                hookArgs: hookArgs,
+                globalProof: emptyGlobalProof,
+                strategyProof: emptyStrategyProof
+            })
+        );
 
         assertTrue(isValid, "Hook should be valid with empty proof for single-leaf strategy tree");
     }
@@ -995,8 +1107,15 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32[] memory emptyGlobalProof = new bytes32[](0);
         bytes32[] memory emptyStrategyProof = new bytes32[](0);
 
-        bool isValid =
-            superVaultAggregator.validateHook(strategy, mockHookAddress, hookArgs, emptyGlobalProof, emptyStrategyProof);
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: mockHookAddress,
+                hookArgs: hookArgs,
+                globalProof: emptyGlobalProof,
+                strategyProof: emptyStrategyProof
+            })
+        );
 
         assertFalse(isValid, "Hook should be invalid when leaf doesn't match single-leaf tree root");
     }
@@ -1032,8 +1151,15 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32[] memory emptyGlobalProof = new bytes32[](0);
         bytes32[] memory emptyStrategyProof = new bytes32[](0);
 
-        bool isValid =
-            superVaultAggregator.validateHook(strategy, mockHookAddress, hookArgs, emptyGlobalProof, emptyStrategyProof);
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: mockHookAddress,
+                hookArgs: hookArgs,
+                globalProof: emptyGlobalProof,
+                strategyProof: emptyStrategyProof
+            })
+        );
 
         assertFalse(isValid, "Hook should be invalid when both roots are vetoed");
     }
@@ -1060,8 +1186,15 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32[] memory emptyGlobalProof = new bytes32[](0);
         bytes32[] memory emptyStrategyProof = new bytes32[](0);
 
-        bool isValid =
-            superVaultAggregator.validateHook(strategy, mockHookAddress, hookArgs, emptyGlobalProof, emptyStrategyProof);
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: mockHookAddress,
+                hookArgs: hookArgs,
+                globalProof: emptyGlobalProof,
+                strategyProof: emptyStrategyProof
+            })
+        );
 
         assertFalse(isValid, "Hook should be invalid when global root is vetoed");
     }
@@ -1109,10 +1242,427 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         strategyProofs[0] = new bytes32[](0); // Empty proof
         strategyProofs[1] = new bytes32[](0); // Empty proof for single-leaf tree
 
-        bool[] memory validHooks =
-            superVaultAggregator.validateHooks(strategy, hookAddresses, hooksArgs, globalProofs, strategyProofs);
+        // Create ValidateHookArgs array
+        ISuperVaultAggregator.ValidateHookArgs[] memory argsArray = new ISuperVaultAggregator.ValidateHookArgs[](2);
+        argsArray[0] = ISuperVaultAggregator.ValidateHookArgs({
+            hookAddress: hookAddresses[0],
+            hookArgs: hooksArgs[0],
+            globalProof: globalProofs[0],
+            strategyProof: strategyProofs[0]
+        });
+        argsArray[1] = ISuperVaultAggregator.ValidateHookArgs({
+            hookAddress: hookAddresses[1],
+            hookArgs: hooksArgs[1],
+            globalProof: globalProofs[1],
+            strategyProof: strategyProofs[1]
+        });
+
+        bool[] memory validHooks = superVaultAggregator.validateHooks(strategy, argsArray);
 
         assertTrue(validHooks[0], "First hook should be valid against global root");
         assertTrue(validHooks[1], "Second hook should be valid against strategy root");
+    }
+
+    // =============================================================
+    // Global Leaves Banning Tests
+    // =============================================================
+
+    /// @notice Tests successfully changing global leaves status
+    function test_ChangeGlobalLeavesStatus_Success() public {
+        // Create leaf hashes for testing
+        bytes32 leaf1 = keccak256(bytes.concat(keccak256(abi.encode(address(0x123), "args1"))));
+        bytes32 leaf2 = keccak256(bytes.concat(keccak256(abi.encode(address(0x456), "args2"))));
+
+        bytes32[] memory leaves = new bytes32[](2);
+        leaves[0] = leaf1;
+        leaves[1] = leaf2;
+
+        bool[] memory statuses = new bool[](2);
+        statuses[0] = true; // Ban leaf1
+        statuses[1] = false; // Allow leaf2
+
+        // Primary strategist bans global leaves
+        vm.prank(strategist);
+        vm.expectEmit(true, false, false, true);
+        emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, leaves, statuses);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+    }
+
+    /// @notice Tests that only primary strategist can change global leaves status
+    function test_ChangeGlobalLeavesStatus_Revert_UnauthorizedCaller() public {
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = keccak256("test_leaf");
+
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true;
+
+        // Secondary strategist cannot change global leaves status
+        vm.prank(secondaryStrategist);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Regular user cannot change global leaves status
+        vm.prank(user);
+        vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+    }
+
+    /// @notice Tests that mismatched array lengths revert
+    function test_ChangeGlobalLeavesStatus_Revert_MismatchedArrays() public {
+        bytes32[] memory leaves = new bytes32[](2);
+        leaves[0] = keccak256("leaf1");
+        leaves[1] = keccak256("leaf2");
+
+        bool[] memory statuses = new bool[](1); // Mismatched length
+        statuses[0] = true;
+
+        vm.prank(strategist);
+        vm.expectRevert(ISuperVaultAggregator.MISMATCHED_ARRAY_LENGTHS.selector);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+    }
+
+    /// @notice Tests that unknown strategy reverts
+    function test_ChangeGlobalLeavesStatus_Revert_UnknownStrategy() public {
+        address unknownStrategy = _deployAccount(0x99, "UnknownStrategy");
+
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = keccak256("test_leaf");
+
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true;
+
+        vm.prank(strategist);
+        vm.expectRevert(ISuperVaultAggregator.UNKNOWN_STRATEGY.selector);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, unknownStrategy);
+    }
+
+    /// @notice Tests hook validation with banned global leaves
+    function test_ValidateHook_BannedGlobalLeaf() public {
+        // Set up global hooks root
+        bytes32 globalRoot = keccak256("global_root");
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(globalRoot);
+
+        // Wait for timelock and execute
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Create a hook that would normally be valid against global root
+        address hookAddress = address(0x123);
+        bytes memory hookArgs = "test_args";
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookAddress, hookArgs))));
+
+        // For single-leaf tree, the root equals the leaf
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf);
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Initially, hook should be valid
+        bytes32[] memory globalProof = new bytes32[](0); // Empty proof for single-leaf tree
+        bytes32[] memory strategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertTrue(isValid, "Hook should be valid initially");
+
+        // Ban the leaf
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = leaf;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true; // Ban the leaf
+
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Now hook should be invalid
+        isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertFalse(isValid, "Hook should be invalid after banning");
+    }
+
+    /// @notice Tests hook validation with unbanned global leaves
+    function test_ValidateHook_UnbannedGlobalLeaf() public {
+        // Set up global hooks root
+        address hookAddress = address(0x123);
+        bytes memory hookArgs = "test_args";
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookAddress, hookArgs))));
+
+        // Set global root to the leaf for single-leaf tree
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf);
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Ban the leaf first
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = leaf;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true; // Ban the leaf
+
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Hook should be invalid
+        bytes32[] memory globalProof = new bytes32[](0);
+        bytes32[] memory strategyProof = new bytes32[](0);
+
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertFalse(isValid, "Hook should be invalid when banned");
+
+        // Unban the leaf
+        statuses[0] = false; // Unban the leaf
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Now hook should be valid again
+        isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertTrue(isValid, "Hook should be valid after unbanning");
+    }
+
+    /// @notice Tests batch hook validation with banned global leaves
+    function test_ValidateHooks_BannedGlobalLeaves() public {
+        // Set up hooks
+        address hookAddress1 = address(0x123);
+        address hookAddress2 = address(0x456);
+        bytes memory hookArgs1 = "args1";
+        bytes memory hookArgs2 = "args2";
+
+        bytes32 leaf1 = keccak256(bytes.concat(keccak256(abi.encode(hookAddress1, hookArgs1))));
+        bytes32 leaf2 = keccak256(bytes.concat(keccak256(abi.encode(hookAddress2, hookArgs2))));
+
+        // Set global root to leaf1 for testing
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf1);
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Set strategy root to leaf2 for testing
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf2);
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+
+        // Ban leaf1 (global)
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = leaf1;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true; // Ban leaf1
+
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Prepare batch validation
+        address[] memory hookAddresses = new address[](2);
+        hookAddresses[0] = hookAddress1;
+        hookAddresses[1] = hookAddress2;
+
+        bytes[] memory hooksArgs = new bytes[](2);
+        hooksArgs[0] = hookArgs1;
+        hooksArgs[1] = hookArgs2;
+
+        bytes32[][] memory globalProofs = new bytes32[][](2);
+        globalProofs[0] = new bytes32[](0); // Empty proof for leaf1
+        globalProofs[1] = new bytes32[](0); // Empty proof
+
+        bytes32[][] memory strategyProofs = new bytes32[][](2);
+        strategyProofs[0] = new bytes32[](0); // Empty proof
+        strategyProofs[1] = new bytes32[](0); // Empty proof for leaf2
+
+        // Create ValidateHookArgs array
+        ISuperVaultAggregator.ValidateHookArgs[] memory argsArray = new ISuperVaultAggregator.ValidateHookArgs[](2);
+        argsArray[0] = ISuperVaultAggregator.ValidateHookArgs({
+            hookAddress: hookAddresses[0],
+            hookArgs: hooksArgs[0],
+            globalProof: globalProofs[0],
+            strategyProof: strategyProofs[0]
+        });
+        argsArray[1] = ISuperVaultAggregator.ValidateHookArgs({
+            hookAddress: hookAddresses[1],
+            hookArgs: hooksArgs[1],
+            globalProof: globalProofs[1],
+            strategyProof: strategyProofs[1]
+        });
+
+        bool[] memory validHooks = superVaultAggregator.validateHooks(strategy, argsArray);
+
+        assertFalse(validHooks[0], "First hook should be invalid (banned global leaf)");
+        assertTrue(validHooks[1], "Second hook should be valid (strategy leaf not banned)");
+    }
+
+    /// @notice Tests that strategy leaves are not affected by global leaf banning
+    function test_ValidateHook_StrategyLeafNotAffectedByGlobalBan() public {
+        // Set up strategy hooks root
+        address hookAddress = address(0x123);
+        bytes memory hookArgs = "test_args";
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookAddress, hookArgs))));
+
+        // Set strategy root to the leaf
+        vm.prank(strategist);
+        superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+
+        // Ban the same leaf in global context
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = leaf;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true; // Ban the leaf globally
+
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Hook should still be valid via strategy root
+        bytes32[] memory globalProof = new bytes32[](0);
+        bytes32[] memory strategyProof = new bytes32[](0); // Empty proof for single-leaf tree
+
+        bool isValid = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertTrue(isValid, "Hook should be valid via strategy root despite global ban");
+    }
+
+    /// @notice Tests multiple leaves banning and unbanning
+    function test_ChangeGlobalLeavesStatus_MultipleLeavesToggle() public {
+        // Create multiple leaves
+        bytes32 leaf1 = keccak256("leaf1");
+        bytes32 leaf2 = keccak256("leaf2");
+        bytes32 leaf3 = keccak256("leaf3");
+
+        bytes32[] memory leaves = new bytes32[](3);
+        leaves[0] = leaf1;
+        leaves[1] = leaf2;
+        leaves[2] = leaf3;
+
+        // Ban all leaves
+        bool[] memory statuses = new bool[](3);
+        statuses[0] = true;
+        statuses[1] = true;
+        statuses[2] = true;
+
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Unban leaf2 only
+        bytes32[] memory singleLeaf = new bytes32[](1);
+        singleLeaf[0] = leaf2;
+        bool[] memory singleStatus = new bool[](1);
+        singleStatus[0] = false;
+
+        vm.prank(strategist);
+        vm.expectEmit(true, false, false, true);
+        emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, singleLeaf, singleStatus);
+        superVaultAggregator.changeGlobalLeavesStatus(singleLeaf, singleStatus, strategy);
+    }
+
+    /// @notice Tests that different strategies have independent banned leaves
+    function test_ChangeGlobalLeavesStatus_StrategyIndependence() public {
+        // Create second strategy
+        vm.prank(strategist);
+        (, address strategy2,) = superVaultAggregator.createVault(
+            ISuperVaultAggregator.VaultCreationParams({
+                asset: address(asset),
+                mainStrategist: strategist,
+                secondaryStrategists: new address[](0),
+                name: "Test Vault 2",
+                symbol: "TV2",
+                minUpdateInterval: 5,
+                maxStaleness: 300,
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: strategist })
+            })
+        );
+
+        // Set up global root with a test leaf
+        address hookAddress = address(0x123);
+        bytes memory hookArgs = "test_args";
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookAddress, hookArgs))));
+
+        vm.prank(address(superGovernor));
+        superVaultAggregator.proposeGlobalHooksRoot(leaf);
+        vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
+        superVaultAggregator.executeGlobalHooksRootUpdate();
+
+        // Ban leaf in strategy1 only
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = leaf;
+        bool[] memory statuses = new bool[](1);
+        statuses[0] = true;
+
+        vm.prank(strategist);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+
+        // Hook should be invalid for strategy1
+        bytes32[] memory globalProof = new bytes32[](0);
+        bytes32[] memory strategyProof = new bytes32[](0);
+
+        bool isValid1 = superVaultAggregator.validateHook(
+            strategy,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertFalse(isValid1, "Hook should be invalid for strategy1");
+
+        // Hook should still be valid for strategy2
+        bool isValid2 = superVaultAggregator.validateHook(
+            strategy2,
+            ISuperVaultAggregator.ValidateHookArgs({
+                hookAddress: hookAddress,
+                hookArgs: hookArgs,
+                globalProof: globalProof,
+                strategyProof: strategyProof
+            })
+        );
+        assertTrue(isValid2, "Hook should be valid for strategy2");
+    }
+
+    /// @notice Tests empty arrays are handled correctly
+    function test_ChangeGlobalLeavesStatus_EmptyArrays() public {
+        bytes32[] memory leaves = new bytes32[](0);
+        bool[] memory statuses = new bool[](0);
+
+        vm.prank(strategist);
+        vm.expectEmit(true, false, false, true);
+        emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, leaves, statuses);
+        superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
     }
 }

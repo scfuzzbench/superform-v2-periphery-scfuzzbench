@@ -76,6 +76,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     uint256 public validator2PrivateKey;
     uint256 public validator3PrivateKey;
 
+
     function setUp() public virtual override {
         super.setUp();
         console2.log("--- SETUP BASE SUPERVAULT ---");
@@ -187,6 +188,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 name: "SuperVault",
                 symbol: _superVaultSymbol,
                 mainStrategist: STRATEGIST,
+                secondaryStrategists: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: address(this) })
@@ -237,6 +239,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 name: "SuperVault SA",
                 symbol: "SV_SA_USDC",
                 mainStrategist: smartAccountStrategist, // Use smart account instead of EOA
+                secondaryStrategists: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: address(this) })
@@ -1770,14 +1773,19 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.totalValidators = 1;
 
         // Create the message hash with all parameters
-        vars.messageHash = keccak256(
+        bytes32 structHash = keccak256(
             abi.encodePacked(
-                strategyAddr, vars.pps, vars.ppsStdev, vars.validatorSet, vars.totalValidators, vars.timestamp
+                ecdsappsOracle.UPDATE_PPS_TYPEHASH(),
+                strategyAddr,
+                vars.pps,
+                vars.ppsStdev,
+                vars.validatorSet,
+                vars.totalValidators,
+                vars.timestamp,
+                ecdsappsOracle.nonce()
             )
         );
-
-        // Create the Ethereum signed message hash
-        vars.ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", vars.messageHash));
+        vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
 
         // Create signature (r, s, v) components using the constant KEEPER address
         (vars.v, vars.r, vars.s) = vm.sign(VALIDATOR_KEY, vars.ethSignedMessageHash);
