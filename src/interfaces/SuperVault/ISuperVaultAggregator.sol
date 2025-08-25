@@ -80,7 +80,9 @@ interface ISuperVaultAggregator {
         // PPS Verification thresholds
         uint256 dispersionThreshold; // Threshold for standard deviation / mean
         uint256 deviationThreshold; // Threshold for abs(new - current) / current
-        uint256 mnThreshold; // Threshold for validatorSet / totalValidators
+        uint256 mnThreshold; // Threshold for validatorSet / totalValidators ratio, scaled by 1e18
+        // Banned global leaves mapping
+        mapping(bytes32 => bool) bannedLeaves; // Mapping of leaf hash to banned status
     }
 
     /// @notice Parameters for creating a new SuperVault trio
@@ -112,6 +114,18 @@ interface ISuperVaultAggregator {
         bytes32 globalHooksRoot;
         bool strategyHooksRootVetoed;
         bytes32 strategyRoot;
+    }
+
+    /// @notice Arguments for validating a hook to avoid stack too deep
+    /// @param hookAddress Address of the hook contract
+    /// @param hookArgs Encoded arguments for the hook operation
+    /// @param globalProof Merkle proof for the global root
+    /// @param strategyProof Merkle proof for the strategy-specific root
+    struct ValidateHookArgs {
+        address hookAddress;
+        bytes hookArgs;
+        bytes32[] globalProof;
+        bytes32[] strategyProof;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -284,6 +298,12 @@ interface ISuperVaultAggregator {
     /// @param newTimelock New timelock duration in seconds
     event HooksRootUpdateTimelockChanged(uint256 newTimelock);
 
+    /// @notice Emitted when global leaves status is changed for a strategy
+    /// @param strategy Address of the strategy
+    /// @param leaves Array of leaf hashes that had their status changed
+    /// @param statuses Array of new banned statuses (true = banned, false = allowed)
+    event GlobalLeavesStatusChanged(address indexed strategy, bytes32[] leaves, bool[] statuses);
+
     /// @notice Emitted when a proposed global hooks root update is vetoed by a guardian
     /// @param guardian Address of the guardian who vetoed the update
     /// @param root The vetoed root value
@@ -365,6 +385,8 @@ interface ISuperVaultAggregator {
     error TIMESTAMP_NOT_MONOTONIC();
     /// @notice Thrown when the provided maxStaleness is less than the minimum required staleness
     error MAX_STALENESS_TOO_LOW();
+    /// @notice Thrown when arrays have mismatched lengths
+    error MISMATCHED_ARRAY_LENGTHS();
 
     /*//////////////////////////////////////////////////////////////
                             VAULT CREATION
@@ -519,6 +541,18 @@ interface ISuperVaultAggregator {
     )
         external;
 
+    /// @notice Changes the banned status of global leaves for a specific strategy
+    /// @dev Only callable by the primary strategist of the strategy
+    /// @param leaves Array of leaf hashes to change status for
+    /// @param statuses Array of banned statuses (true = banned, false = allowed)
+    /// @param strategy Address of the strategy to change banned leaves for
+    function changeGlobalLeavesStatus(
+        bytes32[] memory leaves,
+        bool[] memory statuses,
+        address strategy
+    )
+        external;
+
     /*//////////////////////////////////////////////////////////////
                               VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -655,17 +689,11 @@ interface ISuperVaultAggregator {
 
     /// @notice Validates a hook against both global and strategy-specific Merkle roots
     /// @param strategy Address of the strategy
-    /// @param hookAddress The address of the hook contract
-    /// @param hookArgs Encoded arguments for the hook operation
-    /// @param globalProof Merkle proof for the global root
-    /// @param strategyProof Merkle proof for the strategy-specific root
+    /// @param args Arguments for hook validation
     /// @return isValid True if the hook is valid against either root
     function validateHook(
         address strategy,
-        address hookAddress,
-        bytes calldata hookArgs,
-        bytes32[] calldata globalProof,
-        bytes32[] calldata strategyProof
+        ValidateHookArgs calldata args
     )
         external
         view
@@ -673,17 +701,11 @@ interface ISuperVaultAggregator {
 
     /// @notice Batch validates multiple hooks against Merkle roots
     /// @param strategy Address of the strategy
-    /// @param hookAddresses Array of hook contract addresses
-    /// @param hooksArgs Array of encoded arguments for each hook operation
-    /// @param globalProofs Array of Merkle proofs for the global root
-    /// @param strategyProofs Array of Merkle proofs for the strategy-specific root
+    /// @param argsArray Array of hook validation arguments
     /// @return validHooks Array of booleans indicating which hooks are valid
     function validateHooks(
         address strategy,
-        address[] calldata hookAddresses,
-        bytes[] calldata hooksArgs,
-        bytes32[][] calldata globalProofs,
-        bytes32[][] calldata strategyProofs
+        ValidateHookArgs[] calldata argsArray
     )
         external
         view

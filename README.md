@@ -220,6 +220,16 @@ Key Points for Auditors:
   - Guardian role can veto both global and strategy roots to prevent malicious hooks
   - Merkle tree leaves contain `abi.encode(hookArgs)` obtained via hooks' inspect function
 
+#### Hook Root Veto Mechanism
+
+The SuperVault system implements a dual-layer security mechanism for hook execution through vetoed hook roots:
+
+**Veto Protection**: If either the global hooks root or a strategy's hooks root is vetoed (due to containing malicious calldata or malicious hooks), strategists cannot execute any hooks from those roots. This prevents execution of potentially harmful operations until the malicious content is removed.
+
+**Strategy-Level Compliance**: Individual strategies can ban specific leaves (hook configurations) from the global root to maintain compliance or transparency requirements. For example, a strategy could permanently ban loop hooks or other operations that don't align with its investment mandate, even if those hooks remain valid in the global root.
+
+This mechanism ensures that hook execution is always subject to both governance oversight and strategy-specific compliance controls.
+
 - Factory Functionality:
   - Permissionless deployment of new vault triads
   - Initialization parameter validation

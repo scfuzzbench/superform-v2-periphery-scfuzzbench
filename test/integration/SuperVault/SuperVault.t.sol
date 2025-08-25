@@ -6121,7 +6121,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 ecdsappsOracle.nonce()
             )
         );
-        bytes32 domainSeparator = ecdsappsOracle.domainSeparator();
         vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
 
         // Create signature (r, s, v) components using VALIDATOR_KEY (exactly as in _updateSuperVaultPPS)
