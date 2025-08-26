@@ -31,6 +31,8 @@ import { AccountInstance, UserOpData } from "modulekit/ModuleKit.sol";
 import { Mock4626Vault } from "../../mocks/Mock4626Vault.sol";
 import { RuggableVault } from "../../mocks/RuggableVault.sol";
 import { RuggableConvertVault } from "../../mocks/RuggableConvertVault.sol";
+import { MockNativeETHHook } from "../../mocks/MockNativeETHHook.sol";
+import { MockETHReceiver } from "../../mocks/MockETHReceiver.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 
 contract SuperVaultTest is BaseSuperVaultTest {
@@ -150,7 +152,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
             _deployVaultWithSmartAccountManager(managerAccount.account);
 
         SuperVault newVault = SuperVault(newVaultAddr);
-        SuperVaultStrategy newStrategy = SuperVaultStrategy(newStrategyAddr);
+        SuperVaultStrategy newStrategy = SuperVaultStrategy(payable(newStrategyAddr));
 
         // Setup yield sources for the new strategy via smart account
         _manageYieldSourcesViaSmartAccount(managerAccount, newStrategy);
@@ -2278,6 +2280,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 maxStaleness: params.maxStaleness,
                 feeConfig: ISuperVaultStrategy.FeeConfig({
                     performanceFeeBps: params.performanceFeeBps,
+                    managementFeeBps: 0,
                     recipient: address(this)
                 })
             })
@@ -2302,6 +2305,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 maxStaleness: params.maxStaleness,
                 feeConfig: ISuperVaultStrategy.FeeConfig({
                     performanceFeeBps: params.performanceFeeBps,
+                    managementFeeBps: 0,
                     recipient: address(this)
                 })
             })
@@ -2439,7 +2443,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Cast addresses to contract types
         gearSuperVault = SuperVault(gearSuperVaultAddr);
         escrowGearSuperVault = SuperVaultEscrow(escrowAddr);
-        strategyGearSuperVault = SuperVaultStrategy(strategyAddr);
+        strategyGearSuperVault = SuperVaultStrategy(payable(strategyAddr));
 
         // Add a new yield source as manager
         vm.startPrank(MANAGER);
@@ -2452,7 +2456,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.stopPrank();
 
         vm.startPrank(MANAGER);
-        strategyGearSuperVault.proposeVaultFeeConfigUpdate(100, TREASURY);
+        strategyGearSuperVault.proposeVaultFeeConfigUpdate(100, 0, TREASURY);
         vm.warp(block.timestamp + 1 weeks);
         strategyGearSuperVault.executeVaultFeeConfigUpdate();
         vm.stopPrank();
@@ -3054,128 +3058,162 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that deposit accounting follows the minted receiver, not the controller/sender
     function test_Fix10_DepositAccountingFollowsReceiver() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: get tokens for user A (sender)
         _getTokens(address(asset), accInstances[0].account, depositAmount);
-        
+
         // User A will be the sender/controller, User B will be the receiver
         address sender = accInstances[0].account;
         address receiver = accInstances[1].account;
-        
+
         // Record initial accumulator states
         ISuperVaultStrategy.SuperVaultState memory senderStateBefore = strategy.getSuperVaultState(sender);
         ISuperVaultStrategy.SuperVaultState memory receiverStateBefore = strategy.getSuperVaultState(receiver);
-        
+
         // User A deposits but specifies User B as receiver
         vm.startPrank(sender);
         asset.approve(address(vault), depositAmount);
         uint256 shares = vault.deposit(depositAmount, receiver);
         vm.stopPrank();
-        
+
         // Verify shares were minted to receiver, not sender
         assertEq(vault.balanceOf(sender), 0, "Sender should not have shares");
         assertEq(vault.balanceOf(receiver), shares, "Receiver should have all shares");
-        
+
         // Verify accumulator accounting follows the receiver
         ISuperVaultStrategy.SuperVaultState memory senderStateAfter = strategy.getSuperVaultState(sender);
         ISuperVaultStrategy.SuperVaultState memory receiverStateAfter = strategy.getSuperVaultState(receiver);
-        
+
         // Sender's accumulator should not change
-        assertEq(senderStateAfter.accumulatorShares, senderStateBefore.accumulatorShares, "Sender accumulator shares should not change");
-        assertEq(senderStateAfter.accumulatorCostBasis, senderStateBefore.accumulatorCostBasis, "Sender accumulator cost basis should not change");
-        
+        assertEq(
+            senderStateAfter.accumulatorShares,
+            senderStateBefore.accumulatorShares,
+            "Sender accumulator shares should not change"
+        );
+        assertEq(
+            senderStateAfter.accumulatorCostBasis,
+            senderStateBefore.accumulatorCostBasis,
+            "Sender accumulator cost basis should not change"
+        );
+
         // Receiver's accumulator should reflect the deposit
-        assertEq(receiverStateAfter.accumulatorShares, receiverStateBefore.accumulatorShares + shares, "Receiver should get accumulator shares");
-        assertEq(receiverStateAfter.accumulatorCostBasis, receiverStateBefore.accumulatorCostBasis + depositAmount, "Receiver should get accumulator cost basis");
+        assertEq(
+            receiverStateAfter.accumulatorShares,
+            receiverStateBefore.accumulatorShares + shares,
+            "Receiver should get accumulator shares"
+        );
+        assertEq(
+            receiverStateAfter.accumulatorCostBasis,
+            receiverStateBefore.accumulatorCostBasis + depositAmount,
+            "Receiver should get accumulator cost basis"
+        );
     }
 
     /// @notice Test that mint accounting follows the minted receiver, not the controller/sender
     function test_Fix10_MintAccountingFollowsReceiver() public {
         uint256 mintShares = 1000e6;
         uint256 expectedAssets = vault.previewMint(mintShares);
-        
+
         // Setup: get tokens for user A (sender)
         _getTokens(address(asset), accInstances[0].account, expectedAssets);
-        
+
         // User A will be the sender/controller, User B will be the receiver
         address sender = accInstances[0].account;
         address receiver = accInstances[1].account;
-        
+
         // Record initial accumulator states
         ISuperVaultStrategy.SuperVaultState memory senderStateBefore = strategy.getSuperVaultState(sender);
         ISuperVaultStrategy.SuperVaultState memory receiverStateBefore = strategy.getSuperVaultState(receiver);
-        
+
         // User A mints but specifies User B as receiver
         vm.startPrank(sender);
         asset.approve(address(vault), expectedAssets);
         uint256 assetsUsed = vault.mint(mintShares, receiver);
         vm.stopPrank();
-        
+
         // Verify shares were minted to receiver, not sender
         assertEq(vault.balanceOf(sender), 0, "Sender should not have shares");
         assertEq(vault.balanceOf(receiver), mintShares, "Receiver should have all shares");
-        
+
         // Verify accumulator accounting follows the receiver
         ISuperVaultStrategy.SuperVaultState memory senderStateAfter = strategy.getSuperVaultState(sender);
         ISuperVaultStrategy.SuperVaultState memory receiverStateAfter = strategy.getSuperVaultState(receiver);
-        
+
         // Sender's accumulator should not change
-        assertEq(senderStateAfter.accumulatorShares, senderStateBefore.accumulatorShares, "Sender accumulator shares should not change");
-        assertEq(senderStateAfter.accumulatorCostBasis, senderStateBefore.accumulatorCostBasis, "Sender accumulator cost basis should not change");
-        
+        assertEq(
+            senderStateAfter.accumulatorShares,
+            senderStateBefore.accumulatorShares,
+            "Sender accumulator shares should not change"
+        );
+        assertEq(
+            senderStateAfter.accumulatorCostBasis,
+            senderStateBefore.accumulatorCostBasis,
+            "Sender accumulator cost basis should not change"
+        );
+
         // Receiver's accumulator should reflect the mint
-        assertEq(receiverStateAfter.accumulatorShares, receiverStateBefore.accumulatorShares + mintShares, "Receiver should get accumulator shares");
-        assertEq(receiverStateAfter.accumulatorCostBasis, receiverStateBefore.accumulatorCostBasis + assetsUsed, "Receiver should get accumulator cost basis");
+        assertEq(
+            receiverStateAfter.accumulatorShares,
+            receiverStateBefore.accumulatorShares + mintShares,
+            "Receiver should get accumulator shares"
+        );
+        assertEq(
+            receiverStateAfter.accumulatorCostBasis,
+            receiverStateBefore.accumulatorCostBasis + assetsUsed,
+            "Receiver should get accumulator cost basis"
+        );
     }
 
     /// @notice Test that receiver can successfully redeem after receiving deposit from another user
     function test_Fix10_ReceiverCanRedeemAfterReceivingDeposit() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: get tokens for user A (sender)
         _getTokens(address(asset), accInstances[0].account, depositAmount);
-        
+
         // User A will be the sender/controller, User B will be the receiver
         address sender = accInstances[0].account;
         address receiver = accInstances[1].account;
-        
+
         // User A deposits but specifies User B as receiver
         vm.startPrank(sender);
         asset.approve(address(vault), depositAmount);
         uint256 shares = vault.deposit(depositAmount, receiver);
         vm.stopPrank();
-        
+
         // Allocate assets to yield sources
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         // User B (receiver) should be able to request redeem for their shares
         vm.startPrank(receiver);
         vault.requestRedeem(shares, receiver, receiver);
         vm.stopPrank();
-        
+
         // Verify redeem request was successful
         assertEq(strategy.pendingRedeemRequest(receiver), shares, "Receiver should have pending redeem request");
         assertEq(vault.balanceOf(address(escrow)), shares, "Shares should be in escrow");
-        
+
         // Fulfill the redeem request
         address[] memory controllers = new address[](1);
         controllers[0] = receiver;
         _fulfillRedeemForUsers(controllers, shares / 2, shares / 2, address(fluidVault), address(aaveVault));
-        
+
         // Verify redemption was fulfilled
         assertEq(strategy.pendingRedeemRequest(receiver), 0, "Pending redeem should be cleared");
         assertGt(strategy.claimableWithdraw(receiver), 0, "Receiver should have claimable assets");
-        
+
         // User B should be able to claim their assets
         uint256 claimableAssets = strategy.claimableWithdraw(receiver);
         uint256 initialAssetBalance = asset.balanceOf(receiver);
-        
+
         vm.startPrank(receiver);
         vault.withdraw(claimableAssets, receiver, receiver);
         vm.stopPrank();
-        
+
         // Verify assets were transferred to receiver
-        assertEq(asset.balanceOf(receiver), initialAssetBalance + claimableAssets, "Receiver should receive their assets");
+        assertEq(
+            asset.balanceOf(receiver), initialAssetBalance + claimableAssets, "Receiver should receive their assets"
+        );
         assertEq(strategy.claimableWithdraw(receiver), 0, "Claimable should be cleared");
     }
 
@@ -3186,20 +3224,20 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that requestRedeem reverts when controller != owner
     function test_Fix15_RevertWhen_ControllerNotEqualOwner() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User A deposits and gets shares
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         address owner = accInstances[0].account;
         address controller = accInstances[1].account; // Different from owner
         uint256 shares = vault.balanceOf(owner);
-        
+
         // Set operator permission so the call doesn't fail on authorization
         vm.prank(owner);
         vault.setOperator(controller, true);
-        
+
         // Try to request redeem with controller != owner - should revert
         vm.startPrank(controller);
         vm.expectRevert(ISuperVault.CONTROLLER_MUST_EQUAL_OWNER.selector);
@@ -3210,20 +3248,20 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that requestRedeem succeeds when controller == owner
     function test_Fix15_SucceedsWhen_ControllerEqualsOwner() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User A deposits and gets shares
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         address ownerController = accInstances[0].account; // Same address for both
         uint256 shares = vault.balanceOf(ownerController);
-        
+
         // Request redeem with controller == owner - should succeed
         vm.startPrank(ownerController);
         uint256 requestId = vault.requestRedeem(shares, ownerController, ownerController);
         vm.stopPrank();
-        
+
         // Verify redeem request was successful
         assertEq(requestId, 0, "Should return request ID 0");
         assertEq(strategy.pendingRedeemRequest(ownerController), shares, "Should have pending redeem request");
@@ -3233,37 +3271,37 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that fulfillment works correctly when controller == owner (no INSUFFICIENT_SHARES)
     function test_Fix15_FulfillmentWorksWithMatchedControllerOwner() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User A deposits and gets shares
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         address ownerController = accInstances[0].account;
         uint256 shares = vault.balanceOf(ownerController);
-        
+
         // Request redeem with controller == owner
         vm.startPrank(ownerController);
         vault.requestRedeem(shares, ownerController, ownerController);
         vm.stopPrank();
-        
+
         // Fulfill the redeem request - should not revert with INSUFFICIENT_SHARES
         address[] memory controllers = new address[](1);
         controllers[0] = ownerController;
         _fulfillRedeemForUsers(controllers, shares / 2, shares / 2, address(fluidVault), address(aaveVault));
-        
+
         // Verify fulfillment was successful
         assertEq(strategy.pendingRedeemRequest(ownerController), 0, "Pending redeem should be cleared");
         assertGt(strategy.claimableWithdraw(ownerController), 0, "Should have claimable assets");
-        
+
         // User should be able to claim their assets
         uint256 claimableAssets = strategy.claimableWithdraw(ownerController);
         uint256 initialAssetBalance = asset.balanceOf(ownerController);
-        
+
         vm.startPrank(ownerController);
         vault.withdraw(claimableAssets, ownerController, ownerController);
         vm.stopPrank();
-        
+
         // Verify assets were transferred correctly
         assertEq(asset.balanceOf(ownerController), initialAssetBalance + claimableAssets, "Should receive assets");
         assertEq(strategy.claimableWithdraw(ownerController), 0, "Claimable should be cleared");
@@ -3272,48 +3310,48 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that redeem request reverts when controller has no accumulator shares (defense-in-depth)
     function test_Fix15_RevertWhen_ControllerHasNoAccumulatorShares() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User A has shares but no accumulator (simulate a fresh user receiving shares)
         // We'll use a user that has never deposited but receives shares from someone else
         address userA = accInstances[0].account;
         address userNoAccumulator = accInstances[1].account;
-        
+
         // User A deposits and gets shares
         _getTokens(address(asset), userA, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         uint256 shares = vault.balanceOf(userA);
-        
+
         // User A transfers all shares to userNoAccumulator (this moves accumulators via Fix #1)
         vm.prank(userA);
         IERC20(address(vault)).transfer(userNoAccumulator, shares);
-        
+
         // Now userNoAccumulator has shares AND accumulator (from the transfer)
-        // To create a scenario where someone has shares but NO accumulator, we need to 
+        // To create a scenario where someone has shares but NO accumulator, we need to
         // manually manipulate state or use a different approach
-        
+
         // Create a fresh user with zero accumulator by minting shares directly (bypassing deposit logic)
         address freshUser = accInstances[2].account;
-        
+
         // Give fresh user some shares by having them receive a deposit but with controller != receiver
         // Actually, let's use a different approach - modify accumulator directly via updateSuperVaultState
-        
+
         // Transfer some shares to fresh user from userNoAccumulator
         vm.prank(userNoAccumulator);
         IERC20(address(vault)).transfer(freshUser, shares / 4);
-        
+
         // Now manually remove the accumulator for freshUser to create the test scenario
         // This simulates an edge case where shares exist but accumulator is somehow zero
         ISuperVaultStrategy.SuperVaultState memory emptyState;
         vm.prank(address(vault));
         strategy.updateSuperVaultState(freshUser, emptyState);
-        
+
         // Verify freshUser has shares but no accumulator
         assertGt(vault.balanceOf(freshUser), 0, "Fresh user should have shares");
         ISuperVaultStrategy.SuperVaultState memory stateFresh = strategy.getSuperVaultState(freshUser);
         assertEq(stateFresh.accumulatorShares, 0, "Fresh user should have no accumulator shares");
-        
+
         // Fresh user tries to request redeem - should revert due to no accumulator shares
         vm.startPrank(freshUser);
         vm.expectRevert(ISuperVaultStrategy.INSUFFICIENT_SHARES.selector);
@@ -3572,105 +3610,132 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that cancel → re-request → fulfill works (no permanent lockout)
     function test_Fix45_CancelReRequestFulfillWorks() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User deposits and gets shares
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         uint256 userShares = vault.balanceOf(accInstances[0].account);
         uint256 redeemShares = userShares / 2;
-        
+
         // Get initial accumulator state
         ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
         uint256 initialAccumulatorShares = initialState.accumulatorShares;
         uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
-        
+
         // Step 1: Request redeem
         _requestRedeemForAccount(accInstances[0], redeemShares);
-        
+
         // Verify request was placed
         uint256 pendingAfterRequest = strategy.pendingRedeemRequest(accInstances[0].account);
         assertEq(pendingAfterRequest, redeemShares, "Should have pending request");
-        
+
         // Step 2: Cancel redeem
         vm.prank(accInstances[0].account);
         vault.cancelRedeem(accInstances[0].account);
-        
+
         // Verify cancel cleared pending fields but preserved accumulators
-        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel =
+            strategy.getSuperVaultState(accInstances[0].account);
         assertEq(stateAfterCancel.pendingRedeemRequest, 0, "Pending request should be cleared");
         assertEq(stateAfterCancel.averageRequestPPS, 0, "Average request PPS should be cleared");
         assertEq(stateAfterCancel.accumulatorShares, initialAccumulatorShares, "Accumulator shares should be preserved");
-        assertEq(stateAfterCancel.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be preserved");
+        assertEq(
+            stateAfterCancel.accumulatorCostBasis,
+            initialAccumulatorCostBasis,
+            "Accumulator cost basis should be preserved"
+        );
         assertEq(stateAfterCancel.maxWithdraw, initialState.maxWithdraw, "Max withdraw should be preserved");
-        assertEq(stateAfterCancel.averageWithdrawPrice, initialState.averageWithdrawPrice, "Average withdraw price should be preserved");
-        
+        assertEq(
+            stateAfterCancel.averageWithdrawPrice,
+            initialState.averageWithdrawPrice,
+            "Average withdraw price should be preserved"
+        );
+
         // Step 3: Re-request redeem (should work without INSUFFICIENT_SHARES)
         _requestRedeemForAccount(accInstances[0], redeemShares);
-        
+
         // Verify re-request worked
         uint256 pendingAfterReRequest = strategy.pendingRedeemRequest(accInstances[0].account);
         assertEq(pendingAfterReRequest, redeemShares, "Should have pending request after re-request");
-        
+
         // Step 4: Fulfill redeem (should work without errors)
         address[] memory redeemUsers = new address[](1);
         redeemUsers[0] = accInstances[0].account;
         _fulfillRedeemForUsers(redeemUsers, redeemShares / 2, redeemShares / 2, address(fluidVault), address(aaveVault));
-        
+
         // Verify fulfillment worked
         uint256 claimableAssets = strategy.claimableWithdraw(accInstances[0].account);
         assertGt(claimableAssets, 0, "Should have claimable assets after fulfillment");
-        
+
         // Verify accumulator was properly debited
         ISuperVaultStrategy.SuperVaultState memory finalState = strategy.getSuperVaultState(accInstances[0].account);
         assertLt(finalState.accumulatorShares, initialAccumulatorShares, "Accumulator shares should be debited");
-        assertLt(finalState.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be debited");
+        assertLt(
+            finalState.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be debited"
+        );
     }
 
     /// @notice Test that maxWithdraw and averageWithdrawPrice remain unchanged by cancel
     function test_Fix45_CancelPreservesClaimableState() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User deposits, requests, gets partially fulfilled to create claimable state
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         uint256 userShares = vault.balanceOf(accInstances[0].account);
         uint256 firstRedeemShares = userShares / 3;
-        
+
         // First redeem request and fulfillment to create claimable state
         _requestRedeemForAccount(accInstances[0], firstRedeemShares);
         address[] memory redeemUsers = new address[](1);
         redeemUsers[0] = accInstances[0].account;
-        _fulfillRedeemForUsers(redeemUsers, firstRedeemShares / 2, firstRedeemShares / 2, address(fluidVault), address(aaveVault));
-        
+        _fulfillRedeemForUsers(
+            redeemUsers, firstRedeemShares / 2, firstRedeemShares / 2, address(fluidVault), address(aaveVault)
+        );
+
         // Get state after first fulfillment
-        ISuperVaultStrategy.SuperVaultState memory stateAfterFirstFulfill = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateAfterFirstFulfill =
+            strategy.getSuperVaultState(accInstances[0].account);
         uint256 maxWithdrawBefore = stateAfterFirstFulfill.maxWithdraw;
         uint256 averageWithdrawPriceBefore = stateAfterFirstFulfill.averageWithdrawPrice;
         uint256 accumulatorSharesBefore = stateAfterFirstFulfill.accumulatorShares;
         uint256 accumulatorCostBasisBefore = stateAfterFirstFulfill.accumulatorCostBasis;
-        
+
         assertGt(maxWithdrawBefore, 0, "Should have claimable assets");
         assertGt(averageWithdrawPriceBefore, 0, "Should have average withdraw price");
-        
+
         // Second redeem request
         uint256 secondRedeemShares = userShares / 3;
         _requestRedeemForAccount(accInstances[0], secondRedeemShares);
-        
+
         // Cancel the second request
         vm.prank(accInstances[0].account);
         vault.cancelRedeem(accInstances[0].account);
-        
+
         // Verify claimable state is preserved
-        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel =
+            strategy.getSuperVaultState(accInstances[0].account);
         assertEq(stateAfterCancel.maxWithdraw, maxWithdrawBefore, "Max withdraw should be unchanged by cancel");
-        assertEq(stateAfterCancel.averageWithdrawPrice, averageWithdrawPriceBefore, "Average withdraw price should be unchanged by cancel");
-        assertEq(stateAfterCancel.accumulatorShares, accumulatorSharesBefore, "Accumulator shares should be unchanged by cancel");
-        assertEq(stateAfterCancel.accumulatorCostBasis, accumulatorCostBasisBefore, "Accumulator cost basis should be unchanged by cancel");
-        
+        assertEq(
+            stateAfterCancel.averageWithdrawPrice,
+            averageWithdrawPriceBefore,
+            "Average withdraw price should be unchanged by cancel"
+        );
+        assertEq(
+            stateAfterCancel.accumulatorShares,
+            accumulatorSharesBefore,
+            "Accumulator shares should be unchanged by cancel"
+        );
+        assertEq(
+            stateAfterCancel.accumulatorCostBasis,
+            accumulatorCostBasisBefore,
+            "Accumulator cost basis should be unchanged by cancel"
+        );
+
         // Verify only pending fields were cleared
         assertEq(stateAfterCancel.pendingRedeemRequest, 0, "Pending request should be cleared");
         assertEq(stateAfterCancel.averageRequestPPS, 0, "Average request PPS should be cleared");
@@ -3679,35 +3744,40 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that accumulators remain unchanged by cancel
     function test_Fix45_CancelPreservesAccumulators() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User deposits and gets shares
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         uint256 userShares = vault.balanceOf(accInstances[0].account);
         uint256 redeemShares = userShares / 2;
-        
+
         // Get initial accumulator state
         ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
         uint256 initialAccumulatorShares = initialState.accumulatorShares;
         uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
-        
+
         assertGt(initialAccumulatorShares, 0, "Should have accumulator shares");
         assertGt(initialAccumulatorCostBasis, 0, "Should have accumulator cost basis");
-        
+
         // Request redeem
         _requestRedeemForAccount(accInstances[0], redeemShares);
-        
+
         // Cancel redeem
         vm.prank(accInstances[0].account);
         vault.cancelRedeem(accInstances[0].account);
-        
+
         // Verify accumulators are exactly the same
-        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel =
+            strategy.getSuperVaultState(accInstances[0].account);
         assertEq(stateAfterCancel.accumulatorShares, initialAccumulatorShares, "Accumulator shares should be unchanged");
-        assertEq(stateAfterCancel.accumulatorCostBasis, initialAccumulatorCostBasis, "Accumulator cost basis should be unchanged");
-        
+        assertEq(
+            stateAfterCancel.accumulatorCostBasis,
+            initialAccumulatorCostBasis,
+            "Accumulator cost basis should be unchanged"
+        );
+
         // User should still be able to make future redeems
         _requestRedeemForAccount(accInstances[0], redeemShares);
         uint256 pendingAfterNewRequest = strategy.pendingRedeemRequest(accInstances[0].account);
@@ -3717,45 +3787,47 @@ contract SuperVaultTest is BaseSuperVaultTest {
     /// @notice Test that multiple cancel cycles work correctly
     function test_Fix45_MultipleCancelCycles() public {
         uint256 depositAmount = 1000e6;
-        
+
         // Setup: User deposits and gets shares
         _getTokens(address(asset), accInstances[0].account, depositAmount);
         __deposit(accInstances[0], depositAmount);
         _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-        
+
         uint256 userShares = vault.balanceOf(accInstances[0].account);
         uint256 redeemShares = userShares / 4;
-        
+
         // Get initial accumulator state
         ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
         uint256 initialAccumulatorShares = initialState.accumulatorShares;
-        
+
         // Cycle 1: Request → Cancel
         _requestRedeemForAccount(accInstances[0], redeemShares);
         vm.prank(accInstances[0].account);
         vault.cancelRedeem(accInstances[0].account);
-        
+
         // Verify state after first cancel
-        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel1 = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel1 =
+            strategy.getSuperVaultState(accInstances[0].account);
         assertEq(stateAfterCancel1.pendingRedeemRequest, 0, "Pending should be cleared after cancel 1");
         assertEq(stateAfterCancel1.accumulatorShares, initialAccumulatorShares, "Accumulators preserved after cancel 1");
-        
+
         // Cycle 2: Request → Cancel
         _requestRedeemForAccount(accInstances[0], redeemShares);
         vm.prank(accInstances[0].account);
         vault.cancelRedeem(accInstances[0].account);
-        
+
         // Verify state after second cancel
-        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel2 = strategy.getSuperVaultState(accInstances[0].account);
+        ISuperVaultStrategy.SuperVaultState memory stateAfterCancel2 =
+            strategy.getSuperVaultState(accInstances[0].account);
         assertEq(stateAfterCancel2.pendingRedeemRequest, 0, "Pending should be cleared after cancel 2");
         assertEq(stateAfterCancel2.accumulatorShares, initialAccumulatorShares, "Accumulators preserved after cancel 2");
-        
+
         // Cycle 3: Request → Fulfill (should work)
         _requestRedeemForAccount(accInstances[0], redeemShares);
         address[] memory redeemUsers = new address[](1);
         redeemUsers[0] = accInstances[0].account;
         _fulfillRedeemForUsers(redeemUsers, redeemShares / 2, redeemShares / 2, address(fluidVault), address(aaveVault));
-        
+
         // Verify final fulfillment worked
         uint256 claimableAssets = strategy.claimableWithdraw(accInstances[0].account);
         assertGt(claimableAssets, 0, "Should have claimable assets after final fulfillment");
@@ -6646,7 +6718,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         (vaultAddr, strategyAddr, escrowAddr) = _deployVault("SV_USDC_RUG");
 
         vault = SuperVault(vaultAddr);
-        strategy = SuperVaultStrategy(strategyAddr);
+        strategy = SuperVaultStrategy(payable(strategyAddr));
         escrow = SuperVaultEscrow(escrowAddr);
 
         // Replace aaveVault with ruggableVault in the strategy
@@ -6667,7 +6739,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         (vaultAddr, strategyAddr, escrowAddr) = _deployVault("SV_USDC_PAUSE_TEST");
 
         SuperVault testVault = SuperVault(vaultAddr);
-        SuperVaultStrategy testStrategy = SuperVaultStrategy(strategyAddr);
+        SuperVaultStrategy testStrategy = SuperVaultStrategy(payable(strategyAddr));
 
         // Verify maxDeposit returns max value when not paused
         uint256 maxDepositBeforePause = testVault.maxDeposit(accountEth);
@@ -6713,7 +6785,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         (vaultAddr, strategyAddr, escrowAddr) = _deployVault("SV_USDC_MINT_PAUSE_TEST");
 
         SuperVault testVault = SuperVault(vaultAddr);
-        SuperVaultStrategy testStrategy = SuperVaultStrategy(strategyAddr);
+        SuperVaultStrategy testStrategy = SuperVaultStrategy(payable(strategyAddr));
 
         // Verify maxMint returns max value when not paused
         uint256 maxMintBeforePause = testVault.maxMint(accountEth);
@@ -7054,5 +7126,265 @@ contract SuperVaultTest is BaseSuperVaultTest {
             assertEq(strategy.emergencyWithdrawable(), false, "Emergency withdrawable should remain false");
             assertEq(strategy.emergencyWithdrawableEffectiveTime(), 0, "Should still not have active proposal");
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                       MANAGEMENT FEE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Test that deposit skims entry fee to recipient and mints net shares
+    function test_Deposit_WithMgmtFee_SkimsAndMintsNet() public {
+        // Set 1% management (entry) fee, recipient = TREASURY
+        _setFeeConfig(100, 100, TREASURY);
+
+        uint256 assets = 1000e6;
+        _getTokens(address(asset), accInstances[0].account, assets);
+
+        vm.startPrank(accInstances[0].account);
+        asset.approve(address(vault), type(uint256).max);
+        uint256 shares = vault.deposit(assets, accInstances[0].account);
+        vm.stopPrank();
+
+        // Fee = ceil(1% of 1000) = 10
+        assertEq(asset.balanceOf(TREASURY), 10e6, "fee skimmed to recipient");
+        // Strategy received assets - fee
+        assertEq(asset.balanceOf(address(strategy)), 990e6, "strategy got net assets");
+
+        // Shares minted equal previewDeposit(assets)
+        uint256 expectedShares = vault.previewDeposit(assets);
+        assertEq(shares, expectedShares, "minted shares = previewDeposit");
+    }
+
+    /// @notice Test that previewDeposit reflects entry fee precisely (ceil on fee)
+    function test_PreviewDeposit_WithMgmtFee_FeeCeil() public {
+        _setFeeConfig(100, 100, TREASURY); // 1%
+
+        // Pick a value that exercises ceil rounding (e.g., 1 wei of USDC)
+        uint256 tiny = 1; // 1 unit (1e-6 USDC)
+        // fee = ceil(1% of 1) = 1 (since we can't take 0)
+        uint256 expectedShares = vault.convertToShares(0); // assetsNet = 0
+
+        assertEq(vault.previewDeposit(tiny), expectedShares, "fee rounds up");
+    }
+
+    /// @notice Test that mint path: previewMint returns gross and the vault actually charges it
+    function test_Mint_WithMgmtFee_GrossChargedMatchesPreviewMint() public {
+        _setFeeConfig(100, 100, TREASURY); // 1%
+
+        // Seed payer
+        _getTokens(address(asset), accInstances[0].account, 10_000e6);
+
+        // Target shares
+        uint256 sharesWanted = 123_456;
+
+        // Compute required gross assets
+        uint256 grossRequired = vault.previewMint(sharesWanted);
+        vm.startPrank(accInstances[0].account);
+        asset.approve(address(vault), type(uint256).max);
+        uint256 assetsSpent = vault.mint(sharesWanted, accInstances[0].account);
+        vm.stopPrank();
+
+        assertEq(assetsSpent, grossRequired, "spent == previewMint");
+        // Recipient got exactly the entry fee = gross - net
+        uint256 net = vault.convertToAssets(sharesWanted);
+        uint256 fee = assetsSpent - net;
+        assertEq(asset.balanceOf(TREASURY), fee, "recipient got entry fee");
+    }
+
+    /// @notice Test that quote function and mint agree
+    function test_QuoteMintAssetsGross_MatchesMintAndPreviews() public {
+        _setFeeConfig(100, 350, TREASURY); // 3.5%
+
+        uint256 shares = 1_000_000;
+        (uint256 gross, uint256 net) = strategy.quoteMintAssetsGross(shares);
+
+        // previewMint matches gross
+        assertEq(vault.previewMint(shares), gross, "previewMint == quote gross");
+
+        // Deposit enough and mint; caller pays 'gross'
+        _getTokens(address(asset), accInstances[0].account, gross);
+        vm.startPrank(accInstances[0].account);
+        asset.approve(address(vault), type(uint256).max);
+        uint256 paid = vault.mint(shares, accInstances[0].account);
+        vm.stopPrank();
+
+        assertEq(paid, gross, "paid gross");
+        // Fee equals gross - net to recipient
+        assertEq(asset.balanceOf(TREASURY), gross - net, "fee paid");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        NATIVE ETH HANDLING TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ExecuteHooks_AcceptsPayable() public {
+        // This test verifies that executeHooks can accept ETH (is payable)
+        // Since reverts return ETH, we test by sending ETH directly to the receive function
+
+        uint256 ethAmount = 1 ether;
+
+        // Fund the strategist with ETH
+        vm.deal(MANAGER, ethAmount);
+        uint256 strategyETHBefore = address(strategy).balance;
+
+        // Send ETH directly to the strategy's receive function
+        vm.startPrank(MANAGER);
+        (bool success,) = address(strategy).call{ value: ethAmount }("");
+        vm.stopPrank();
+
+        // Verify the call succeeded and ETH was received
+        assertTrue(success, "ETH transfer should succeed");
+        assertEq(address(strategy).balance, strategyETHBefore + ethAmount, "Strategy should have received ETH");
+
+        // Now test that executeHooks is payable by calling it with ETH (it will revert but not due to payable)
+        ISuperVaultStrategy.ExecuteArgs memory args = ISuperVaultStrategy.ExecuteArgs({
+            hooks: new address[](0), // Empty array will cause ZERO_LENGTH revert
+            hookCalldata: new bytes[](0),
+            expectedAssetsOrSharesOut: new uint256[](0),
+            globalProofs: new bytes32[][](0),
+            strategyProofs: new bytes32[][](0)
+        });
+
+        vm.deal(MANAGER, ethAmount);
+        vm.startPrank(MANAGER);
+        vm.expectRevert(ISuperVaultStrategy.ZERO_LENGTH.selector);
+        strategy.executeHooks{ value: ethAmount }(args); // This proves it's payable
+        vm.stopPrank();
+    }
+
+    function test_ReceiveFunction_AcceptsETH() public {
+        uint256 ethAmount = 1 ether;
+
+        // Send ETH directly to strategy
+        vm.deal(address(this), ethAmount);
+        uint256 strategyBalanceBefore = address(strategy).balance;
+
+        // Send ETH to strategy
+        (bool success,) = payable(address(strategy)).call{ value: ethAmount }("");
+        assertTrue(success, "ETH transfer should succeed");
+
+        // Verify ETH was received
+        assertEq(address(strategy).balance, strategyBalanceBefore + ethAmount, "Strategy should receive ETH");
+    }
+
+    function test_RevertWhen_ExecuteHooks_WithoutPayable() public {
+        // This test verifies that the old version would have failed
+        // Since we've already added payable, we'll test with a mock that doesn't have payable
+
+        // Create a simple contract without payable functions
+        SimpleNonPayableContract nonPayable = new SimpleNonPayableContract();
+
+        uint256 ethAmount = 1 ether;
+        vm.deal(address(this), ethAmount);
+
+        // Try to send ETH to non-payable function - this should fail
+        (bool success,) = address(nonPayable).call{ value: ethAmount }(abi.encodeWithSignature("nonPayableFunction()"));
+        assertFalse(success, "Should fail when sending ETH to non-payable function");
+    }
+
+    function test_executeHooks_WithNativeETHHook() public {
+        vm.selectFork(FORKS[ETH]);
+        uint256 depositAmount = 1000e6; // 1000 USDC
+        uint256 ethAmount = 0.5 ether;
+
+        // Add MockETHReceiver as active yield source
+        address ethReceiver = contractAddresses[ETH]["MOCK_ETH_RECEIVER"];
+        vm.startPrank(MANAGER);
+        strategy.manageYieldSources(
+            _toArray(ethReceiver),
+            _toArray(_getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY)),
+            new uint8[](1), // actionType 0 = add
+            _toBoolArray(true) // activate = true
+        );
+        vm.stopPrank();
+
+        // Fund MockETHReceiver with USDC so it can transfer when hook executes
+        deal(address(asset), ethReceiver, depositAmount);
+
+        // STEP 1: Execute native ETH hook separately via executeHooks
+        address[] memory nativeHooks = new address[](1);
+        nativeHooks[0] = globalMerkleHooksPeriphery[0]; // MockNativeETHHook
+
+        bytes[] memory nativeHookCalldata = new bytes[](1);
+        nativeHookCalldata[0] = _createMockNativeETHHookData(ethReceiver, ethAmount);
+
+        uint256[] memory nativeExpectedOut = new uint256[](1);
+        nativeExpectedOut[0] = ethAmount; // Expected ETH transfer amount
+
+        // Create argsForProofs for native hook
+        bytes[] memory nativeArgsForProofs = new bytes[](1);
+        nativeArgsForProofs[0] = ISuperHookInspector(nativeHooks[0]).inspect(nativeHookCalldata[0]);
+
+        // Get merkle proofs for native hook
+        bytes32[][] memory nativeGlobalProofs = _getMerkleProofsForHooks(nativeHooks, nativeArgsForProofs);
+        bytes32[][] memory nativeStrategyProofs = new bytes32[][](1);
+        nativeStrategyProofs[0] = new bytes32[](0);
+
+        // Fund strategist with ETH for hook execution
+        vm.deal(MANAGER, ethAmount);
+
+        // Execute native ETH hook via executeHooks
+        vm.startPrank(MANAGER);
+        strategy.executeHooks{ value: ethAmount }(
+            ISuperVaultStrategy.ExecuteArgs({
+                hooks: nativeHooks,
+                hookCalldata: nativeHookCalldata,
+                expectedAssetsOrSharesOut: nativeExpectedOut,
+                globalProofs: nativeGlobalProofs,
+                strategyProofs: nativeStrategyProofs
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function _createMockNativeETHHookData(
+        address ethReceiver,
+        uint256 ethAmount
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        // Create calldata following the standard hook format: oracleId + yieldSource + amount
+        return abi.encodePacked(
+            bytes32(0), // oracle ID placeholder
+            ethReceiver, // yield source (ETH receiver)
+            ethAmount // ETH amount to send
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _toArray(address item) internal pure returns (address[] memory) {
+        address[] memory array = new address[](1);
+        array[0] = item;
+        return array;
+    }
+
+    function _toBoolArray(bool item) internal pure returns (bool[] memory) {
+        bool[] memory array = new bool[](1);
+        array[0] = item;
+        return array;
+    }
+
+    function _toBytesArray(bytes memory item) internal pure returns (bytes[] memory) {
+        bytes[] memory array = new bytes[](1);
+        array[0] = item;
+        return array;
+    }
+
+    function _toUint256Array(uint256 item) internal pure returns (uint256[] memory) {
+        uint256[] memory array = new uint256[](1);
+        array[0] = item;
+        return array;
+    }
+}
+
+/// @notice Simple contract without payable functions for testing
+contract SimpleNonPayableContract {
+    function nonPayableFunction() external pure returns (bool) {
+        return true;
     }
 }

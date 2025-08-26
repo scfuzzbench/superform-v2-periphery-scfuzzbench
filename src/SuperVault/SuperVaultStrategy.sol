@@ -87,13 +87,21 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         _disableInitializers();
     }
 
+    /// @notice Allows the contract to receive native ETH
+    /// @dev Required for hooks that may send ETH back to the strategy
+    receive() external payable { }
+
     /*//////////////////////////////////////////////////////////////
                             INITIALIZATION
     //////////////////////////////////////////////////////////////*/
     function initialize(address vaultAddress, FeeConfig memory feeConfigData) external initializer {
         if (vaultAddress == address(0)) revert INVALID_VAULT();
-        if (feeConfigData.performanceFeeBps > 0 && feeConfigData.recipient == address(0)) revert ZERO_ADDRESS();
+        if (
+            (feeConfigData.performanceFeeBps > 0 || feeConfigData.managementFeeBps > 0)
+                && feeConfigData.recipient == address(0)
+        ) revert ZERO_ADDRESS();
         if (feeConfigData.performanceFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
+        if (feeConfigData.managementFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
 
         __ReentrancyGuard_init();
 
@@ -112,25 +120,114 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc ISuperVaultStrategy
-    function handleOperation(
+    function handleOperations4626Deposit(
         address controller,
-        address receiver,
-        uint256 assets,
-        uint256 shares,
-        Operation operation
+        uint256 assetsGross
+    )
+        external
+        returns (uint256 sharesNet)
+    {
+        _requireVault();
+
+        if (assetsGross == 0) revert INVALID_AMOUNT();
+        if (controller == address(0)) revert ZERO_ADDRESS();
+
+        // Check if strategy is paused or if global hooks root is vetoed
+        if (_isPaused()) revert STRATEGY_PAUSED();
+        if (_getSuperVaultAggregator().isGlobalHooksRootVetoed()) {
+            revert OPERATIONS_BLOCKED_BY_VETO();
+        }
+
+        // Fee skim in ASSETS (asset-side entry fee)
+        uint256 feeBps = feeConfig.managementFeeBps;
+        uint256 feeAssets = feeBps == 0 ? 0 : Math.mulDiv(assetsGross, feeBps, BPS_PRECISION, Math.Rounding.Ceil);
+
+        uint256 assetsNet = assetsGross - feeAssets;
+        if (assetsNet == 0) revert INVALID_AMOUNT();
+
+        if (feeAssets != 0) {
+            address recipient = feeConfig.recipient;
+            if (recipient == address(0)) revert ZERO_ADDRESS();
+            _safeTokenTransfer(address(_asset), recipient, feeAssets);
+            emit EntryFeePaid(controller, recipient, feeAssets, feeBps);
+        }
+
+        // Compute shares on NET using current PPS
+        uint256 pps = getStoredPPS();
+        if (pps == 0) revert INVALID_PPS();
+        sharesNet = Math.mulDiv(assetsNet, PRECISION, pps, Math.Rounding.Floor);
+        if (sharesNet == 0) revert INVALID_AMOUNT();
+
+        // Account on NET
+        SuperVaultState storage state = superVaultState[controller];
+        state.accumulatorShares += sharesNet;
+        state.accumulatorCostBasis += assetsNet;
+        emit DepositHandled(controller, assetsNet, sharesNet);
+        return sharesNet;
+    }
+
+    /// @inheritdoc ISuperVaultStrategy
+    function handleOperations4626Mint(
+        address controller,
+        uint256 sharesNet,
+        uint256 assetsGross,
+        uint256 assetsNet
     )
         external
     {
         _requireVault();
 
-        if (operation == Operation.Deposit) {
-            _handleDeposit(controller, assets, shares);
-        } else if (operation == Operation.RedeemRequest) {
-            _handleRequestRedeem(controller, shares);
+        if (sharesNet == 0) revert INVALID_AMOUNT();
+        if (controller == address(0)) revert ZERO_ADDRESS();
+
+        // Check if strategy is paused or if global hooks root is vetoed
+        if (_isPaused()) revert STRATEGY_PAUSED();
+        if (_getSuperVaultAggregator().isGlobalHooksRootVetoed()) {
+            revert OPERATIONS_BLOCKED_BY_VETO();
+        }
+
+        uint256 feeBps = feeConfig.managementFeeBps;
+        // Transfer fee if needed
+        if (feeBps != 0) {
+            uint256 feeAssets = assetsGross - assetsNet;
+            if (feeAssets != 0) {
+                address recipient = feeConfig.recipient;
+                if (recipient == address(0)) revert ZERO_ADDRESS();
+                _safeTokenTransfer(address(_asset), recipient, feeAssets);
+                emit EntryFeePaid(controller, recipient, feeAssets, feeBps);
+            }
+        }
+
+        // Account on NET
+        SuperVaultState storage state = superVaultState[controller];
+        state.accumulatorShares += sharesNet;
+        state.accumulatorCostBasis += assetsNet;
+        emit DepositHandled(controller, assetsNet, sharesNet);
+    }
+
+    /// @inheritdoc ISuperVaultStrategy
+    function quoteMintAssetsGross(uint256 shares) external view returns (uint256 assetsGross, uint256 assetsNet) {
+        uint256 pps = getStoredPPS();
+        if (pps == 0) revert INVALID_PPS();
+        assetsNet = Math.mulDiv(shares, pps, PRECISION, Math.Rounding.Ceil);
+        if (assetsNet == 0) revert INVALID_AMOUNT();
+
+        uint256 feeBps = feeConfig.managementFeeBps;
+        if (feeBps == 0) return (assetsNet, assetsNet);
+        if (feeBps >= BPS_PRECISION) revert INVALID_AMOUNT(); // prevents div-by-zero (100% fee)
+        assetsGross = Math.mulDiv(assetsNet, BPS_PRECISION, (BPS_PRECISION - feeBps), Math.Rounding.Ceil);
+        return (assetsGross, assetsNet);
+    }
+
+    /// @inheritdoc ISuperVaultStrategy
+    function handleOperations7540(Operation operation, address controller, address receiver, uint256 amount) external {
+        _requireVault();
+        if (operation == Operation.RedeemRequest) {
+            _handleRequestRedeem(controller, amount); // amount = shares
         } else if (operation == Operation.CancelRedeem) {
             _handleCancelRedeem(controller);
         } else if (operation == Operation.ClaimRedeem) {
-            _handleClaimRedeem(controller, receiver, assets);
+            _handleClaimRedeem(controller, receiver, amount); // amount = assets
         } else {
             revert ACTION_TYPE_DISALLOWED();
         }
@@ -141,7 +238,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc ISuperVaultStrategy
-    function executeHooks(ExecuteArgs calldata args) external nonReentrant {
+    function executeHooks(ExecuteArgs calldata args) external payable nonReentrant {
         _isManager(msg.sender);
 
         uint256 hooksLength = args.hooks.length;
@@ -242,13 +339,25 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     }
 
     // @inheritdoc ISuperVaultStrategy
-    function proposeVaultFeeConfigUpdate(uint256 performanceFeeBps, address recipient) external {
+    function proposeVaultFeeConfigUpdate(
+        uint256 performanceFeeBps,
+        uint256 managementFeeBps,
+        address recipient
+    )
+        external
+    {
         _isPrimaryManager(msg.sender);
+        
         if (performanceFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
+        if (managementFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
         if (recipient == address(0)) revert ZERO_ADDRESS();
-        proposedFeeConfig = FeeConfig({ performanceFeeBps: performanceFeeBps, recipient: recipient });
+        proposedFeeConfig = FeeConfig({
+            performanceFeeBps: performanceFeeBps,
+            managementFeeBps: managementFeeBps,
+            recipient: recipient
+        });
         feeConfigEffectiveTime = block.timestamp + ONE_WEEK;
-        emit VaultFeeConfigProposed(performanceFeeBps, recipient, feeConfigEffectiveTime);
+        emit VaultFeeConfigProposed(performanceFeeBps, managementFeeBps, recipient, feeConfigEffectiveTime);
     }
 
     // @inheritdoc ISuperVaultStrategy
@@ -258,7 +367,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         feeConfig = proposedFeeConfig;
         delete proposedFeeConfig;
         feeConfigEffectiveTime = 0;
-        emit VaultFeeConfigUpdated(feeConfig.performanceFeeBps, feeConfig.recipient);
+        emit VaultFeeConfigUpdated(feeConfig.performanceFeeBps, feeConfig.managementFeeBps, feeConfig.recipient);
     }
 
     // @inheritdoc ISuperVaultStrategy
@@ -530,8 +639,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
         vars.executions = vars.hookContract.build(address(0), address(this), hookCalldata);
         for (uint256 j; j < vars.executions.length; ++j) {
-            (vars.success,) =
-                vars.executions[j].target.call{ value: vars.executions[j].value }(vars.executions[j].callData);
+            (vars.success,) = vars.executions[j].target.call(vars.executions[j].callData);
             if (!vars.success) revert OPERATION_FAILED();
         }
         ISuperHook(address(vars.hookContract)).resetExecutionState(address(this));
@@ -929,26 +1037,6 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         ISuperVault(_vault).onRedeemClaimable(
             controller, assetsFulfilled, sharesFulfilled, averageWithdrawPrice, accumulatorShares, accumulatorCostBasis
         );
-    }
-
-    /// @notice Internal function to handle a deposit
-    /// @param controller Address of the controller
-    /// @param assets Amount of assets
-    /// @param shares Amount of shares
-    function _handleDeposit(address controller, uint256 assets, uint256 shares) private {
-        if (assets == 0 || shares == 0) revert INVALID_AMOUNT();
-        if (controller == address(0)) revert ZERO_ADDRESS();
-
-        // Check if strategy is paused or if global hooks root is vetoed
-        if (_isPaused()) revert STRATEGY_PAUSED();
-        if (_getSuperVaultAggregator().isGlobalHooksRootVetoed()) {
-            revert OPERATIONS_BLOCKED_BY_VETO();
-        }
-
-        SuperVaultState storage state = superVaultState[controller];
-        state.accumulatorShares += shares;
-        state.accumulatorCostBasis += assets;
-        emit DepositHandled(controller, assets, shares);
     }
 
     /// @notice Internal function to handle a redeem

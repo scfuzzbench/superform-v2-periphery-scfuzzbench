@@ -143,7 +143,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         SuperVaultEscrow(escrow).initialize(superVault, strategy);
 
         // Initialize strategy
-        SuperVaultStrategy(strategy).initialize(superVault, params.feeConfig);
+        SuperVaultStrategy(payable(strategy)).initialize(superVault, params.feeConfig);
 
         // Store vault trio in registry
         _superVaults.add(superVault);

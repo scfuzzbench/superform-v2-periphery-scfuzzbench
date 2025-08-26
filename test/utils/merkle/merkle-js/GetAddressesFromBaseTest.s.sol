@@ -46,5 +46,7 @@ contract GetAddressesFromBaseTest is BaseTest {
         console.log("HOOK_REDEEM_4626_VAULT_HOOK:", globalMerkleHooks[1]);
         console.log("HOOK_APPROVE_AND_GEARBOX_STAKE_HOOK:", globalMerkleHooks[2]);
         console.log("HOOK_GEARBOX_UNSTAKE_HOOK:", globalMerkleHooks[3]);
+        console.log("HOOK_MOCK_NATIVE_ETH_HOOK:", globalMerkleHooksPeriphery[0]);
+        console.log("MOCK_ETH_RECEIVER:", contractAddresses[ETH]["MOCK_ETH_RECEIVER"]);
     }
 }

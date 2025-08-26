@@ -127,7 +127,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         aaveVault = IERC4626(aaveVaultAddr);
 
         vault = SuperVault(vaultAddr);
-        strategy = SuperVaultStrategy(strategyAddr);
+        strategy = SuperVaultStrategy(payable(strategyAddr));
         escrow = SuperVaultEscrow(escrowAddr);
 
         // Deploy TotalAssetHelper
@@ -191,7 +191,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: address(this) })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: address(this) })
             })
         );
 
@@ -242,7 +242,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: address(this) })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: address(this) })
             })
         );
 
@@ -1567,7 +1567,15 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
 
     function _setFeeConfig(uint256 feePercent, address feeRecipient) internal {
         vm.startPrank(MANAGER);
-        strategy.proposeVaultFeeConfigUpdate(feePercent, feeRecipient);
+        strategy.proposeVaultFeeConfigUpdate(feePercent, 0, feeRecipient);
+        vm.warp(block.timestamp + 1 weeks);
+        strategy.executeVaultFeeConfigUpdate();
+        vm.stopPrank();
+    }
+
+    function _setFeeConfig(uint256 performanceFeeBps, uint256 managementFeeBps, address feeRecipient) internal {
+        vm.startPrank(MANAGER);
+        strategy.proposeVaultFeeConfigUpdate(performanceFeeBps, managementFeeBps, feeRecipient);
         vm.warp(block.timestamp + 1 weeks);
         strategy.executeVaultFeeConfigUpdate();
         vm.stopPrank();

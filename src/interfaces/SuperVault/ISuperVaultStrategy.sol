@@ -73,8 +73,10 @@ interface ISuperVaultStrategy {
     event EmergencyWithdrawableUpdated(bool withdrawable);
     event EmergencyWithdrawableProposalCanceled();
     event EmergencyWithdrawal(address indexed recipient, uint256 assets);
-    event VaultFeeConfigUpdated(uint256 performanceFeeBps, address indexed recipient);
-    event VaultFeeConfigProposed(uint256 performanceFeeBps, address indexed recipient, uint256 effectiveTime);
+    event VaultFeeConfigUpdated(uint256 performanceFeeBps, uint256 managementFeeBps, address indexed recipient);
+    event VaultFeeConfigProposed(
+        uint256 performanceFeeBps, uint256 managementFeeBps, address indexed recipient, uint256 effectiveTime
+    );
     event MaxPPSSlippageUpdated(uint256 maxSlippageBps);
     event HooksExecuted(address[] hooks);
     event RedeemRequestPlaced(address indexed controller, address indexed owner, uint256 shares);
@@ -94,6 +96,7 @@ interface ISuperVaultStrategy {
     event RedeemRequestsFulfilled(address[] hooks, address[] controllers, uint256 processedShares, uint256 currentPPS);
 
     event FeePaid(address indexed recipient, uint256 amount, uint256 performanceFeeBps);
+    event EntryFeePaid(address indexed controller, address indexed recipient, uint256 feeAssets, uint256 feeBps);
     event DepositHandled(address indexed controller, uint256 assets, uint256 shares);
 
     /*//////////////////////////////////////////////////////////////
@@ -101,8 +104,9 @@ interface ISuperVaultStrategy {
     //////////////////////////////////////////////////////////////*/
 
     struct FeeConfig {
-        uint256 performanceFeeBps; // Fee in basis points
-        address recipient; // Fee recipient address
+        uint256 performanceFeeBps; // On profit at fulfill time
+        uint256 managementFeeBps; // Entry fee on deposit/mint (asset-side)
+        address recipient; // Fee sink (entry + performance)
     }
 
     /// @notice Structure for hook execution arguments
@@ -194,20 +198,42 @@ interface ISuperVaultStrategy {
     /// @param feeConfigData Fee configuration
     function initialize(address vaultAddress, FeeConfig memory feeConfigData) external;
 
-    /// @notice Handles asynchronous redeem operations initiated by the Vault.
-    /// @param controller Controller address for the redeem operation.
-    /// @param receiver Receiver address for the redeem operation.
-    /// @param assets For Redeem Request: Ignored. For Claim Redeem: assets amount. For Cancel: Ignored.
-    /// @param shares For Redeem Request: shares amount. For Claim Redeem: Ignored. For Cancel: Ignored.
-    /// @param operation The type of redeem operation (RedeemRequest, CancelRedeem, ClaimRedeem).
-    function handleOperation(
+    /// @notice Execute a 4626 deposit by processing assets.
+    /// @param controller The controller address
+    /// @param assetsGross The amount of gross assets user has to deposit
+    /// @return sharesNet The amount of net shares to mint
+    function handleOperations4626Deposit(
         address controller,
-        address receiver,
-        uint256 assets,
-        uint256 shares,
-        Operation operation
+        uint256 assetsGross
+    )
+        external
+        returns (uint256 sharesNet);
+
+    /// @notice Execute a 4626 mint by processing shares.
+    /// @param controller The controller address
+    /// @param sharesNet The amount of shares to mint
+    /// @param assetsGross The amount of gross assets user has to deposit
+    /// @param assetsNet The amount of net assets that strategy will receive
+    function handleOperations4626Mint(
+        address controller,
+        uint256 sharesNet,
+        uint256 assetsGross,
+        uint256 assetsNet
     )
         external;
+
+    /// @notice Quotes the amount of assets that will be received for a given amount of shares.
+    /// @param shares The amount of shares to mint
+    /// @return assetsGross The amount of gross assets that will be received
+    /// @return assetsNet The amount of net assets that will be received
+    function quoteMintAssetsGross(uint256 shares) external view returns (uint256 assetsGross, uint256 assetsNet);
+
+    /// @notice Execute async redeem requests (redeem, cancel, claim).
+    /// @param op The operation type (RedeemRequest, CancelRedeem, ClaimRedeem)
+    /// @param controller The controller address
+    /// @param receiver The receiver address
+    /// @param amount The amount of assets or shares
+    function handleOperations7540(Operation op, address controller, address receiver, uint256 amount) external;
 
     /*//////////////////////////////////////////////////////////////
                 MANAGER EXTERNAL ACCESS FUNCTIONS
@@ -215,7 +241,7 @@ interface ISuperVaultStrategy {
 
     /// @notice Execute hooks for general strategy management (rebalancing, etc.).
     /// @param args Execution arguments containing hooks, calldata, proofs, expectations.
-    function executeHooks(ExecuteArgs calldata args) external;
+    function executeHooks(ExecuteArgs calldata args) external payable;
 
     /// @notice Fulfills pending redeem requests by executing specific fulfill hooks.
     /// @param args Execution arguments containing fulfill hooks, calldata, and expected outputs (proofs ignored).
@@ -248,8 +274,14 @@ interface ISuperVaultStrategy {
     /// @notice Propose or execute a hook root update
     /// @notice Propose changes to vault-specific fee configuration
     /// @param performanceFeeBps New performance fee in basis points
+    /// @param managementFeeBps New management fee in basis points
     /// @param recipient New fee recipient
-    function proposeVaultFeeConfigUpdate(uint256 performanceFeeBps, address recipient) external;
+    function proposeVaultFeeConfigUpdate(
+        uint256 performanceFeeBps,
+        uint256 managementFeeBps,
+        address recipient
+    )
+        external;
 
     /// @notice Execute the proposed vault fee configuration update after timelock
     function executeVaultFeeConfigUpdate() external;

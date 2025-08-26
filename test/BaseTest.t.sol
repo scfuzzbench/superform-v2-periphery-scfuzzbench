@@ -21,6 +21,8 @@ import { ECDSAPPSOracle } from "../src/oracles/ECDSAPPSOracle.sol";
 import { Mock4626Vault } from "./mocks/Mock4626Vault.sol";
 import { RuggableVault } from "./mocks/RuggableVault.sol";
 import { RuggableConvertVault } from "./mocks/RuggableConvertVault.sol";
+import { MockNativeETHHook } from "./mocks/MockNativeETHHook.sol";
+import { MockETHReceiver } from "./mocks/MockETHReceiver.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 
 import "forge-std/console2.sol";
@@ -31,6 +33,8 @@ struct PeripheryAddresses {
     SuperOracle oracleRegistry;
     SuperVaultAggregator superVaultAggregator;
     ECDSAPPSOracle ecdsappsOracle;
+    MockNativeETHHook mockNativeETHHook;
+    MockETHReceiver mockETHReceiver;
 }
 
 contract BaseTest is PeripheryHelpers, CoreBaseTest {
@@ -53,6 +57,7 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
     address public test3_UnderlyingVaults_StressTest;
     address public test6_yieldAccumulation_vault1;
     address public test6_yieldAccumulation_vault2;
+    
     address public test6_yieldAccumulation_vault3;
     address public test6_yieldAccumulation_WithRebalancing_vault1;
     address public test6_yieldAccumulation_WithRebalancing_vault2;
@@ -61,6 +66,10 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
     address public test10_RuggableVault_Withdraw;
     address public test10_RuggableVault_Withdraw_ConvertDistortion;
     address public test11_Allocate_NewYieldSource;
+
+    // Periphery-specific merkle hooks
+    address[] public globalMerkleHooksPeriphery;
+    string[] public globalMerkleHookNamesPeriphery;
 
     /*//////////////////////////////////////////////////////////////
                                 SETUP
@@ -121,6 +130,7 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             vm.label(address(PA[i].ecdsappsOracle), ECDSAPPS_ORACLE_KEY);
             contractAddresses[chainIds[i]][ECDSAPPS_ORACLE_KEY] = address(PA[i].ecdsappsOracle);
 
+
             // Deploy implementation contracts first
             address vaultImpl = address(new SuperVault(address(PA[i].superGovernor)));
             address strategyImpl = address(new SuperVaultStrategy(address(PA[i].superGovernor)));
@@ -162,6 +172,16 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
                     ),
                     aggregator
                 );
+
+                // Deploy MockETHReceiver first (needed for MockNativeETHHook constructor) - ETH only
+                PA[i].mockETHReceiver = new MockETHReceiver{ salt: SALT }(existingUnderlyingTokens[ETH][USDC_KEY]);
+                vm.label(address(PA[i].mockETHReceiver), "MOCK_ETH_RECEIVER");
+                contractAddresses[ETH]["MOCK_ETH_RECEIVER"] = address(PA[i].mockETHReceiver);
+
+                // Deploy MockNativeETHHook for testing native ETH handling - ETH only
+                PA[i].mockNativeETHHook = new MockNativeETHHook{ salt: SALT }(address(PA[i].mockETHReceiver));
+                vm.label(address(PA[i].mockNativeETHHook), "MOCK_NATIVE_ETH_HOOK");
+                contractAddresses[ETH]["MOCK_NATIVE_ETH_HOOK"] = address(PA[i].mockNativeETHHook);
 
                 // Predict test vault addresses
                 _predictTestVaultAddresses();
@@ -382,6 +402,18 @@ contract BaseTest is PeripheryHelpers, CoreBaseTest {
             superGovernor.registerHook(hookAddresses[chainIds[i]][CLAIM_CANCEL_REDEEM_REQUEST_7540_HOOK_KEY], false);
             superGovernor.registerHook(hookAddresses[chainIds[i]][CANCEL_REDEEM_HOOK_KEY], false);
             superGovernor.registerHook(hookAddresses[chainIds[i]][MINT_SUPERPOSITIONS_HOOK_KEY], false);
+            
+            // Register MockNativeETHHook for testing - ETH only
+            if (chainIds[i] == ETH) {
+                superGovernor.registerHook(address(PA[i].mockNativeETHHook), true);
+                
+                // Initialize periphery-specific merkle hooks
+                globalMerkleHooksPeriphery = new address[](1);
+                globalMerkleHooksPeriphery[0] = address(PA[i].mockNativeETHHook);
+                
+                globalMerkleHookNamesPeriphery = new string[](1);
+                globalMerkleHookNamesPeriphery[0] = "MOCK_NATIVE_ETH_HOOK";
+            }
 
             // EXPERIMENTAL HOOKS FROM HERE ONWARDS
             superGovernor.registerHook(hookAddresses[chainIds[i]][ETHENA_COOLDOWN_SHARES_HOOK_KEY], false);

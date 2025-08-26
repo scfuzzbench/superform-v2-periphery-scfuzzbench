@@ -16,7 +16,8 @@ const hookAddresses = {
   'ApproveAndDeposit4626VaultHook': '0x95C5A10d9C6d27985b7bad85635060C0AEcBf356',
   'Redeem4626VaultHook': '0x7692d9e0d10799199c8285E4c99E1fBC5C64fBf3',
   'ApproveAndGearboxStakeHook': '0x9ef444a6d7F4A5adcd68FD5329aA5240C90E14d2',
-  'GearboxUnstakeHook': '0x9ef444a6d7F4A5adcd68FD5329aA5240C90E14d2'
+  'GearboxUnstakeHook': '0x9ef444a6d7F4A5adcd68FD5329aA5240C90E14d2',
+  'MockNativeETHHook': '0x0000000000000000000000000000000000000000' // Placeholder, will be updated
 };
 
 // Check if hook addresses were provided as a command line argument
@@ -30,14 +31,27 @@ if (process.argv.length > 2) {
     'ApproveAndDeposit4626VaultHook': addresses[0],
     'Redeem4626VaultHook': addresses[1],
     'ApproveAndGearboxStakeHook': addresses[2],
-    'GearboxUnstakeHook': addresses[3]
+    'GearboxUnstakeHook': addresses[3],
+    'MockNativeETHHook': addresses[4] || '0x0000000000000000000000000000000000000000'
   };
+  
+  // Check if MockETHReceiver address is provided as fourth argument
+  if (process.argv.length > 4) {
+    const mockETHReceiver = process.argv[4];
+    if (mockETHReceiver && mockETHReceiver !== '0x0000000000000000000000000000000000000000') {
+      // Add MockETHReceiver to yield sources for chain 1
+      if (!yieldSourcesList[1]) yieldSourcesList[1] = [];
+      yieldSourcesList[1].push({ address: mockETHReceiver, name: 'MockETHReceiver' });
+      console.log("Added MockETHReceiver to yield sources:", mockETHReceiver);
+    }
+  }
 
   // Log the addresses being used
   console.log("ApproveAndDeposit4626VaultHook:", customAddresses['ApproveAndDeposit4626VaultHook']);
   console.log("Redeem4626VaultHook:", customAddresses['Redeem4626VaultHook']);
   console.log("ApproveAndGearboxStakeHook:", customAddresses['ApproveAndGearboxStakeHook']);
   console.log("GearboxUnstakeHook:", customAddresses['GearboxUnstakeHook']);
+  console.log("MockNativeETHHook:", customAddresses['MockNativeETHHook']);
 
   // Override the default addresses
   Object.assign(hookAddresses, customAddresses);
@@ -124,6 +138,16 @@ const hookDefinitions = {
     argsInfo: {
       extractedAddresses: [
         { name: 'yieldSource', type: 'staking' }
+      ]
+    }
+  },
+  MockNativeETHHook: {
+    // Contract address of the deployed hook
+    address: hookAddresses['MockNativeETHHook'],
+    // Map argument names to their semantic types for proper list lookups
+    argsInfo: {
+      extractedAddresses: [
+        { name: 'yieldSource', type: 'yieldSource' }
       ]
     }
   }

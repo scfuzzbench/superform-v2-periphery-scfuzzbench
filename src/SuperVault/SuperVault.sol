@@ -50,6 +50,7 @@ contract SuperVault is
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
     uint256 private constant REQUEST_ID = 0;
+    uint256 private constant BPS_PRECISION = 10_000;
 
     // EIP712 TypeHash
     bytes32 public constant AUTHORIZE_OPERATOR_TYPEHASH =
@@ -139,15 +140,14 @@ contract SuperVault is
         if (receiver == address(0)) revert ZERO_ADDRESS();
         if (assets == 0) revert ZERO_AMOUNT();
 
-        uint256 currentPPS = _getStoredPPSWithRevert();
-
-        shares = Math.mulDiv(assets, PRECISION, currentPPS, Math.Rounding.Floor);
-        if (shares == 0) revert ZERO_AMOUNT();
-
+        // Forward assets from msg-sender to strategy
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        strategy.handleOperation(receiver, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
+        // Single executor call: strategy skims entry fee, accounts on NET, returns net shares
+        shares = strategy.handleOperations4626Deposit(receiver, assets);
+        if (shares == 0) revert ZERO_AMOUNT();
 
+        // Mint the net shares
         _mint(receiver, shares);
 
         emit Deposit(msg.sender, receiver, assets, shares);
@@ -158,15 +158,16 @@ contract SuperVault is
         if (receiver == address(0)) revert ZERO_ADDRESS();
         if (shares == 0) revert ZERO_AMOUNT();
 
-        uint256 currentPPS = _getStoredPPSWithRevert();
+        uint256 assetsNet;
+        (assets, assetsNet) = strategy.quoteMintAssetsGross(shares);
 
-        assets = Math.mulDiv(shares, currentPPS, PRECISION, Math.Rounding.Ceil);
-        if (assets == 0) revert ZERO_AMOUNT();
-
+        // Forward quoted gross assets from msg-sender to strategy
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        strategy.handleOperation(receiver, receiver, assets, shares, ISuperVaultStrategy.Operation.Deposit);
+        // Single executor call: strategy handles fees and accounts on NET
+        strategy.handleOperations4626Mint(receiver, shares, assets, assetsNet);
 
+        // Mint the exact shares asked
         _mint(receiver, shares);
 
         emit Deposit(msg.sender, receiver, assets, shares);
@@ -187,8 +188,8 @@ contract SuperVault is
         _approve(owner, escrow, shares);
         ISuperVaultEscrow(escrow).escrowShares(owner, shares);
 
-        // Forward to strategy
-        strategy.handleOperation(controller, address(0), 0, shares, ISuperVaultStrategy.Operation.RedeemRequest);
+        // Forward to strategy (7540 path)
+        strategy.handleOperations7540(ISuperVaultStrategy.Operation.RedeemRequest, controller, address(0), shares);
 
         emit RedeemRequest(controller, owner, REQUEST_ID, msg.sender, shares);
         return REQUEST_ID;
@@ -200,8 +201,8 @@ contract SuperVault is
 
         uint256 shares = strategy.pendingRedeemRequest(controller);
 
-        // Forward to strategy
-        strategy.handleOperation(controller, address(0), 0, 0, ISuperVaultStrategy.Operation.CancelRedeem);
+        // Forward to strategy (7540 path)
+        strategy.handleOperations7540(ISuperVaultStrategy.Operation.CancelRedeem, controller, address(0), 0);
 
         // Return shares to controller
         ISuperVaultEscrow(escrow).returnShares(controller, shares);
@@ -318,9 +319,9 @@ contract SuperVault is
 
     /// @inheritdoc IERC4626
     function convertToShares(uint256 assets) public view override returns (uint256) {
-        uint256 currentPPS = _getStoredPPS();
-        if (currentPPS == 0) return 0;
-        return Math.mulDiv(assets, PRECISION, currentPPS, Math.Rounding.Floor);
+        uint256 pps = _getStoredPPS();
+        if (pps == 0) return 0;
+        return Math.mulDiv(assets, PRECISION, pps, Math.Rounding.Floor);
     }
 
     /// @inheritdoc IERC4626
@@ -356,14 +357,31 @@ contract SuperVault is
 
     /// @inheritdoc IERC4626
     function previewDeposit(uint256 assets) public view override returns (uint256) {
-        return convertToShares(assets);
+        uint256 pps = _getStoredPPS();
+        if (pps == 0) return 0;
+
+        (uint256 feeBps,) = _getManagementFeeConfig();
+
+        if (feeBps == 0) return Math.mulDiv(assets, PRECISION, pps, Math.Rounding.Floor);
+        // fee-on-gross: fee = ceil(gross * feeBps / BPS)
+        uint256 fee = Math.mulDiv(assets, feeBps, BPS_PRECISION, Math.Rounding.Ceil);
+
+        uint256 assetsNet = assets - fee;
+        return Math.mulDiv(assetsNet, PRECISION, pps, Math.Rounding.Floor);
     }
 
     /// @inheritdoc IERC4626
     function previewMint(uint256 shares) public view override returns (uint256) {
-        uint256 currentPPS = _getStoredPPS();
-        if (currentPPS == 0) return 0;
-        return Math.mulDiv(shares, currentPPS, PRECISION, Math.Rounding.Ceil);
+        uint256 pps = _getStoredPPS();
+        if (pps == 0) return 0;
+
+        uint256 assetsNet = Math.mulDiv(shares, pps, PRECISION, Math.Rounding.Ceil);
+
+        (uint256 feeBps,) = _getManagementFeeConfig();
+        if (feeBps == 0) return assetsNet;
+        if (feeBps >= BPS_PRECISION) return 0; // impossible to mint (would require infinite gross)
+
+        return Math.mulDiv(assetsNet, BPS_PRECISION, (BPS_PRECISION - feeBps), Math.Rounding.Ceil);
     }
 
     /// @inheritdoc IERC4626
@@ -399,8 +417,8 @@ contract SuperVault is
         // Calculate shares based on assets and average withdraw price
         shares = assets.mulDiv(PRECISION, averageWithdrawPrice, Math.Rounding.Floor);
 
-        // Take assets from strategy
-        strategy.handleOperation(controller, receiver, assets, shares, ISuperVaultStrategy.Operation.ClaimRedeem);
+        // Take assets from strategy (7540 path)
+        strategy.handleOperations7540(ISuperVaultStrategy.Operation.ClaimRedeem, controller, receiver, assets);
 
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
     }
@@ -428,8 +446,8 @@ contract SuperVault is
         uint256 maxWithdrawAmount = maxWithdraw(controller);
         if (assets > maxWithdrawAmount) revert INVALID_AMOUNT();
 
-        // Take assets from strategy
-        strategy.handleOperation(controller, receiver, assets, shares, ISuperVaultStrategy.Operation.ClaimRedeem);
+        // Take assets from strategy (7540 path)
+        strategy.handleOperations7540(ISuperVaultStrategy.Operation.ClaimRedeem, controller, receiver, assets);
 
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
     }
@@ -504,17 +522,17 @@ contract SuperVault is
         return strategy.getStoredPPS();
     }
 
-    function _getStoredPPSWithRevert() internal view returns (uint256) {
-        uint256 currentPPS = _getStoredPPS();
-        if (currentPPS == 0) revert INVALID_PPS();
-        return currentPPS;
-    }
-
     /// @notice Checks if the vault is currently paused
     /// @dev This accesses the SuperVaultAggregator directly via the governor to determine pause status
     /// @return True if the vault is paused, false otherwise
     function _isPaused() internal view returns (bool) {
         address aggregatorAddress = superGovernor.getAddress(superGovernor.SUPER_VAULT_AGGREGATOR());
         return ISuperVaultAggregator(aggregatorAddress).isStrategyPaused(address(strategy));
+    }
+
+    /// @dev Read management fee config (view-only for previews)
+    function _getManagementFeeConfig() internal view returns (uint256 feeBps, address recipient) {
+        ISuperVaultStrategy.FeeConfig memory cfg = strategy.getConfigInfo();
+        return (cfg.managementFeeBps, cfg.recipient);
     }
 }

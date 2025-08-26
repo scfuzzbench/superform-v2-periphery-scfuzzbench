@@ -84,7 +84,11 @@ contract SuperGovernorTest is PeripheryHelpers {
                 symbol: "SUP",
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: address(this) })
+                feeConfig: ISuperVaultStrategy.FeeConfig({
+                    performanceFeeBps: 1000,
+                    managementFeeBps: 0,
+                    recipient: address(this)
+                })
             })
         );
         strategy1 = strategy;

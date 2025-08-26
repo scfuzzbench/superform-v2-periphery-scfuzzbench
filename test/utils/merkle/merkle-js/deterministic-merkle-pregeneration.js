@@ -142,6 +142,10 @@ DESCRIPTION:
                 addresses.hooks.APPROVE_AND_GEARBOX_STAKE_HOOK = this.extractAddress(line);
             } else if (line.includes('HOOK_GEARBOX_UNSTAKE_HOOK:')) {
                 addresses.hooks.GEARBOX_UNSTAKE_HOOK = this.extractAddress(line);
+            } else if (line.includes('HOOK_MOCK_NATIVE_ETH_HOOK:')) {
+                addresses.hooks.MOCK_NATIVE_ETH_HOOK = this.extractAddress(line);
+            } else if (line.includes('MOCK_ETH_RECEIVER:')) {
+                addresses.mockETHReceiver = this.extractAddress(line);
             }
         }
 
@@ -271,9 +275,10 @@ DESCRIPTION:
 
         const requiredHooks = [
             'APPROVE_AND_DEPOSIT_4626_VAULT_HOOK',
-            'REDEEM_4626_VAULT_HOOK',
+            'REDEEM_4626_VAULT_HOOK', 
             'APPROVE_AND_GEARBOX_STAKE_HOOK',
-            'GEARBOX_UNSTAKE_HOOK'
+            'GEARBOX_UNSTAKE_HOOK',
+            'MOCK_NATIVE_ETH_HOOK'
         ];
 
         // Check vaults
@@ -737,7 +742,8 @@ DESCRIPTION:
             addresses.hooks.APPROVE_AND_DEPOSIT_4626_VAULT_HOOK,
             addresses.hooks.REDEEM_4626_VAULT_HOOK,
             addresses.hooks.APPROVE_AND_GEARBOX_STAKE_HOOK,
-            addresses.hooks.GEARBOX_UNSTAKE_HOOK
+            addresses.hooks.GEARBOX_UNSTAKE_HOOK,
+            addresses.hooks.MOCK_NATIVE_ETH_HOOK
         ];
 
         this.log(`Hook addresses being passed:`);
@@ -745,13 +751,17 @@ DESCRIPTION:
         this.log(`  Redeem4626VaultHook: ${orderedHookAddresses[1]}`);
         this.log(`  ApproveAndGearboxStakeHook: ${orderedHookAddresses[2]}`);
         this.log(`  GearboxUnstakeHook: ${orderedHookAddresses[3]}`);
+        this.log(`  MockNativeETHHook: ${orderedHookAddresses[4]}`);
 
         const hooksString = orderedHookAddresses.join(',');
         const vaultsString = vaultAddresses.join(',');
+        const mockETHReceiver = addresses.mockETHReceiver || '0x0000000000000000000000000000000000000000';
+
+        this.log(`MockETHReceiver address: ${mockETHReceiver}`);
 
         try {
             execSync(
-                `node ${scriptPath} "${hooksString}" "${vaultsString}"`,
+                `node ${scriptPath} "${hooksString}" "${vaultsString}" "${mockETHReceiver}"`,
                 {
                     encoding: 'utf8',
                     cwd: '../../../../', // Go back to project root for merkle generation
