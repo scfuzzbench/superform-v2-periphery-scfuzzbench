@@ -47,7 +47,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     mapping(address strategy => StrategyData) private _strategyData;
 
     // Upkeep balances
-    mapping(address strategist => uint256 upkeep) private _strategistUpkeepBalance;
+    mapping(address manager => uint256 upkeep) private _managerUpkeepBalance;
 
 
     // Registry of created vaults
@@ -58,8 +58,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     // Constant for PPS decimals
     uint256 public constant PPS_DECIMALS = 18;
 
-    // Timelock for strategist changes and Merkle root updates
-    uint256 private constant _STRATEGIST_CHANGE_TIMELOCK = 7 days;
+    // Timelock for manager changes and Merkle root updates
+    uint256 private constant _MANAGER_CHANGE_TIMELOCK = 7 days;
     uint256 private _hooksRootUpdateTimelock = 15 minutes;
 
     // Global hooks Merkle root data
@@ -118,7 +118,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     {
         // Input validation
         if (
-            params.asset == address(0) || params.mainStrategist == address(0)
+            params.asset == address(0) || params.mainManager == address(0)
                 || params.feeConfig.recipient == address(0)
         ) {
             revert ZERO_ADDRESS();
@@ -167,11 +167,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategyData[strategy].minUpdateInterval = params.minUpdateInterval;
         _strategyData[strategy].maxStaleness = params.maxStaleness;
         _strategyData[strategy].isPaused = false;
-        _strategyData[strategy].mainStrategist = params.mainStrategist;
+        _strategyData[strategy].mainManager = params.mainManager;
 
-        uint256 secondaryLen = params.secondaryStrategists.length;
+        uint256 secondaryLen = params.secondaryManagers.length;
         for (uint256 i; i < secondaryLen; ++i) {
-            _strategyData[strategy].secondaryStrategists.add(params.secondaryStrategists[i]);
+            _strategyData[strategy].secondaryManagers.add(params.secondaryManagers[i]);
         }
 
         // Set default threshold values
@@ -274,7 +274,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                         UPKEEP MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
-    function depositUpkeep(address strategist, uint256 amount) external {
+    function depositUpkeep(address manager, uint256 amount) external {
         if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
 
         // Get the UP token address from SUPER_GOVERNOR
@@ -284,9 +284,9 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         IERC20(upToken).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update upkeep balance
-        _strategistUpkeepBalance[strategist] += amount;
+        _managerUpkeepBalance[manager] += amount;
 
-        emit UpkeepDeposited(strategist, amount);
+        emit UpkeepDeposited(manager, amount);
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -313,7 +313,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
 
         // Check sufficient balance
-        if (_strategistUpkeepBalance[msg.sender] < amount) {
+        if (_managerUpkeepBalance[msg.sender] < amount) {
             revert INSUFFICIENT_UPKEEP_BALANCE();
         }
 
@@ -322,10 +322,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // Update upkeep balance
         unchecked {
-            _strategistUpkeepBalance[msg.sender] -= amount;
+            _managerUpkeepBalance[msg.sender] -= amount;
         }
 
-        // Transfer UP tokens to strategist
+        // Transfer UP tokens to manager
         IERC20(upToken).safeTransfer(msg.sender, amount);
 
         emit UpkeepWithdrawn(msg.sender, amount);
@@ -336,12 +336,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
     function addAuthorizedCaller(address strategy, address caller) external validStrategy(strategy) {
-        // Either primary or secondary strategist can add authorized callers
-        if (!isAnyStrategist(msg.sender, strategy)) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        // Either primary or secondary manager can add authorized callers
+        if (!isAnyManager(msg.sender, strategy)) revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
         if (caller == address(0)) revert ZERO_ADDRESS();
 
-        // Prevent strategists from adding protected keepers to circumvent fees
+        // Prevent managers from adding protected keepers to circumvent fees
         if (SUPER_GOVERNOR.isProtectedKeeper(caller)) {
             revert CANNOT_ADD_PROTECTED_KEEPER();
         }
@@ -355,8 +355,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @inheritdoc ISuperVaultAggregator
     function removeAuthorizedCaller(address strategy, address caller) external validStrategy(strategy) {
-        // Either primary or secondary strategist can remove authorized callers
-        if (!isAnyStrategist(msg.sender, strategy)) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        // Either primary or secondary manager can remove authorized callers
+        if (!isAnyManager(msg.sender, strategy)) revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
         // Remove the caller
         if (!_strategyData[strategy].authorizedCallers.remove(caller)) {
@@ -366,33 +366,33 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /*//////////////////////////////////////////////////////////////
-                       STRATEGIST MANAGEMENT FUNCTIONS
+                       MANAGER MANAGEMENT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
-    function addSecondaryStrategist(address strategy, address strategist) external validStrategy(strategy) {
-        // Only the primary strategist can add secondary strategists
-        if (msg.sender != _strategyData[strategy].mainStrategist) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+    function addSecondaryManager(address strategy, address manager) external validStrategy(strategy) {
+        // Only the primary manager can add secondary managers
+        if (msg.sender != _strategyData[strategy].mainManager) revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
-        if (strategist == address(0)) revert ZERO_ADDRESS();
+        if (manager == address(0)) revert ZERO_ADDRESS();
 
-        // Check if strategist is already the primary strategist
-        if (_strategyData[strategy].mainStrategist == strategist) revert STRATEGIST_ALREADY_EXISTS();
+        // Check if manager is already the primary manager
+        if (_strategyData[strategy].mainManager == manager) revert MANAGER_ALREADY_EXISTS();
 
-        // Add as secondary strategist using EnumerableSet
-        if (!_strategyData[strategy].secondaryStrategists.add(strategist)) revert STRATEGIST_ALREADY_EXISTS();
+        // Add as secondary manager using EnumerableSet
+        if (!_strategyData[strategy].secondaryManagers.add(manager)) revert MANAGER_ALREADY_EXISTS();
 
-        emit SecondaryStrategistAdded(strategy, strategist);
+        emit SecondaryManagerAdded(strategy, manager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function removeSecondaryStrategist(address strategy, address strategist) external validStrategy(strategy) {
-        // Only the primary strategist can remove secondary strategists
-        if (msg.sender != _strategyData[strategy].mainStrategist) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+    function removeSecondaryManager(address strategy, address manager) external validStrategy(strategy) {
+        // Only the primary manager can remove secondary managers
+        if (msg.sender != _strategyData[strategy].mainManager) revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
-        // Remove the strategist using EnumerableSet
-        if (!_strategyData[strategy].secondaryStrategists.remove(strategist)) revert STRATEGIST_NOT_FOUND();
+        // Remove the manager using EnumerableSet
+        if (!_strategyData[strategy].secondaryManagers.remove(manager)) revert MANAGER_NOT_FOUND();
 
-        emit SecondaryStrategistRemoved(strategy, strategist);
+        emit SecondaryManagerRemoved(strategy, manager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -405,8 +405,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         external
         validStrategy(strategy)
     {
-        // Since this is a risky call, we only allow main strategists as callers
-        if (msg.sender != _strategyData[strategy].mainStrategist) {
+        // Since this is a risky call, we only allow main managers as callers
+        if (msg.sender != _strategyData[strategy].mainManager) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
         }
 
@@ -428,8 +428,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         external
         validStrategy(strategy)
     {
-        // Only the primary strategist can change global leaves status
-        if (msg.sender != _strategyData[strategy].mainStrategist) {
+        // Only the primary manager can change global leaves status
+        if (msg.sender != _strategyData[strategy].mainManager) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
         }
         uint256 leavesLen = leaves.length;
@@ -448,7 +448,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function changePrimaryStrategist(address strategy, address newStrategist) external validStrategy(strategy) {
+    function changePrimaryManager(address strategy, address newManager) external validStrategy(strategy) {
         // Only SuperGovernor can call this
         if (msg.sender != address(SUPER_GOVERNOR)) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -456,77 +456,77 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         if (strategy == address(0)) revert ZERO_ADDRESS();
 
-        if (newStrategist == address(0)) revert ZERO_ADDRESS();
+        if (newManager == address(0)) revert ZERO_ADDRESS();
 
-        address oldStrategist = _strategyData[strategy].mainStrategist;
+        address oldManager = _strategyData[strategy].mainManager;
 
-        // SECURITY: Clear any pending strategist proposals to prevent malicious re-takeover
-        _strategyData[strategy].proposedStrategist = address(0);
-        _strategyData[strategy].strategistChangeEffectiveTime = 0;
+        // SECURITY: Clear any pending manager proposals to prevent malicious re-takeover
+        _strategyData[strategy].proposedManager = address(0);
+        _strategyData[strategy].managerChangeEffectiveTime = 0;
 
         // SECURITY: Clear any pending hooks root proposals to prevent malicious hook updates
         _strategyData[strategy].proposedHooksRoot = bytes32(0);
         _strategyData[strategy].hooksRootEffectiveTime = 0;
 
-        // SECURITY: Clear all secondary strategists as they may be controlled by malicious strategist
-        // Get all secondary strategists first to emit proper events
-        address[] memory clearedSecondaryStrategists = _strategyData[strategy].secondaryStrategists.values();
+        // SECURITY: Clear all secondary managers as they may be controlled by malicious manager
+        // Get all secondary managers first to emit proper events
+        address[] memory clearedSecondaryManagers = _strategyData[strategy].secondaryManagers.values();
 
-        // Clear the entire secondary strategists set
-        for (uint256 i = 0; i < clearedSecondaryStrategists.length; i++) {
-            _strategyData[strategy].secondaryStrategists.remove(clearedSecondaryStrategists[i]);
-            emit SecondaryStrategistRemoved(strategy, clearedSecondaryStrategists[i]);
+        // Clear the entire secondary managers set
+        for (uint256 i = 0; i < clearedSecondaryManagers.length; i++) {
+            _strategyData[strategy].secondaryManagers.remove(clearedSecondaryManagers[i]);
+            emit SecondaryManagerRemoved(strategy, clearedSecondaryManagers[i]);
         }
 
-        // Set the new primary strategist
-        _strategyData[strategy].mainStrategist = newStrategist;
+        // Set the new primary manager
+        _strategyData[strategy].mainManager = newManager;
 
-        emit PrimaryStrategistChanged(strategy, oldStrategist, newStrategist);
+        emit PrimaryManagerChanged(strategy, oldManager, newManager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function proposeChangePrimaryStrategist(address strategy, address newStrategist) external validStrategy(strategy) {
-        // Only secondary strategists can propose changes to the primary strategist
-        if (!_strategyData[strategy].secondaryStrategists.contains(msg.sender)) {
+    function proposeChangePrimaryManager(address strategy, address newManager) external validStrategy(strategy) {
+        // Only secondary managers can propose changes to the primary manager
+        if (!_strategyData[strategy].secondaryManagers.contains(msg.sender)) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
         }
 
-        if (newStrategist == address(0)) revert ZERO_ADDRESS();
+        if (newManager == address(0)) revert ZERO_ADDRESS();
 
         // Set up the proposal with 7-day timelock
-        uint256 effectiveTime = block.timestamp + _STRATEGIST_CHANGE_TIMELOCK;
+        uint256 effectiveTime = block.timestamp + _MANAGER_CHANGE_TIMELOCK;
 
         // Store proposal in the strategy data
-        _strategyData[strategy].proposedStrategist = newStrategist;
-        _strategyData[strategy].strategistChangeEffectiveTime = effectiveTime;
+        _strategyData[strategy].proposedManager = newManager;
+        _strategyData[strategy].managerChangeEffectiveTime = effectiveTime;
 
-        emit PrimaryStrategistChangeProposed(strategy, msg.sender, newStrategist, effectiveTime);
+        emit PrimaryManagerChangeProposed(strategy, msg.sender, newManager, effectiveTime);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function executeChangePrimaryStrategist(address strategy) external validStrategy(strategy) {
+    function executeChangePrimaryManager(address strategy) external validStrategy(strategy) {
         // Check if there is a pending proposal
-        if (_strategyData[strategy].proposedStrategist == address(0)) revert NO_PENDING_STRATEGIST_CHANGE();
+        if (_strategyData[strategy].proposedManager == address(0)) revert NO_PENDING_MANAGER_CHANGE();
 
         // Check if the timelock period has passed
-        if (block.timestamp < _strategyData[strategy].strategistChangeEffectiveTime) revert TIMELOCK_NOT_EXPIRED();
+        if (block.timestamp < _strategyData[strategy].managerChangeEffectiveTime) revert TIMELOCK_NOT_EXPIRED();
 
-        address newStrategist = _strategyData[strategy].proposedStrategist;
-        address oldStrategist = _strategyData[strategy].mainStrategist;
+        address newManager = _strategyData[strategy].proposedManager;
+        address oldManager = _strategyData[strategy].mainManager;
 
-        // If new strategist is already a secondary strategist, remove them
-        _strategyData[strategy].secondaryStrategists.remove(newStrategist);
+        // If new manager is already a secondary manager, remove them
+        _strategyData[strategy].secondaryManagers.remove(newManager);
 
-        // Make the old primary strategist a secondary strategist
-        _strategyData[strategy].secondaryStrategists.add(oldStrategist);
+        // Make the old primary manager a secondary manager
+        _strategyData[strategy].secondaryManagers.add(oldManager);
 
-        // Set the new primary strategist
-        _strategyData[strategy].mainStrategist = newStrategist;
+        // Set the new primary manager
+        _strategyData[strategy].mainManager = newManager;
 
         // Clear the proposal
-        _strategyData[strategy].proposedStrategist = address(0);
+        _strategyData[strategy].proposedManager = address(0);
 
-        emit PrimaryStrategistChanged(strategy, oldStrategist, newStrategist);
+        emit PrimaryManagerChanged(strategy, oldManager, newManager);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -602,8 +602,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @inheritdoc ISuperVaultAggregator
     function proposeStrategyHooksRoot(address strategy, bytes32 newRoot) external validStrategy(strategy) {
-        // Only the main strategist can propose strategy-specific hooks root
-        if (_strategyData[strategy].mainStrategist != msg.sender) {
+        // Only the main manager can propose strategy-specific hooks root
+        if (_strategyData[strategy].mainManager != msg.sender) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
         }
 
@@ -620,7 +620,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         bytes32 proposedRoot = _strategyData[strategy].proposedHooksRoot;
         // Ensure there is a pending proposal
         if (proposedRoot == bytes32(0)) {
-            revert NO_PENDING_STRATEGIST_CHANGE(); // Reusing error for simplicity
+            revert NO_PENDING_MANAGER_CHANGE(); // Reusing error for simplicity
         }
 
         // Check if timelock period has elapsed
@@ -629,8 +629,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         }
 
         // Update the strategy's hooks root
-        bytes32 oldRoot = _strategyData[strategy].strategistHooksRoot;
-        _strategyData[strategy].strategistHooksRoot = proposedRoot;
+        bytes32 oldRoot = _strategyData[strategy].managerHooksRoot;
+        _strategyData[strategy].managerHooksRoot = proposedRoot;
 
         // Reset proposal state
         _strategyData[strategy].proposedHooksRoot = bytes32(0);
@@ -654,7 +654,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         // Update veto status
         _strategyData[strategy].hooksRootVetoed = vetoed;
 
-        emit StrategyHooksRootVetoStatusChanged(strategy, vetoed, _strategyData[strategy].strategistHooksRoot);
+        emit StrategyHooksRootVetoStatusChanged(strategy, vetoed, _strategyData[strategy].managerHooksRoot);
     }
     /// @inheritdoc ISuperVaultAggregator
 
@@ -731,8 +731,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getUpkeepBalance(address strategist) external view returns (uint256 balance) {
-        return _strategistUpkeepBalance[strategist];
+    function getUpkeepBalance(address manager) external view returns (uint256 balance) {
+        return _managerUpkeepBalance[manager];
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -741,37 +741,37 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getMainStrategist(address strategy) external view returns (address strategist) {
-        strategist = _strategyData[strategy].mainStrategist;
-        if (strategist == address(0)) revert ZERO_ADDRESS();
+    function getMainManager(address strategy) external view returns (address manager) {
+        manager = _strategyData[strategy].mainManager;
+        if (manager == address(0)) revert ZERO_ADDRESS();
 
-        return strategist;
+        return manager;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isMainStrategist(address strategist, address strategy) external view returns (bool) {
-        return _strategyData[strategy].mainStrategist == strategist;
+    function isMainManager(address manager, address strategy) external view returns (bool) {
+        return _strategyData[strategy].mainManager == manager;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getSecondaryStrategists(address strategy) external view returns (address[] memory) {
-        return _strategyData[strategy].secondaryStrategists.values();
+    function getSecondaryManagers(address strategy) external view returns (address[] memory) {
+        return _strategyData[strategy].secondaryManagers.values();
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isSecondaryStrategist(address strategist, address strategy) external view returns (bool) {
-        return _strategyData[strategy].secondaryStrategists.contains(strategist);
+    function isSecondaryManager(address manager, address strategy) external view returns (bool) {
+        return _strategyData[strategy].secondaryManagers.contains(manager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isAnyStrategist(address strategist, address strategy) public view returns (bool) {
-        // Check if primary strategist
-        if (_strategyData[strategy].mainStrategist == strategist) {
+    function isAnyManager(address manager, address strategy) public view returns (bool) {
+        // Check if primary manager
+        if (_strategyData[strategy].mainManager == manager) {
             return true;
         }
 
-        // Check if secondary strategist using EnumerableSet
-        return _strategyData[strategy].secondaryStrategists.contains(strategist);
+        // Check if secondary manager using EnumerableSet
+        return _strategyData[strategy].secondaryManagers.contains(manager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -821,7 +821,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             globalHooksRootVetoed: _globalHooksRootVetoed,
             globalHooksRoot: _globalHooksRoot,
             strategyHooksRootVetoed: _strategyData[strategy].hooksRootVetoed,
-            strategyRoot: _strategyData[strategy].strategistHooksRoot
+            strategyRoot: _strategyData[strategy].managerHooksRoot
         });
 
         // Early return false if either global or strategy hooks root is vetoed
@@ -854,7 +854,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             globalHooksRootVetoed: _globalHooksRootVetoed,
             globalHooksRoot: _globalHooksRoot,
             strategyHooksRootVetoed: _strategyData[strategy].hooksRootVetoed,
-            strategyRoot: _strategyData[strategy].strategistHooksRoot
+            strategyRoot: _strategyData[strategy].managerHooksRoot
         });
 
         // Early return all false if either global or strategy hooks root is vetoed
@@ -896,7 +896,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @inheritdoc ISuperVaultAggregator
     function getStrategyHooksRoot(address strategy) external view returns (bytes32 root) {
-        return _strategyData[strategy].strategistHooksRoot;
+        return _strategyData[strategy].managerHooksRoot;
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -926,8 +926,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             revert TIMESTAMP_NOT_MONOTONIC();
         }
 
-        // Get the strategy's strategist to deduct upkeep cost from
-        address strategist = _strategyData[args.strategy].mainStrategist;
+        // Get the strategy's manager to deduct upkeep cost from
+        address manager = _strategyData[args.strategy].mainManager;
 
         // Flag to track if any check failed
         bool checksFailed = false;
@@ -977,18 +977,18 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // Handle upkeep costs unless exempt
         if (!args.isExempt) {
-            // Check if strategist has sufficient upkeep balance
-            if (_strategistUpkeepBalance[strategist] < args.upkeepCost) {
+            // Check if manager has sufficient upkeep balance
+            if (_managerUpkeepBalance[manager] < args.upkeepCost) {
                 revert INSUFFICIENT_UPKEEP();
             }
 
             // Deduct the upkeep cost and emit event
-            _strategistUpkeepBalance[strategist] -= args.upkeepCost;
+            _managerUpkeepBalance[manager] -= args.upkeepCost;
 
             // Add claimable upkeep for the `feeRecipient`
             claimableUpkeep += args.upkeepCost;
 
-            emit UpkeepSpent(strategist, args.upkeepCost);
+            emit UpkeepSpent(manager, args.upkeepCost);
         } 
 
         // Update PPS, ppsStdev and timestamp in StrategyData
@@ -1023,14 +1023,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             return true;
         }
 
-        // If strategist is a superform strategist, they're exempt from upkeep fees
-        address strategist = _strategyData[strategy].mainStrategist;
-        if (SUPER_GOVERNOR.isSuperformStrategist(strategist)) {
+        // If manager is a superform manager, they're exempt from upkeep fees
+        address manager = _strategyData[strategy].mainManager;
+        if (SUPER_GOVERNOR.isSuperformManager(manager)) {
             return true;
         }
 
         // Check if the updateAuthority is in the authorized callers list
-        // These are strategist-designated keepers that should be exempt from fees
+        // These are manager-designated keepers that should be exempt from fees
         // NOTE: Protected keepers cannot be added to this list (blocked in addAuthorizedCaller)
         if (_strategyData[strategy].authorizedCallers.contains(updateAuthority)) {
             return true;
@@ -1083,7 +1083,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 return false;
             }
 
-            // Check if this leaf is banned by the strategist
+            // Check if this leaf is banned by the manager
             if (_strategyData[strategy].bannedLeaves[leaf]) {
                 return false;
             }

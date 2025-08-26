@@ -138,22 +138,22 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertGt(aaveVault.balanceOf(address(strategy)), 0, "No aave shares allocated");
     }
 
-    function test_DepositAndAllocateToYieldViaSmartAccountStrategist() public {
+    function test_DepositAndAllocateToYieldViaSmartAccountManager() public {
         uint256 depositAmount = 1000e6; // 1000 USDC
 
-        // Deploy a new SuperVault with a smart account strategist
-        AccountInstance memory strategistAccount = accInstances[1]; // Use a different account as strategist
-        _getTokens(address(asset), strategistAccount.account, 1 ether); // Fund the strategist account
+        // Deploy a new SuperVault with a smart account manager
+        AccountInstance memory managerAccount = accInstances[1]; // Use a different account as manager
+        _getTokens(address(asset), managerAccount.account, 1 ether); // Fund the manager account
 
-        // Deploy vault with smart account strategist
+        // Deploy vault with smart account manager
         (address newVaultAddr, address newStrategyAddr,) =
-            _deployVaultWithSmartAccountStrategist(strategistAccount.account);
+            _deployVaultWithSmartAccountManager(managerAccount.account);
 
         SuperVault newVault = SuperVault(newVaultAddr);
         SuperVaultStrategy newStrategy = SuperVaultStrategy(newStrategyAddr);
 
         // Setup yield sources for the new strategy via smart account
-        _manageYieldSourcesViaSmartAccount(strategistAccount, newStrategy);
+        _manageYieldSourcesViaSmartAccount(managerAccount, newStrategy);
 
         // Direct deposit to the new vault
         _deposit(depositAmount, newVaultAddr, address(asset));
@@ -163,9 +163,9 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertGt(userShares, 0, "No shares minted to user");
         assertEq(asset.balanceOf(address(newStrategy)), depositAmount, "Wrong strategy balance");
 
-        // Allocate the assets to yield sources via smart account strategist
+        // Allocate the assets to yield sources via smart account manager
         _depositFreeAssetsFromSingleAmountViaSmartAccount(
-            depositAmount, address(fluidVault), address(aaveVault), strategistAccount, newStrategy
+            depositAmount, address(fluidVault), address(aaveVault), managerAccount, newStrategy
         );
 
         // Verify allocation state
@@ -1618,7 +1618,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.newVault = IERC4626(0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9);
 
         // -- add it as a new yield source
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(vars.newVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         vm.stopPrank();
 
@@ -1680,7 +1680,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
             0
         );
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
 
         bytes[] memory argsForProofs = new bytes[](3);
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
@@ -1896,7 +1896,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         The impact of fee collection at super vault is that when calculating a fee in core, the user cannot "claim" the
             whole set of shares he had inscribed as historical shares
         Claims 999552226 shares instead of 1000000000 accumulated shares, where the diff is explained by the "assets"
-            collected as fees by the strategist/superform in SuperVault
+            collected as fees by the manager/superform in SuperVault
         For this reason, should we continue like this and assume this? Should we set a ledger configuration just for
             super vaults where the core fee on yield is 0 so the user is not double charged on performance?
         */
@@ -2210,7 +2210,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _createVault(
             VaultCreationParams({
                 asset: address(0),
-                strategist: STRATEGIST,
+                manager: MANAGER,
                 minUpdateInterval: 1000,
                 maxStaleness: 10_000,
                 performanceFeeBps: 1000,
@@ -2223,7 +2223,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _createVault(
             VaultCreationParams({
                 asset: address(asset),
-                strategist: address(0),
+                manager: address(0),
                 minUpdateInterval: 1000,
                 maxStaleness: 10_000,
                 performanceFeeBps: 1000,
@@ -2232,31 +2232,31 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
-    function test_CreateVaultWithSecondaryStrategists() public {
-        address[] memory secondaryStrategists = new address[](2);
-        secondaryStrategists[0] = address(0x1);
-        secondaryStrategists[1] = address(0x2);
-        (, address strategyAddr,) = _createVaultWithSecondaryStrategists(
+    function test_CreateVaultWithSecondaryManagers() public {
+        address[] memory secondaryManagers = new address[](2);
+        secondaryManagers[0] = address(0x1);
+        secondaryManagers[1] = address(0x2);
+        (, address strategyAddr,) = _createVaultWithSecondaryManagers(
             VaultCreationParams({
                 asset: address(asset),
-                strategist: address(this),
+                manager: address(this),
                 minUpdateInterval: 1000,
                 maxStaleness: 10_000,
                 performanceFeeBps: 1000,
                 symbol: "TV"
             }),
-            secondaryStrategists
+            secondaryManagers
         );
 
-        address[] memory retrievedStrategists = aggregator.getSecondaryStrategists(strategyAddr);
-        assertEq(retrievedStrategists.length, 2);
-        assertEq(retrievedStrategists[0], address(0x1));
-        assertEq(retrievedStrategists[1], address(0x2));
+        address[] memory retrievedManagers = aggregator.getSecondaryManagers(strategyAddr);
+        assertEq(retrievedManagers.length, 2);
+        assertEq(retrievedManagers[0], address(0x1));
+        assertEq(retrievedManagers[1], address(0x2));
     }
 
     struct VaultCreationParams {
         address asset;
-        address strategist;
+        address manager;
         uint256 minUpdateInterval;
         uint256 maxStaleness;
         uint256 performanceFeeBps;
@@ -2272,8 +2272,8 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 asset: params.asset,
                 name: "SuperVault",
                 symbol: params.symbol,
-                mainStrategist: params.strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: params.manager,
+                secondaryManagers: new address[](0),
                 minUpdateInterval: params.minUpdateInterval,
                 maxStaleness: params.maxStaleness,
                 feeConfig: ISuperVaultStrategy.FeeConfig({
@@ -2284,9 +2284,9 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
-    function _createVaultWithSecondaryStrategists(
+    function _createVaultWithSecondaryManagers(
         VaultCreationParams memory params,
-        address[] memory secondaryStrategists
+        address[] memory secondaryManagers
     )
         internal
         returns (address vaultAddr, address strategyAddr, address escrowAddr)
@@ -2296,8 +2296,8 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 asset: params.asset,
                 name: "SuperVault",
                 symbol: params.symbol,
-                mainStrategist: params.strategist,
-                secondaryStrategists: secondaryStrategists,
+                mainManager: params.manager,
+                secondaryManagers: secondaryManagers,
                 minUpdateInterval: params.minUpdateInterval,
                 maxStaleness: params.maxStaleness,
                 feeConfig: ISuperVaultStrategy.FeeConfig({
@@ -2442,7 +2442,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         strategyGearSuperVault = SuperVaultStrategy(strategyAddr);
 
         // Add a new yield source as manager
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategyGearSuperVault.manageYieldSource(
             address(gearboxVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, false
         );
@@ -2451,7 +2451,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
         vm.stopPrank();
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategyGearSuperVault.proposeVaultFeeConfigUpdate(100, TREASURY);
         vm.warp(block.timestamp + 1 weeks);
         strategyGearSuperVault.executeVaultFeeConfigUpdate();
@@ -2482,7 +2482,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         bytes[] memory argsForProofs = new bytes[](1);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategyGearSuperVault.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: fulfillHooksAddresses,
@@ -2516,7 +2516,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         bytes[] memory argsForProofs = new bytes[](1);
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
 
-        vm.prank(STRATEGIST);
+        vm.prank(MANAGER);
         strategyGearSuperVault.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -2543,7 +2543,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         bytes[] memory argsForProofs = new bytes[](1);
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
 
-        vm.prank(STRATEGIST);
+        vm.prank(MANAGER);
         strategyGearSuperVault.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -2582,7 +2582,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         bytes[] memory argsForProofs = new bytes[](1);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategyGearSuperVault.fulfillRedeemRequests(
             ISuperVaultStrategy.FulfillArgs({
                 controllers: requestingUsers,
@@ -2743,7 +2743,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         console2.log("Current AaveVault assets:", vars.currentAaveVaultAssets);
         console2.log("Target AaveVault assets:", vars.targetAaveVaultAssets);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         if (vars.currentFluidVaultAssets < vars.targetFluidVaultAssets) {
             _rebalanceFromAaveToFluid(vars, hooksAddresses, hooksData);
         } else {
@@ -2813,7 +2813,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         console2.log("Current AaveVault assets:", vars.currentAaveVaultAssets);
         console2.log("Target AaveVault assets:", vars.targetAaveVaultAssets);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         if (vars.currentFluidVaultAssets < vars.targetFluidVaultAssets) {
             _rebalanceFromAaveToFluid(vars, hooksAddresses, hooksData);
         } else {
@@ -2878,7 +2878,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         newVault.deposit(2 * LARGE_DEPOSIT, address(this));
 
         // -- add it as a new yield source
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(newVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         vm.stopPrank();
 
@@ -2942,7 +2942,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
         argsForProofs[2] = ISuperHookInspector(hooksAddresses[2]).inspect(hooksData[2]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -3555,7 +3555,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertEq(claimableAAfter, claimableA, "User A should retain their claimable assets");
 
         // Verify only accumulators moved during transfer
-        ISuperVaultStrategy.SuperVaultState memory stateA = strategy.getSuperVaultState(accInstances[0].account);
         ISuperVaultStrategy.SuperVaultState memory stateB = strategy.getSuperVaultState(accInstances[1].account);
 
         // User B should have accumulator from the transfer but no request/claim state
@@ -3730,7 +3729,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Get initial accumulator state
         ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
         uint256 initialAccumulatorShares = initialState.accumulatorShares;
-        uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
         
         // Cycle 1: Request → Cancel
         _requestRedeemForAccount(accInstances[0], redeemShares);
@@ -4036,7 +4034,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.warp(block.timestamp + 20 days);
 
         // -- add it as a new yield source
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(newVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         vm.stopPrank();
 
@@ -4186,7 +4184,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[2] = ISuperHookInspector(hooksAddresses[2]).inspect(hooksData[2]);
 
         // Perform allocation
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -4284,7 +4282,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[2] = ISuperHookInspector(hooksAddresses[2]).inspect(hooksData[2]);
 
         // Perform allocation
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -4566,7 +4564,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.warp(block.timestamp + 20 days);
 
         // Add Euler vault as a new yield source
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(eulerVaultAddr, _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         vm.stopPrank();
 
@@ -4836,7 +4834,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.vault3.deposit(2 * LARGE_DEPOSIT, address(this));
 
         // add vaults to SV
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(vars.vault1), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         strategy.manageYieldSource(address(vars.vault2), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         strategy.manageYieldSource(address(vars.vault3), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
@@ -4901,7 +4899,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
         argsForProofs[2] = ISuperHookInspector(fulfillHooksAddresses[2]).inspect(fulfillHooksData[2]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         console2.log("Executing hooks");
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
@@ -5027,7 +5025,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.vault3.deposit(2 * LARGE_DEPOSIT, address(this));
 
         // add vaults to SV
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(vars.vault1), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         strategy.manageYieldSource(address(vars.vault2), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         strategy.manageYieldSource(address(vars.vault3), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
@@ -5093,7 +5091,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
             argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
             argsForProofs[2] = ISuperHookInspector(fulfillHooksAddresses[2]).inspect(fulfillHooksData[2]);
 
-            vm.startPrank(STRATEGIST);
+            vm.startPrank(MANAGER);
             strategy.executeHooks(
                 ISuperVaultStrategy.ExecuteArgs({
                     hooks: fulfillHooksAddresses,
@@ -5253,7 +5251,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
         argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -5309,7 +5307,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
         argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -5460,7 +5458,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
         argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -5473,7 +5471,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.stopPrank();
 
         // disable fluid vault entirely
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(fluidVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 2, false);
         vm.stopPrank();
 
@@ -5521,7 +5519,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs = new bytes[](2);
         argsForProofs[0] = ISuperHookInspector(hooksAddresses[0]).inspect(hooksData[0]);
         argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         vm.expectRevert(ISuperVaultStrategy.YIELD_SOURCE_NOT_ACTIVE.selector);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
@@ -5535,12 +5533,12 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.stopPrank();
 
         // re-enable fluid vault
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(fluidVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 2, true);
         vm.stopPrank();
 
         // try allocate again
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -5834,7 +5832,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _updateSuperVaultPPS(address(strategy), address(vault));
 
         // -- add it as a new yield source
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(newVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true);
         vm.stopPrank();
 
@@ -5901,7 +5899,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
         argsForProofs[2] = ISuperHookInspector(hooksAddresses[2]).inspect(hooksData[2]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: hooksAddresses,
@@ -6585,7 +6583,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
             argsForProofs[1] = ISuperHookInspector(hooksAddresses[1]).inspect(hooksData[1]);
 
             // Execute allocation
-            vm.startPrank(STRATEGIST);
+            vm.startPrank(MANAGER);
             strategy.executeHooks(
                 ISuperVaultStrategy.ExecuteArgs({
                     hooks: hooksAddresses,
@@ -6652,7 +6650,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         escrow = SuperVaultEscrow(escrowAddr);
 
         // Replace aaveVault with ruggableVault in the strategy
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(address(fluidVault), _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true); // Add
 
         strategy.manageYieldSource(ruggableVault, _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY), 0, true); // Add
@@ -6676,7 +6674,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertEq(maxDepositBeforePause, type(uint256).max, "maxDeposit should return type(uint256).max when not paused");
 
         // Arrange: Set a strict deviation threshold to trigger pause (5% = 0.05 * 1e18)
-        vm.prank(STRATEGIST);
+        vm.prank(MANAGER);
         aggregator.updatePPSVerificationThresholds(
             address(testStrategy),
             type(uint256).max, // dispersionThreshold (disabled)
@@ -6722,7 +6720,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertEq(maxMintBeforePause, type(uint256).max, "maxMint should return type(uint256).max when not paused");
 
         // Arrange: Set a strict deviation threshold to trigger pause (5% = 0.05 * 1e18)
-        vm.prank(STRATEGIST);
+        vm.prank(MANAGER);
         aggregator.updatePPSVerificationThresholds(
             address(testStrategy),
             type(uint256).max, // dispersionThreshold (disabled)
@@ -6882,7 +6880,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Ensure there's no active proposal
         assertEq(strategy.emergencyWithdrawableEffectiveTime(), 0, "Should not have active proposal");
 
-        // Switch to a random address (not strategist)
+        // Switch to a random address (not manager)
         address randomUser = address(0x1234567890);
         vm.startPrank(randomUser);
 
@@ -6899,8 +6897,8 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Ensure there's no active proposal
         assertEq(strategy.emergencyWithdrawableEffectiveTime(), 0, "Should not have active proposal");
 
-        // Switch to strategist
-        vm.startPrank(STRATEGIST);
+        // Switch to manager
+        vm.startPrank(MANAGER);
 
         // Try to cancel a proposal that doesn't exist
         vm.expectRevert(ISuperVaultStrategy.NO_PROPOSAL.selector);
@@ -6911,7 +6909,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
     /// @notice Test successful emergency withdraw proposal and execution workflow
     function test_EmergencyWithdrawProposalAndExecution() public {
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
 
         // Step 1: Propose emergency withdraw
         vm.expectEmit(true, true, true, true);
@@ -6944,7 +6942,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
     /// @notice Test successful emergency withdraw proposal cancellation workflow
     function test_EmergencyWithdrawProposalCancellation() public {
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
 
         // Step 1: Propose emergency withdraw
         strategy.manageEmergencyWithdraw(1, address(0), 0); // action 1 = Propose
@@ -6969,7 +6967,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
     /// @notice Test that trying to execute after cancellation fails with NO_PROPOSAL
     function test_RevertWhen_ExecuteAfterCancellation() public {
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
 
         // Step 1: Propose emergency withdraw
         strategy.manageEmergencyWithdraw(1, address(0), 0); // action 1 = Propose
@@ -6984,20 +6982,20 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vm.stopPrank();
     }
 
-    /// @notice Test that only strategist can cancel proposals
-    function test_RevertWhen_NonStrategistTriesToCancelProposal() public {
-        vm.startPrank(STRATEGIST);
+    /// @notice Test that only manager can cancel proposals
+    function test_RevertWhen_NonManagerTriesToCancelProposal() public {
+        vm.startPrank(MANAGER);
 
         // Step 1: Propose emergency withdraw
         strategy.manageEmergencyWithdraw(1, address(0), 0); // action 1 = Propose
 
         vm.stopPrank();
 
-        // Step 2: Try to cancel as non-strategist
+        // Step 2: Try to cancel as non-manager
         address randomUser = address(0x1234567890);
         vm.startPrank(randomUser);
 
-        vm.expectRevert(ISuperVaultStrategy.STRATEGIST_NOT_AUTHORIZED.selector);
+        vm.expectRevert(ISuperVaultStrategy.MANAGER_NOT_AUTHORIZED.selector);
         strategy.manageEmergencyWithdraw(4, address(0), 0); // action 4 = CancelProposal
 
         vm.stopPrank();
@@ -7005,7 +7003,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
     /// @notice Test that multiple proposals can be made and cancelled
     function test_MultipleProposalAndCancellationCycles() public {
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
 
         // Cycle 1: Propose and cancel
         strategy.manageEmergencyWithdraw(1, address(0), 0); // action 1 = Propose
@@ -7039,7 +7037,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         // Try as various actors to execute emergency withdraw activation without proposal
         address[] memory actors = new address[](3);
-        actors[0] = STRATEGIST;
+        actors[0] = MANAGER;
         actors[1] = accountEth;
         actors[2] = address(0x1234567890); // random address
 

@@ -78,8 +78,8 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 asset: address(asset),
                 name: "TestVault",
                 symbol: "TV",
-                mainStrategist: mockStrategist,
-                secondaryStrategists: new address[](0),
+                mainManager: mockStrategist,
+                secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: TREASURY })
@@ -555,8 +555,8 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 asset: address(asset),
                 name: "Secondary TestVault",
                 symbol: "STV",
-                mainStrategist: mockStrategist,
-                secondaryStrategists: new address[](0),
+                mainManager: mockStrategist,
+                secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, recipient: TREASURY })

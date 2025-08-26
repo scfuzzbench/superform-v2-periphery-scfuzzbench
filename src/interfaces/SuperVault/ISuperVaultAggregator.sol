@@ -54,8 +54,8 @@ interface ISuperVaultAggregator {
     /// @param minUpdateInterval Minimum time interval between PPS updates
     /// @param maxStaleness Maximum time allowed between PPS updates before staleness
     /// @param isPaused Whether the strategy is paused
-    /// @param mainStrategist Address of the primary strategist controlling the strategy
-    /// @param secondaryStrategists Set of secondary strategists that can manage the strategy
+    /// @param mainManager Address of the primary manager controlling the strategy
+    /// @param secondaryManagers Set of secondary managers that can manage the strategy
     /// @param authorizedCallers List of callers authorized to update PPS without paying upkeep
     struct StrategyData {
         uint256 pps;
@@ -64,14 +64,14 @@ interface ISuperVaultAggregator {
         uint256 minUpdateInterval;
         uint256 maxStaleness;
         bool isPaused;
-        address mainStrategist;
-        EnumerableSet.AddressSet secondaryStrategists;
+        address mainManager;
+        EnumerableSet.AddressSet secondaryManagers;
         EnumerableSet.AddressSet authorizedCallers;
-        // Strategist change proposal data
-        address proposedStrategist;
-        uint256 strategistChangeEffectiveTime;
+        // Manager change proposal data
+        address proposedManager;
+        uint256 managerChangeEffectiveTime;
         // Hook validation data
-        bytes32 strategistHooksRoot;
+        bytes32 managerHooksRoot;
         // Hook root update proposal data
         bytes32 proposedHooksRoot;
         uint256 hooksRootEffectiveTime;
@@ -89,7 +89,7 @@ interface ISuperVaultAggregator {
     /// @param asset Address of the underlying asset
     /// @param name Name of the vault token
     /// @param symbol Symbol of the vault token
-    /// @param mainStrategist Address of the vault mainStrategist
+    /// @param mainManager Address of the vault mainManager
     /// @param minUpdateInterval Minimum time interval between PPS updates
     /// @param maxStaleness Maximum time allowed between PPS updates before staleness
     /// @param feeConfig Fee configuration for the vault
@@ -97,8 +97,8 @@ interface ISuperVaultAggregator {
         address asset;
         string name;
         string symbol;
-        address mainStrategist;
-        address[] secondaryStrategists;
+        address mainManager;
+        address[] secondaryManagers;
         uint256 minUpdateInterval;
         uint256 maxStaleness;
         ISuperVaultStrategy.FeeConfig feeConfig;
@@ -179,19 +179,19 @@ interface ISuperVaultAggregator {
     event StrategyCheckFailed(address indexed strategy, string reason);
 
     /// @notice Emitted when upkeep tokens are deposited
-    /// @param strategist Address of the strategist
+    /// @param manager Address of the manager
     /// @param amount Amount of UP tokens deposited
-    event UpkeepDeposited(address indexed strategist, uint256 amount);
+    event UpkeepDeposited(address indexed manager, uint256 amount);
 
     /// @notice Emitted when upkeep tokens are withdrawn
-    /// @param strategist Address of the strategist
+    /// @param manager Address of the manager
     /// @param amount Amount of UP tokens withdrawn
-    event UpkeepWithdrawn(address indexed strategist, uint256 amount);
+    event UpkeepWithdrawn(address indexed manager, uint256 amount);
 
     /// @notice Emitted when upkeep tokens are spent for validation
-    /// @param strategist Address of the strategist
+    /// @param manager Address of the manager
     /// @param amount Amount of UP tokens spent
-    event UpkeepSpent(address indexed strategist, uint256 amount);
+    event UpkeepSpent(address indexed manager, uint256 amount);
 
     /// @notice Emitted when an authorized caller is added for a strategy
     /// @param strategy Address of the strategy
@@ -203,39 +203,39 @@ interface ISuperVaultAggregator {
     /// @param caller Address of the removed caller
     event AuthorizedCallerRemoved(address indexed strategy, address indexed caller);
 
-    /// @notice Emitted when a secondary strategist is added to a strategy
+    /// @notice Emitted when a secondary manager is added to a strategy
     /// @param strategy Address of the strategy
-    /// @param strategist Address of the strategist added
-    event SecondaryStrategistAdded(address indexed strategy, address indexed strategist);
+    /// @param manager Address of the manager added
+    event SecondaryManagerAdded(address indexed strategy, address indexed manager);
 
-    /// @notice Emitted when a secondary strategist is removed from a strategy
+    /// @notice Emitted when a secondary manager is removed from a strategy
     /// @param strategy Address of the strategy
-    /// @param strategist Address of the strategist removed
-    event SecondaryStrategistRemoved(address indexed strategy, address indexed strategist);
+    /// @param manager Address of the manager removed
+    event SecondaryManagerRemoved(address indexed strategy, address indexed manager);
 
-    /// @notice Emitted when a primary strategist is changed
+    /// @notice Emitted when a primary manager is changed
     /// @param strategy Address of the strategy
-    /// @param oldStrategist Address of the old primary strategist
-    /// @param newStrategist Address of the new primary strategist
-    event PrimaryStrategistChanged(
-        address indexed strategy, address indexed oldStrategist, address indexed newStrategist
+    /// @param oldManager Address of the old primary manager
+    /// @param newManager Address of the new primary manager
+    event PrimaryManagerChanged(
+        address indexed strategy, address indexed oldManager, address indexed newManager
     );
 
-    /// @notice Emitted when a primary strategist is changed to a superform strategist
+    /// @notice Emitted when a primary manager is changed to a superform manager
     /// @param strategy Address of the strategy
-    /// @param oldStrategist Address of the old primary strategist
-    /// @param newStrategist Address of the new primary strategist (superform strategist)
-    event PrimaryStrategistChangedToSuperform(
-        address indexed strategy, address indexed oldStrategist, address indexed newStrategist
+    /// @param oldManager Address of the old primary manager
+    /// @param newManager Address of the new primary manager (superform manager)
+    event PrimaryManagerChangedToSuperform(
+        address indexed strategy, address indexed oldManager, address indexed newManager
     );
 
-    /// @notice Emitted when a change to primary strategist is proposed by a secondary strategist
+    /// @notice Emitted when a change to primary manager is proposed by a secondary manager
     /// @param strategy Address of the strategy
-    /// @param proposer Address of the secondary strategist who made the proposal
-    /// @param newStrategist Address of the proposed new primary strategist
+    /// @param proposer Address of the secondary manager who made the proposal
+    /// @param newManager Address of the proposed new primary manager
     /// @param effectiveTime Timestamp when the proposal can be executed
-    event PrimaryStrategistChangeProposed(
-        address indexed strategy, address indexed proposer, address indexed newStrategist, uint256 effectiveTime
+    event PrimaryManagerChangeProposed(
+        address indexed strategy, address indexed proposer, address indexed newManager, uint256 effectiveTime
     );
 
     /// @notice Emitted when a PPS update is stale (Validators could get slashed for innactivity)
@@ -353,14 +353,14 @@ interface ISuperVaultAggregator {
     error CALLER_NOT_AUTHORIZED();
     /// @notice Thrown when array index is out of bounds
     error INDEX_OUT_OF_BOUNDS();
-    /// @notice Thrown when attempting to remove the last strategist
-    error CANNOT_REMOVE_LAST_STRATEGIST();
-    /// @notice Thrown when attempting to add a strategist that already exists
-    error STRATEGIST_ALREADY_EXISTS();
+    /// @notice Thrown when attempting to remove the last manager
+    error CANNOT_REMOVE_LAST_MANAGER();
+    /// @notice Thrown when attempting to add a manager that already exists
+    error MANAGER_ALREADY_EXISTS();
     /// @notice Thrown when there is no pending global hooks root change
     error NO_PENDING_GLOBAL_ROOT_CHANGE();
-    /// @notice Thrown when attempting to execute an in-progress strategist change before timelock elapsed
-    error STRATEGIST_CHANGE_NOT_READY();
+    /// @notice Thrown when attempting to execute an in-progress manager change before timelock elapsed
+    error MANAGER_CHANGE_NOT_READY();
     /// @notice Thrown when attempting to execute a hooks root change before timelock has elapsed
     error ROOT_UPDATE_NOT_READY();
     /// @notice Thrown when a provided hook fails Merkle proof validation
@@ -369,10 +369,10 @@ interface ISuperVaultAggregator {
     error NOT_A_GUARDIAN();
     /// @notice Thrown when trying to veto a root update that doesn't exist
     error NO_PENDING_ROOT_UPDATE();
-    /// @notice Thrown when strategist is not found
-    error STRATEGIST_NOT_FOUND();
-    /// @notice Thrown when there is no pending strategist change proposal
-    error NO_PENDING_STRATEGIST_CHANGE();
+    /// @notice Thrown when manager is not found
+    error MANAGER_NOT_FOUND();
+    /// @notice Thrown when there is no pending manager change proposal
+    error NO_PENDING_MANAGER_CHANGE();
     /// @notice Thrown when caller is not authorized to update settings
     error UNAUTHORIZED_CALLER();
     /// @notice Thrown when the timelock for a proposed change has not expired
@@ -432,12 +432,12 @@ interface ISuperVaultAggregator {
                         UPKEEP MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Deposits UP tokens for strategist upkeep
-    /// @param strategist Address of the strategist to deposit for
+    /// @notice Deposits UP tokens for manager upkeep
+    /// @param manager Address of the manager to deposit for
     /// @param amount Amount of UP tokens to deposit
-    function depositUpkeep(address strategist, uint256 amount) external;
+    function depositUpkeep(address manager, uint256 amount) external;
 
-    /// @notice Withdraws UP tokens from strategist upkeep balance
+    /// @notice Withdraws UP tokens from manager upkeep balance
     /// @param amount Amount of UP tokens to withdraw
     function withdrawUpkeep(uint256 amount) external;
 
@@ -460,35 +460,35 @@ interface ISuperVaultAggregator {
     function removeAuthorizedCaller(address strategy, address caller) external;
 
     /*//////////////////////////////////////////////////////////////
-                       STRATEGIST MANAGEMENT FUNCTIONS
+                       MANAGER MANAGEMENT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Adds a secondary strategist to a strategy
-    /// @notice A strategist can either be secondary or primary
+    /// @notice Adds a secondary manager to a strategy
+    /// @notice A manager can either be secondary or primary
     /// @param strategy Address of the strategy
-    /// @param strategist Address of the strategist to add
-    function addSecondaryStrategist(address strategy, address strategist) external;
+    /// @param manager Address of the manager to add
+    function addSecondaryManager(address strategy, address manager) external;
 
-    /// @notice Removes a secondary strategist from a strategy
+    /// @notice Removes a secondary manager from a strategy
     /// @param strategy Address of the strategy
-    /// @param strategist Address of the strategist to remove
-    function removeSecondaryStrategist(address strategy, address strategist) external;
+    /// @param manager Address of the manager to remove
+    function removeSecondaryManager(address strategy, address manager) external;
 
-    /// @notice Changes the primary strategist of a strategy immediately (only callable by SuperGovernor)
-    /// @notice A strategist can either be secondary or primary
+    /// @notice Changes the primary manager of a strategy immediately (only callable by SuperGovernor)
+    /// @notice A manager can either be secondary or primary
     /// @param strategy Address of the strategy
-    /// @param newStrategist Address of the new primary strategist
-    function changePrimaryStrategist(address strategy, address newStrategist) external;
+    /// @param newManager Address of the new primary manager
+    function changePrimaryManager(address strategy, address newManager) external;
 
-    /// @notice Proposes a change to the primary strategist (callable by secondary strategists)
-    /// @notice A strategist can either be secondary or primary
+    /// @notice Proposes a change to the primary manager (callable by secondary managers)
+    /// @notice A manager can either be secondary or primary
     /// @param strategy Address of the strategy
-    /// @param newStrategist Address of the proposed new primary strategist
-    function proposeChangePrimaryStrategist(address strategy, address newStrategist) external;
+    /// @param newManager Address of the proposed new primary manager
+    function proposeChangePrimaryManager(address strategy, address newManager) external;
 
-    /// @notice Executes a previously proposed change to the primary strategist after timelock
+    /// @notice Executes a previously proposed change to the primary manager after timelock
     /// @param strategy Address of the strategy
-    function executeChangePrimaryStrategist(address strategy) external;
+    function executeChangePrimaryManager(address strategy) external;
 
     /*//////////////////////////////////////////////////////////////
                         HOOK VALIDATION FUNCTIONS
@@ -507,7 +507,7 @@ interface ISuperVaultAggregator {
     function executeGlobalHooksRootUpdate() external;
 
     /// @notice Proposes an update to a strategy-specific hooks Merkle root
-    /// @dev Only callable by the main strategist for the strategy
+    /// @dev Only callable by the main manager for the strategy
     /// @param strategy Address of the strategy
     /// @param newRoot New Merkle root for strategy-specific hooks
     function proposeStrategyHooksRoot(address strategy, bytes32 newRoot) external;
@@ -542,7 +542,7 @@ interface ISuperVaultAggregator {
         external;
 
     /// @notice Changes the banned status of global leaves for a specific strategy
-    /// @dev Only callable by the primary strategist of the strategy
+    /// @dev Only callable by the primary manager of the strategy
     /// @param leaves Array of leaf hashes to change status for
     /// @param statuses Array of banned statuses (true = banned, false = allowed)
     /// @param strategy Address of the strategy to change banned leaves for
@@ -616,49 +616,49 @@ interface ISuperVaultAggregator {
     /// @return isPaused True if paused, false otherwise
     function isStrategyPaused(address strategy) external view returns (bool isPaused);
 
-    /// @notice Gets the current upkeep balance for a strategist
-    /// @param strategist Address of the strategist
+    /// @notice Gets the current upkeep balance for a manager
+    /// @param manager Address of the manager
     /// @return balance Current upkeep balance in UP tokens
-    function getUpkeepBalance(address strategist) external view returns (uint256 balance);
+    function getUpkeepBalance(address manager) external view returns (uint256 balance);
 
     /// @notice Gets all authorized callers for a strategy
     /// @param strategy Address of the strategy
     /// @return callers Array of authorized callers
     function getAuthorizedCallers(address strategy) external view returns (address[] memory callers);
 
-    /// @notice Gets the main strategist for a strategy
+    /// @notice Gets the main manager for a strategy
     /// @param strategy Address of the strategy
-    /// @return strategist Address of the main strategist
-    function getMainStrategist(address strategy) external view returns (address strategist);
+    /// @return manager Address of the main manager
+    function getMainManager(address strategy) external view returns (address manager);
 
-    /// @notice Checks if an address is the main strategist for a strategy
-    /// @param strategist Address of the strategist
+    /// @notice Checks if an address is the main manager for a strategy
+    /// @param manager Address of the manager
     /// @param strategy Address of the strategy
-    /// @return isMainStrategist True if the address is the main strategist, false otherwise
-    function isMainStrategist(address strategist, address strategy) external view returns (bool isMainStrategist);
+    /// @return isMainManager True if the address is the main manager, false otherwise
+    function isMainManager(address manager, address strategy) external view returns (bool isMainManager);
 
-    /// @notice Gets all secondary strategists for a strategy
+    /// @notice Gets all secondary managers for a strategy
     /// @param strategy Address of the strategy
-    /// @return secondaryStrategists Array of secondary strategist addresses
-    function getSecondaryStrategists(address strategy) external view returns (address[] memory secondaryStrategists);
+    /// @return secondaryManagers Array of secondary manager addresses
+    function getSecondaryManagers(address strategy) external view returns (address[] memory secondaryManagers);
 
-    /// @notice Checks if an address is a secondary strategist for a strategy
-    /// @param strategist Address of the strategist
+    /// @notice Checks if an address is a secondary manager for a strategy
+    /// @param manager Address of the manager
     /// @param strategy Address of the strategy
-    /// @return isSecondaryStrategist True if the address is a secondary strategist, false otherwise
-    function isSecondaryStrategist(
-        address strategist,
+    /// @return isSecondaryManager True if the address is a secondary manager, false otherwise
+    function isSecondaryManager(
+        address manager,
         address strategy
     )
         external
         view
-        returns (bool isSecondaryStrategist);
+        returns (bool isSecondaryManager);
 
-    /// @dev Internal helper function to check if an address is any kind of strategist (primary or secondary)
-    /// @param strategist Address to check
+    /// @dev Internal helper function to check if an address is any kind of manager (primary or secondary)
+    /// @param manager Address to check
     /// @param strategy The strategy to check against
-    /// @return True if the address is either the primary strategist or a secondary strategist
-    function isAnyStrategist(address strategist, address strategy) external view returns (bool);
+    /// @return True if the address is either the primary manager or a secondary manager
+    function isAnyManager(address manager, address strategy) external view returns (bool);
 
     /// @notice Gets all created SuperVaults
     /// @return Array of SuperVault addresses

@@ -72,8 +72,8 @@ interface ISuperGovernor is IAccessControl {
     error NO_ACTIVE_PPS_ORACLE();
     /// @notice Thrown when no proposed PPS oracle exists but one is expected
     error NO_PROPOSED_PPS_ORACLE();
-    /// @notice Error thrown when strategist takeovers are frozen
-    error STRATEGIST_TAKEOVERS_FROZEN();
+    /// @notice Error thrown when manager takeovers are frozen
+    error MANAGER_TAKEOVERS_FROZEN();
     /// @notice Thrown when no proposed Merkle root exists but one is expected
     error NO_PROPOSED_MERKLE_ROOT();
     /// @notice Thrown when no proposed Merkle root exists but one is expected
@@ -94,10 +94,10 @@ interface ISuperGovernor is IAccessControl {
     error EXECUTOR_ALREADY_REGISTERED();
     /// @notice Thrown when there's no pending change but one is expected
     error NO_PENDING_CHANGE();
-    /// @notice Thrown when a strategist is not registered
-    error STRATEGIST_NOT_REGISTERED();
-    /// @notice Thrown when a strategist is already registered
-    error STRATEGIST_ALREADY_REGISTERED();
+    /// @notice Thrown when a manager is not registered
+    error MANAGER_NOT_REGISTERED();
+    /// @notice Thrown when a manager is already registered
+    error MANAGER_ALREADY_REGISTERED();
     /// @notice Thrown when a token is already whitelisted
     error TOKEN_ALREADY_WHITELISTED();
     /// @notice Thrown when a token is not proposed for whitelisting but expected to be
@@ -132,14 +132,6 @@ interface ISuperGovernor is IAccessControl {
     /// @notice Emitted when a fulfill requests hook is unregistered
     /// @param hook The address of the unregistered fulfill requests hook
     event FulfillRequestsHookUnregistered(address indexed hook);
-
-    /// @notice Emitted when a strategist is registered
-    /// @param strategist The address of the registered strategist
-    event StrategistAdded(address indexed strategist);
-
-    /// @notice Emitted when a strategist is removed
-    /// @param strategist The address of the removed strategist
-    event StrategistRemoved(address indexed strategist);
 
     /// @notice Emitted when a validator is registered
     /// @param validator The address of the registered validator
@@ -204,8 +196,8 @@ interface ISuperGovernor is IAccessControl {
     /// @param newOracle The address of the new oracle
     event ActivePPSOracleChanged(address indexed oldOracle, address indexed newOracle);
 
-    /// @notice Event emitted when strategist takeovers are permanently frozen
-    event StrategistTakeoversFrozen();
+    /// @notice Event emitted when manager takeovers are permanently frozen
+    event ManagerTakeoversFrozen();
 
     /// @notice Emitted when a new upkeep cost per update is proposed
     /// @param newCost The proposed upkeep cost
@@ -259,13 +251,13 @@ interface ISuperGovernor is IAccessControl {
     /// @param newMinStaleness The new minimum staleness value
     event MinStalenesChanged(uint256 newMinStaleness);
 
-    /// @notice Emitted when a superform strategist is added
-    /// @param strategist The address of the added strategist
-    event SuperformStrategistAdded(address indexed strategist);
+    /// @notice Emitted when a superform manager is added
+    /// @param manager The address of the added manager
+    event SuperformManagerAdded(address indexed manager);
 
-    /// @notice Emitted when a superform strategist is removed
-    /// @param strategist The address of the removed strategist
-    event SuperformStrategistRemoved(address indexed strategist);
+    /// @notice Emitted when a superform manager is removed
+    /// @param manager The address of the removed manager
+    event SuperformManagerRemoved(address indexed manager);
 
     /// @notice Emitted when incentive tokens are proposed for whitelisting
     /// @param tokens The addresses of the proposed tokens
@@ -303,14 +295,14 @@ interface ISuperGovernor is IAccessControl {
     /// @param prover The address of the prover
     function setProver(address prover) external;
 
-    /// @notice Change the primary strategist for a strategy
+    /// @notice Change the primary manager for a strategy
     /// @dev Only SuperGovernor can call this function directly
     /// @param strategy The strategy address
-    /// @param newStrategist The new primary strategist address
-    function changePrimaryStrategist(address strategy, address newStrategist) external;
+    /// @param newManager The new primary manager address
+    function changePrimaryManager(address strategy, address newManager) external;
 
-    /// @notice Permanently freezes all strategist takeovers globally
-    function freezeStrategistTakeover() external;
+    /// @notice Permanently freezes all manager takeovers globally
+    function freezeManagerTakeover() external;
 
     /// @notice Changes the hooks root update timelock duration
     /// @param newTimelock New timelock duration in seconds
@@ -508,16 +500,16 @@ interface ISuperGovernor is IAccessControl {
     function executeMinStalenesChange() external;
 
     /*//////////////////////////////////////////////////////////////
-                        SUPERFORM STRATEGIST MANAGEMENT
+                        SUPERFORM MANAGER MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Adds a strategist to the superform strategists list
-    /// @param strategist Address of the strategist to add
-    function addSuperformStrategist(address strategist) external;
+    /// @notice Adds a manager to the superform managers list
+    /// @param manager Address of the manager to add
+    function addSuperformManager(address manager) external;
 
-    /// @notice Removes a strategist from the superform strategists list
-    /// @param strategist Address of the strategist to remove
-    function removeSuperformStrategist(address strategist) external;
+    /// @notice Removes a manager from the superform managers list
+    /// @param manager Address of the manager to remove
+    function removeSuperformManager(address manager) external;
 
     /*//////////////////////////////////////////////////////////////
                            VAULT HOOKS MGMT
@@ -591,9 +583,9 @@ interface ISuperGovernor is IAccessControl {
     /// @return The address value
     function getAddress(bytes32 key) external view returns (address);
 
-    /// @notice Checks if strategist takeovers are frozen
-    /// @return True if strategist takeovers are frozen, false otherwise
-    function isStrategistTakeoverFrozen() external view returns (bool);
+    /// @notice Checks if manager takeovers are frozen
+    /// @return True if manager takeovers are frozen, false otherwise
+    function isManagerTakeoverFrozen() external view returns (bool);
 
     /// @notice Gets the vault bank address for a specific chain ID
     /// @param chainId The chain ID to get the vault bank for
@@ -737,31 +729,31 @@ interface ISuperGovernor is IAccessControl {
     /// @return effectiveTime The timestamp when the change becomes effective
     function getProposedUpkeepPaymentsStatus() external view returns (bool enabled, uint256 effectiveTime);
 
-    /// @notice Checks if an address is a registered superform strategist
-    /// @param strategist The address to check
-    /// @return isSuperform True if the address is a superform strategist
-    function isSuperformStrategist(address strategist) external view returns (bool);
+    /// @notice Checks if an address is a registered superform manager
+    /// @param manager The address to check
+    /// @return isSuperform True if the address is a superform manager
+    function isSuperformManager(address manager) external view returns (bool);
 
-    /// @notice Gets the list of all superform strategists
-    /// @return strategists The list of all superform strategist addresses
-    function getAllSuperformStrategists() external view returns (address[] memory);
+    /// @notice Gets the list of all superform managers
+    /// @return managers The list of all superform manager addresses
+    function getAllSuperformManagers() external view returns (address[] memory);
 
-    /// @notice Returns up to `limit` superform strategists starting from `cursor`
+    /// @notice Returns up to `limit` superform managers starting from `cursor`
     /// @param cursor The index to start reading from (0 … len-1)
     /// @param limit The maximum number of records to return
-    /// @return chunkOfStrategists The array slice [cursor … cursor+limit-1]
+    /// @return chunkOfManagers The array slice [cursor … cursor+limit-1]
     /// @return next The next cursor value the caller should use, or 0 to indicate done
-    function getStrategistsPaginated(
+    function getManagersPaginated(
         uint256 cursor,
         uint256 limit
     )
         external
         view
-        returns (address[] memory chunkOfStrategists, uint256 next);
+        returns (address[] memory chunkOfManagers, uint256 next);
 
-    /// @notice Gets the number of superform strategists
-    /// @return The number of superform strategists
-    function getSuperformStrategistsCount() external view returns (uint256);
+    /// @notice Gets the number of superform managers
+    /// @return The number of superform managers
+    function getSuperformManagersCount() external view returns (uint256);
 
     /// @notice Gets the SUP ID
     /// @return The ID of the SUP token
@@ -791,7 +783,7 @@ interface ISuperGovernor is IAccessControl {
     /// @return The ID for the SuperBank in the registry
     function SUPER_BANK() external view returns (bytes32);
 
-    /// @notice Registers a keeper that cannot be added as authorized caller by strategists
+    /// @notice Registers a keeper that cannot be added as authorized caller by managers
     /// @dev Only governance can register protected keepers
     /// @param keeper Address of the keeper to register
     function registerProtectedKeeper(address keeper) external;
