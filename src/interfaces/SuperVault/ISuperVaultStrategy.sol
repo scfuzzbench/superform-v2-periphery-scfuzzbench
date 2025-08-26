@@ -202,14 +202,13 @@ interface ISuperVaultStrategy {
     /// @notice Execute a 4626 deposit by processing assets.
     /// @param controller The controller address
     /// @param assetsGross The amount of gross assets user has to deposit
-    /// @return assetsNet The amount of net assets to mint
     /// @return sharesNet The amount of net shares to mint
     function handleOperations4626Deposit(
         address controller,
         uint256 assetsGross
     )
         external
-        returns (uint256 assetsNet, uint256 sharesNet);
+        returns (uint256 sharesNet);
 
     /// @notice Execute a 4626 mint by processing shares.
     /// @param controller The controller address

@@ -3591,7 +3591,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assertEq(claimableAAfter, claimableA, "User A should retain their claimable assets");
 
         // Verify only accumulators moved during transfer
-        ISuperVaultStrategy.SuperVaultState memory stateA = strategy.getSuperVaultState(accInstances[0].account);
         ISuperVaultStrategy.SuperVaultState memory stateB = strategy.getSuperVaultState(accInstances[1].account);
 
         // User B should have accumulator from the transfer but no request/claim state
@@ -3798,7 +3797,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Get initial accumulator state
         ISuperVaultStrategy.SuperVaultState memory initialState = strategy.getSuperVaultState(accInstances[0].account);
         uint256 initialAccumulatorShares = initialState.accumulatorShares;
-        uint256 initialAccumulatorCostBasis = initialState.accumulatorCostBasis;
 
         // Cycle 1: Request → Cancel
         _requestRedeemForAccount(accInstances[0], redeemShares);

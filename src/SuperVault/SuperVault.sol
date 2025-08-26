@@ -144,21 +144,20 @@ contract SuperVault is
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
         // Single executor call: strategyskims entry fee, accounts on NET, returns net shares
-        uint256 assetsNet;
-        (assetsNet, shares) = strategy.handleOperations4626Deposit(receiver, assets);
+        shares = strategy.handleOperations4626Deposit(receiver, assets);
         if (shares == 0) revert ZERO_AMOUNT();
 
         // Mint the net shares
         _mint(receiver, shares);
 
-        // Emit event with net assets to line up with totalAssets growth and shares minted
-        emit Deposit(msg.sender, receiver, assetsNet, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     /// @inheritdoc IERC4626
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
         if (receiver == address(0)) revert ZERO_ADDRESS();
         if (shares == 0) revert ZERO_AMOUNT();
+
         uint256 assetsNet;
         (assets, assetsNet) = strategy.quoteMintAssetsGross(shares);
 
@@ -171,8 +170,7 @@ contract SuperVault is
         // Mint the exact shares asked
         _mint(receiver, shares);
 
-        // Emit event with net assets to line up with totalAssets growth and shares minted
-        emit Deposit(msg.sender, receiver, assetsNet, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     /// @inheritdoc IERC7540Redeem

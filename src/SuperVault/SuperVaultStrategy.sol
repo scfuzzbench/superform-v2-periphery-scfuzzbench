@@ -121,7 +121,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         uint256 assetsGross
     )
         external
-        returns (uint256 assetsNet, uint256 sharesNet)
+        returns (uint256 sharesNet)
     {
         _requireVault();
 
@@ -138,7 +138,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         uint256 feeBps = feeConfig.managementFeeBps;
         uint256 feeAssets = feeBps == 0 ? 0 : Math.mulDiv(assetsGross, feeBps, BPS_PRECISION, Math.Rounding.Ceil);
 
-        assetsNet = assetsGross - feeAssets;
+        uint256 assetsNet = assetsGross - feeAssets;
         if (assetsNet == 0) revert INVALID_AMOUNT();
 
         if (feeAssets != 0) {
@@ -159,7 +159,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         state.accumulatorShares += sharesNet;
         state.accumulatorCostBasis += assetsNet;
         emit DepositHandled(controller, assetsNet, sharesNet);
-        return (assetsNet, sharesNet);
+        return sharesNet;
     }
 
     /// @inheritdoc ISuperVaultStrategy
