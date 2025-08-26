@@ -143,7 +143,7 @@ contract SuperVault is
         // Forward assets from msg-sender to strategy
         _asset.safeTransferFrom(msg.sender, address(strategy), assets);
 
-        // Single executor call: strategyskims entry fee, accounts on NET, returns net shares
+        // Single executor call: strategy skims entry fee, accounts on NET, returns net shares
         shares = strategy.handleOperations4626Deposit(receiver, assets);
         if (shares == 0) revert ZERO_AMOUNT();
 
