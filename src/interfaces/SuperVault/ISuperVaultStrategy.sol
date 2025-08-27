@@ -96,7 +96,7 @@ interface ISuperVaultStrategy {
     event RedeemRequestsFulfilled(address[] hooks, address[] controllers, uint256 processedShares, uint256 currentPPS);
 
     event FeePaid(address indexed recipient, uint256 amount, uint256 performanceFeeBps);
-    event EntryFeePaid(address indexed controller, address indexed recipient, uint256 feeAssets, uint256 feeBps);
+    event ManagementFeePaid(address indexed controller, address indexed recipient, uint256 feeAssets, uint256 feeBps);
     event DepositHandled(address indexed controller, uint256 assets, uint256 shares);
 
     /*//////////////////////////////////////////////////////////////

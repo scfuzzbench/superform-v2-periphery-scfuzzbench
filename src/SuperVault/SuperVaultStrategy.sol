@@ -96,6 +96,8 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
     function initialize(address vaultAddress, FeeConfig memory feeConfigData) external initializer {
         if (vaultAddress == address(0)) revert INVALID_VAULT();
+        // if either fee is configured, check if recipient is address (0), if it is revert with ZERO ADDRESS
+        // if both fees are 0, no need check address (it just passes the if). Recipient can be configured later
         if (
             (feeConfigData.performanceFeeBps > 0 || feeConfigData.managementFeeBps > 0)
                 && feeConfigData.recipient == address(0)
@@ -149,7 +151,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
             address recipient = feeConfig.recipient;
             if (recipient == address(0)) revert ZERO_ADDRESS();
             _safeTokenTransfer(address(_asset), recipient, feeAssets);
-            emit EntryFeePaid(controller, recipient, feeAssets, feeBps);
+            emit ManagementFeePaid(controller, recipient, feeAssets, feeBps);
         }
 
         // Compute shares on NET using current PPS
@@ -194,7 +196,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
                 address recipient = feeConfig.recipient;
                 if (recipient == address(0)) revert ZERO_ADDRESS();
                 _safeTokenTransfer(address(_asset), recipient, feeAssets);
-                emit EntryFeePaid(controller, recipient, feeAssets, feeBps);
+                emit ManagementFeePaid(controller, recipient, feeAssets, feeBps);
             }
         }
 
@@ -821,8 +823,10 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
                 }
 
                 if (recipientFee > 0) {
-                    _safeTokenTransfer(address(_asset), feeConfig.recipient, recipientFee);
-                    emit FeePaid(feeConfig.recipient, recipientFee, performanceFeeBps);
+                    address recipient = feeConfig.recipient;
+                    if (recipient == address(0)) revert ZERO_ADDRESS();
+                    _safeTokenTransfer(address(_asset), recipient, recipientFee);
+                    emit FeePaid(recipient, recipientFee, performanceFeeBps);
                 }
 
                 currentAssets -= totalFee;
