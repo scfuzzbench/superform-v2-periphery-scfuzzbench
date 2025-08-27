@@ -235,6 +235,63 @@ This mechanism ensures that hook execution is always subject to both governance 
   - Initialization parameter validation
   - Integration with SuperBank for protocol coordination and fee collection
 
+#### Operational Costs vs Economic Security: Dual System Architecture
+
+The SuperVaultAggregator implements a dual system that separates operational costs from economic security mechanisms, providing both efficient protocol operations and robust defense against malicious behavior.
+
+**Upkeep System (Operational Costs)**:
+- **Purpose**: Covers gas costs for PPS updates and oracle operations
+- **Mechanism**: Managers deposit UP tokens via `depositUpkeep()` to fund ongoing operations
+- **Usage**: Automatically deducted during PPS updates to compensate keepers and validators
+- **Accumulation**: Spent upkeep accumulates in `claimableUpkeep` for batch distribution to SuperBank
+- **Exemptions**: Superform-approved managers and authorized callers can operate without upkeep costs
+
+**Stake System (Economic Security)**:
+- **Purpose**: Provides economic security against malicious strategist behavior
+- **Mechanism**: Managers deposit UP tokens via `depositStake()` as collateral for good behavior
+- **Slashing**: SuperGovernor can slash stakes via `slashStake()` for malicious actions
+- **Immediate Transfer**: Slashed funds transfer directly to SuperBank without accumulation
+- **Independence**: Completely separate from upkeep system - slashing doesn't affect operational costs
+
+**Key Design Benefits**:
+
+1. **Separation of Concerns**: 
+   - Upkeep ensures protocol operations continue regardless of manager behavior
+   - Stakes create economic disincentives for malicious actions without affecting operations
+
+2. **Flexible Enforcement**:
+   - Stake requirements can be enforced off-chain for featured strategies
+   - No mandatory staking amounts - governance can set requirements per strategy tier
+   - Allows different risk profiles for different types of strategies
+
+3. **Malicious Behavior Defense**:
+   - **Slippage Bypass**: Managers who manipulate `expectedAssetsOrSharesOut` to disable slippage protection
+   - **Front-running**: Strategists who front-run their own hook executions to extract value
+   - **Redemption Manipulation**: Providing arbitrary expected outputs during `fulfillRedeemRequests`
+   - **Hook Abuse**: Executing hooks with malicious parameters despite Merkle validation
+
+4. **Operational Efficiency**:
+   - Upkeep costs are predictable and separate from security deposits
+   - Batch processing of upkeep payments reduces gas costs
+   - Immediate slashing provides rapid response to detected malicious behavior
+
+**Example Attack Scenario and Mitigation**:
+
+A malicious strategist could:
+1. Set `expectedAssetsOrSharesOut = 0` to bypass slippage protection
+2. Front-run the transaction with a large swap to manipulate prices
+3. Execute the hook with favorable slippage, extracting user funds
+4. Back-run to restore prices, keeping the extracted value
+
+With the stake system:
+1. The strategist must deposit significant UP tokens as stake
+2. Off-chain monitoring detects the malicious behavior
+3. SuperGovernor immediately slashes the stake (potentially worth more than extracted value)
+4. Slashed funds go to SuperBank for protocol treasury or user compensation
+5. Economic loss exceeds potential gains, deterring the attack
+
+This dual system ensures that protocol operations remain funded and efficient while creating strong economic incentives for honest strategist behavior.
+
 ### UP + SuperBank + SuperGovernor
 
 These contracts form the core governance, coordination, and incentive layers for the Superform periphery ecosystem.

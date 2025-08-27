@@ -49,6 +49,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     // Upkeep balances
     mapping(address manager => uint256 upkeep) private _managerUpkeepBalance;
 
+    // Stake balances
+    mapping(address manager => uint256 stake) private _managerStakeBalance;
 
     // Registry of created vaults
     EnumerableSet.AddressSet private _superVaults;
@@ -329,6 +331,84 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         IERC20(upToken).safeTransfer(msg.sender, amount);
 
         emit UpkeepWithdrawn(msg.sender, amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        STAKE MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+    /// @notice Deposits UP tokens as stake for manager economic security
+    /// @param manager Address of the manager to deposit stake for
+    /// @param amount Amount of UP tokens to deposit as stake
+    function depositStake(address manager, uint256 amount) external {
+        if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
+        if (manager == address(0)) revert ZERO_ADDRESS();
+
+        // Get the UP token address from SUPER_GOVERNOR
+        address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
+
+        // Transfer UP tokens from msg.sender to this contract
+        IERC20(upToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        // Update stake balance
+        _managerStakeBalance[manager] += amount;
+
+        emit StakeDeposited(manager, amount);
+    }
+
+    /// @notice Withdraws UP tokens from manager stake balance
+    /// @param amount Amount of UP tokens to withdraw from stake
+    function withdrawStake(uint256 amount) external {
+        if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
+
+        // Check sufficient balance
+        if (_managerStakeBalance[msg.sender] < amount) {
+            revert INSUFFICIENT_STAKE_BALANCE();
+        }
+
+        // Get the UP token address from SUPER_GOVERNOR
+        address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
+
+        // Update stake balance
+        unchecked {
+            _managerStakeBalance[msg.sender] -= amount;
+        }
+
+        // Transfer UP tokens to manager
+        IERC20(upToken).safeTransfer(msg.sender, amount);
+
+        emit StakeWithdrawn(msg.sender, amount);
+    }
+
+    /// @notice Slashes a manager's stake balance by a specified amount
+    /// @param manager The manager whose stake will be slashed
+    /// @param amount The amount of UP tokens to slash from the manager's stake balance
+    function slashStake(address manager, uint256 amount) external {
+        // Only SUPER_GOVERNOR can slash stake
+        if (msg.sender != address(SUPER_GOVERNOR)) {
+            revert CALLER_NOT_AUTHORIZED();
+        }
+
+        // Validate inputs
+        if (manager == address(0)) revert ZERO_ADDRESS();
+        if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
+        
+        // Check if manager has sufficient stake balance to slash
+        if (_managerStakeBalance[manager] < amount) {
+            revert INSUFFICIENT_STAKE_BALANCE();
+        }
+        
+        // Reduce manager's stake balance
+        _managerStakeBalance[manager] -= amount;
+        
+        // Get the UP token address and SuperBank address
+        address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
+        address superBank = _getSuperBank();
+        
+        // Transfer slashed amount directly to SuperBank
+        IERC20(upToken).safeTransfer(superBank, amount);
+        
+        // Emit event for transparency
+        emit StakeSlashed(manager, amount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -733,6 +813,13 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @inheritdoc ISuperVaultAggregator
     function getUpkeepBalance(address manager) external view returns (uint256 balance) {
         return _managerUpkeepBalance[manager];
+    }
+
+    /// @notice Gets the current stake balance for a manager
+    /// @param manager Address of the manager
+    /// @return balance Current stake balance in UP tokens
+    function getStakeBalance(address manager) external view returns (uint256 balance) {
+        return _managerStakeBalance[manager];
     }
 
     /// @inheritdoc ISuperVaultAggregator

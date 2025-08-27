@@ -193,6 +193,21 @@ interface ISuperVaultAggregator {
     /// @param amount Amount of UP tokens spent
     event UpkeepSpent(address indexed manager, uint256 amount);
 
+    /// @notice Emitted when stake tokens are deposited
+    /// @param manager Address of the manager
+    /// @param amount Amount of UP tokens deposited as stake
+    event StakeDeposited(address indexed manager, uint256 amount);
+
+    /// @notice Emitted when stake tokens are withdrawn
+    /// @param manager Address of the manager
+    /// @param amount Amount of UP tokens withdrawn from stake
+    event StakeWithdrawn(address indexed manager, uint256 amount);
+
+    /// @notice Emitted when a manager's stake is slashed
+    /// @param manager The manager whose stake was slashed
+    /// @param amount The amount of UP tokens slashed
+    event StakeSlashed(address indexed manager, uint256 amount);
+
     /// @notice Emitted when an authorized caller is added for a strategy
     /// @param strategy Address of the strategy
     /// @param caller Address of the authorized caller
@@ -347,6 +362,8 @@ interface ISuperVaultAggregator {
     error UNKNOWN_STRATEGY();
     /// @notice Thrown when withdrawing more upkeep than available
     error INSUFFICIENT_UPKEEP_BALANCE();
+    /// @notice Thrown when withdrawing more stake than available
+    error INSUFFICIENT_STAKE_BALANCE();
     /// @notice Thrown when caller is already authorized
     error CALLER_ALREADY_AUTHORIZED();
     /// @notice Thrown when caller is not authorized
@@ -444,6 +461,24 @@ interface ISuperVaultAggregator {
     /// @notice Claims upkeep tokens from the contract
     /// @param amount Amount of UP tokens to claim
     function claimUpkeep(uint256 amount) external;
+
+    /*//////////////////////////////////////////////////////////////
+                        STAKE MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Deposits UP tokens as stake for manager economic security
+    /// @param manager Address of the manager to deposit stake for
+    /// @param amount Amount of UP tokens to deposit as stake
+    function depositStake(address manager, uint256 amount) external;
+
+    /// @notice Withdraws UP tokens from manager stake balance
+    /// @param amount Amount of UP tokens to withdraw from stake
+    function withdrawStake(uint256 amount) external;
+
+    /// @notice Slashes a manager's stake balance by a specified amount
+    /// @param manager The manager whose stake will be slashed
+    /// @param amount The amount of UP tokens to slash from the manager's stake balance
+    function slashStake(address manager, uint256 amount) external;
 
     /*//////////////////////////////////////////////////////////////
                         AUTHORIZED CALLER MANAGEMENT
@@ -620,6 +655,11 @@ interface ISuperVaultAggregator {
     /// @param manager Address of the manager
     /// @return balance Current upkeep balance in UP tokens
     function getUpkeepBalance(address manager) external view returns (uint256 balance);
+
+    /// @notice Gets the current stake balance for a manager
+    /// @param manager Address of the manager
+    /// @return balance Current stake balance in UP tokens
+    function getStakeBalance(address manager) external view returns (uint256 balance);
 
     /// @notice Gets all authorized callers for a strategy
     /// @param strategy Address of the strategy
