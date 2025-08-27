@@ -30,11 +30,9 @@ interface ISuperVaultStrategy {
     error INVALID_ARRAY_LENGTH();
     error ACTION_TYPE_DISALLOWED();
     error YIELD_SOURCE_NOT_FOUND();
-    error YIELD_SOURCE_NOT_ACTIVE();
     error INVALID_EMERGENCY_ADMIN();
     error INVALID_PERIPHERY_REGISTRY();
     error YIELD_SOURCE_ALREADY_EXISTS();
-    error YIELD_SOURCE_ALREADY_ACTIVE();
     error INVALID_PERFORMANCE_FEE_BPS();
     error INVALID_EMERGENCY_WITHDRAWAL();
     error ASYNC_REQUEST_BLOCKING();
@@ -63,9 +61,8 @@ interface ISuperVaultStrategy {
     event SuperGovernorSet(address indexed superGovernor);
     event Initialized(address indexed vault);
     event YieldSourceAdded(address indexed source, address indexed oracle);
-    event YieldSourceDeactivated(address indexed source);
     event YieldSourceOracleUpdated(address indexed source, address indexed oldOracle, address indexed newOracle);
-    event YieldSourceReactivated(address indexed source);
+    event YieldSourceRemoved(address indexed source);
 
     event HookRootUpdated(bytes32 newRoot);
     event HookRootProposed(bytes32 proposedRoot, uint256 effectiveTime);
@@ -134,14 +131,12 @@ interface ISuperVaultStrategy {
 
     struct YieldSource {
         address oracle; // Associated yield source oracle address
-        bool isActive; // Whether the source is active
     }
 
     /// @notice Comprehensive information about a yield source including its address and configuration
     struct YieldSourceInfo {
         address sourceAddress; // Address of the yield source
         address oracle; // Associated yield source oracle address
-        bool isActive; // Whether the source is active
     }
 
     /// @notice State specific to asynchronous redeem requests
@@ -251,23 +246,20 @@ interface ISuperVaultStrategy {
                         YIELD SOURCE MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Manage a single yield source: add, update oracle, and toggle activation
+    /// @notice Manage a single yield source: add, update oracle, or remove
     /// @param source Address of the yield source
-    /// @param oracle Address of the oracle (used for adding/updating)
-    /// @param actionType Type of action: 0=Add, 1=UpdateOracle, 2=ToggleActivation
-    /// @param activate Boolean flag for activation when actionType is 2
-    function manageYieldSource(address source, address oracle, uint8 actionType, bool activate) external;
+    /// @param oracle Address of the oracle (used for adding/updating, ignored for removal)
+    /// @param actionType Type of action: 0=Add, 1=UpdateOracle, 2=Remove
+    function manageYieldSource(address source, address oracle, uint8 actionType) external;
 
     /// @notice Batch manage multiple yield sources in a single transaction
     /// @param sources Array of yield source addresses
-    /// @param oracles Array of oracle addresses (used for adding/updating)
-    /// @param actionTypes Array of action types: 0=Add, 1=UpdateOracle, 2=ToggleActivation
-    /// @param activates Array of boolean flags for activation when actionType is 2
+    /// @param oracles Array of oracle addresses (used for adding/updating, ignored for removal)
+    /// @param actionTypes Array of action types: 0=Add, 1=UpdateOracle, 2=Remove
     function manageYieldSources(
         address[] calldata sources,
         address[] calldata oracles,
-        uint8[] calldata actionTypes,
-        bool[] calldata activates
+        uint8[] calldata actionTypes
     )
         external;
 
@@ -326,9 +318,22 @@ interface ISuperVaultStrategy {
     /// @notice Get a yield source's configuration
     function getYieldSource(address source) external view returns (YieldSource memory);
 
-    /// @notice Returns a list of all yield sources with their addresses and configurations
-    /// @return A list of YieldSourceInfo structs containing comprehensive information about each yield source
+    /// @notice Get all yield sources with their information
+    /// @return Array of YieldSourceInfo structs
     function getYieldSourcesList() external view returns (YieldSourceInfo[] memory);
+
+    /// @notice Get all yield source addresses
+    /// @return Array of yield source addresses
+    function getYieldSources() external view returns (address[] memory);
+
+    /// @notice Get the count of yield sources
+    /// @return Number of yield sources
+    function getYieldSourcesCount() external view returns (uint256);
+
+    /// @notice Check if a yield source exists
+    /// @param source Address of the yield source
+    /// @return True if the yield source exists
+    function containsYieldSource(address source) external view returns (bool);
 
     /// @notice Get the average withdraw price for a controller
     /// @param controller The controller address

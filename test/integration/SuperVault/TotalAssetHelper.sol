@@ -14,7 +14,7 @@ import { ISuperVaultStrategy } from "../../../src/interfaces/SuperVault/ISuperVa
 /// @title TotalAssetHelper
 /// @author Superform Labs
 /// @notice Helper contract for calculating totalAssets of a SuperVault strategy
-/// @dev Used for testing purposes to retrieve totalAssets by querying active yield sources
+/// @dev Used for testing purposes to retrieve totalAssets by querying all yield sources
 contract TotalAssetHelper {
     using Math for uint256;
 
@@ -46,7 +46,7 @@ contract TotalAssetHelper {
 
         // Initialize array to track TVLs
         sourceTVLs = new YieldSourceTVL[](length);
-        uint256 activeSourceCount;
+        uint256 validSourceCount;
 
         // Hack to get total free assets. Assumes nothing is manually transferred to the vault
         // off chain this must be tracked via *Handled events in Strategy
@@ -54,25 +54,26 @@ contract TotalAssetHelper {
 
         totalAssets_ += IERC20(asset).balanceOf(strategy);
 
-        // Calculate total assets by summing TVLs across all active yield sources
+        // Calculate total assets by summing TVLs across all yield sources
         for (uint256 i; i < length; ++i) {
             address source = yieldSourcesList[i].sourceAddress;
+            address oracle = yieldSourcesList[i].oracle;
 
-            // Check if the yield source is active
-            if (_isYieldSourceActive(strategy, source)) {
+            // Check if the yield source has a valid oracle (meaning it exists)
+            if (oracle != address(0)) {
                 // Calculate base TVL (assets held in the yield source)
-                uint256 baseTvl = _getTvlByOwnerOfShares(strategy, source);
+                uint256 baseTvl = _getTvlByOwnerOfShares(strategy, source, oracle);
 
                 // Update total and add to breakdown
                 totalAssets_ += baseTvl;
-                sourceTVLs[activeSourceCount++] = YieldSourceTVL({ source: source, tvl: baseTvl });
+                sourceTVLs[validSourceCount++] = YieldSourceTVL({ source: source, tvl: baseTvl });
             }
         }
 
         // Resize array if needed to remove empty entries
-        if (activeSourceCount < length) {
+        if (validSourceCount < length) {
             assembly {
-                mstore(sourceTVLs, activeSourceCount)
+                mstore(sourceTVLs, validSourceCount)
             }
         }
     }
@@ -98,15 +99,15 @@ contract TotalAssetHelper {
         }
     }
 
-    /// @notice Check if a yield source is active
+    /// @notice Check if a yield source exists (has an oracle)
     /// @param strategy Address of the SuperVaultStrategy contract
     /// @param source Address of the yield source
-    /// @return Whether the yield source is active
-    function _isYieldSourceActive(address strategy, address source) internal view returns (bool) {
+    /// @return Whether the yield source exists
+    function _yieldSourceExists(address strategy, address source) internal view returns (bool) {
         try ISuperVaultStrategy(strategy).getYieldSource(source) returns (
             ISuperVaultStrategy.YieldSource memory yieldSource
         ) {
-            return yieldSource.isActive;
+            return yieldSource.oracle != address(0);
         } catch {
             return false;
         }
@@ -116,30 +117,29 @@ contract TotalAssetHelper {
     /// @param strategy Address of the SuperVaultStrategy contract
     /// @param source Address of the yield source
     /// @return oracle Address of the yield source oracle
-    /// @return isActive Whether the yield source is active
-    function _getYieldSourceInfo(
+    function _getYieldSourceOracle(
         address strategy,
         address source
     )
         internal
         view
-        returns (address oracle, bool isActive)
+        returns (address oracle)
     {
         try ISuperVaultStrategy(strategy).getYieldSource(source) returns (
             ISuperVaultStrategy.YieldSource memory yieldSource
         ) {
-            return (yieldSource.oracle, yieldSource.isActive);
+            return yieldSource.oracle;
         } catch {
-            return (address(0), false);
+            return address(0);
         }
     }
 
     /// @notice Get the TVL for a yield source by owner of shares
     /// @param strategy Address of the SuperVaultStrategy contract
     /// @param source Address of the yield source
+    /// @param oracle Address of the yield source oracle
     /// @return TVL of the yield source
-    function _getTvlByOwnerOfShares(address strategy, address source) internal view returns (uint256) {
-        (address oracle,) = _getYieldSourceInfo(strategy, source);
+    function _getTvlByOwnerOfShares(address strategy, address source, address oracle) internal view returns (uint256) {
         if (oracle == address(0)) return 0;
 
         try IYieldSourceOracle(oracle).getTVLByOwnerOfShares(source, strategy) returns (uint256 tvl) {

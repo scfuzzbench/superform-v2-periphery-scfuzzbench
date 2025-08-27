@@ -9,6 +9,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // Core Interfaces
 import {
@@ -32,7 +33,8 @@ import { ISuperVaultAggregator } from "../interfaces/SuperVault/ISuperVaultAggre
 /// @title SuperVaultStrategy
 /// @author Superform Labs
 /// @notice Strategy implementation for SuperVault that executes strategies
-contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGuardUpgradeable {
+contract SuperVaultStrategy is ISuperVaultStrategy, Initializable, ReentrancyGuardUpgradeable {
+    using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
     using Math for uint256;
 
@@ -71,10 +73,9 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     bool public proposedEmergencyWithdrawable;
     uint256 public emergencyWithdrawableEffectiveTime;
 
-    // Yield source configuration
-    // @dev todo whenever a new yield source is added we can move it to allowed target
-    mapping(address source => YieldSource sourceConfig) private yieldSources;
-    address[] private yieldSourcesList;
+    // Yield source configuration - simplified mapping from source to oracle
+    mapping(address source => address oracle) private yieldSources;
+    EnumerableSet.AddressSet private yieldSourcesList;
 
     // --- Redeem Request State ---
     mapping(address controller => SuperVaultState state) private superVaultState;
@@ -313,17 +314,16 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
 
     // @inheritdoc ISuperVaultStrategy
-    function manageYieldSource(address source, address oracle, uint8 actionType, bool activate) external {
+    function manageYieldSource(address source, address oracle, uint8 actionType) external {
         _isPrimaryManager(msg.sender);
-        _manageYieldSource(source, oracle, actionType, activate);
+        _manageYieldSource(source, oracle, actionType);
     }
 
     // @inheritdoc ISuperVaultStrategy
     function manageYieldSources(
         address[] calldata sources,
         address[] calldata oracles,
-        uint8[] calldata actionTypes,
-        bool[] calldata activates
+        uint8[] calldata actionTypes
     )
         external
     {
@@ -333,10 +333,9 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         if (length == 0) revert ZERO_LENGTH();
         if (oracles.length != length) revert INVALID_ARRAY_LENGTH();
         if (actionTypes.length != length) revert INVALID_ARRAY_LENGTH();
-        if (activates.length != length) revert INVALID_ARRAY_LENGTH();
 
         for (uint256 i; i < length; ++i) {
-            _manageYieldSource(sources[i], oracles[i], actionTypes[i], activates[i]);
+            _manageYieldSource(sources[i], oracles[i], actionTypes[i]);
         }
     }
 
@@ -462,23 +461,37 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
     // @inheritdoc ISuperVaultStrategy
     function getYieldSource(address source) external view returns (YieldSource memory) {
-        return yieldSources[source];
+        return YieldSource({ oracle: yieldSources[source] });
     }
 
     // @inheritdoc ISuperVaultStrategy
     function getYieldSourcesList() external view returns (YieldSourceInfo[] memory) {
-        uint256 length = yieldSourcesList.length;
+        uint256 length = yieldSourcesList.length();
         YieldSourceInfo[] memory sourcesInfo = new YieldSourceInfo[](length);
 
         for (uint256 i; i < length; ++i) {
-            address sourceAddress = yieldSourcesList[i];
-            YieldSource memory source = yieldSources[sourceAddress];
+            address sourceAddress = yieldSourcesList.at(i);
+            address oracle = yieldSources[sourceAddress];
 
-            sourcesInfo[i] =
-                YieldSourceInfo({ sourceAddress: sourceAddress, oracle: source.oracle, isActive: source.isActive });
+            sourcesInfo[i] = YieldSourceInfo({ sourceAddress: sourceAddress, oracle: oracle });
         }
 
         return sourcesInfo;
+    }
+
+    // @inheritdoc ISuperVaultStrategy
+    function getYieldSources() external view returns (address[] memory) {
+        return yieldSourcesList.values();
+    }
+
+    // @inheritdoc ISuperVaultStrategy
+    function getYieldSourcesCount() external view returns (uint256) {
+        return yieldSourcesList.length();
+    }
+
+    // @inheritdoc ISuperVaultStrategy
+    function containsYieldSource(address source) external view returns (bool) {
+        return yieldSourcesList.contains(source);
     }
 
     // @inheritdoc ISuperVaultStrategy
@@ -567,7 +580,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         vars.hookContract = ISuperHook(hook);
 
         vars.targetedYieldSource = HookDataDecoder.extractYieldSource(hookCalldata);
-        if (!yieldSources[vars.targetedYieldSource].isActive) revert YIELD_SOURCE_NOT_ACTIVE();
+        if (yieldSources[vars.targetedYieldSource] == address(0)) revert YIELD_SOURCE_NOT_FOUND();
 
         bool usePrevHookAmount = _decodeHookUsePrevHookAmount(hook, hookCalldata);
         if (usePrevHookAmount && prevHook != address(0)) {
@@ -622,7 +635,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         if (vars.hookType != ISuperHook.HookType.OUTFLOW) revert INVALID_HOOK_TYPE();
 
         vars.targetedYieldSource = HookDataDecoder.extractYieldSource(hookCalldata);
-        if (!yieldSources[vars.targetedYieldSource].isActive) revert YIELD_SOURCE_NOT_ACTIVE();
+        if (yieldSources[vars.targetedYieldSource] == address(0)) revert YIELD_SOURCE_NOT_FOUND();
 
         // we must always encode supervault shares when fulfilling redemptions
         vars.superVaultShares = ISuperHookInflowOutflow(hook).decodeAmount(hookCalldata);
@@ -630,7 +643,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         // Calculate underlying shares and update hook calldata
         vars.amountOfAssets = vars.superVaultShares.mulDiv(currentPPS, PRECISION, Math.Rounding.Floor);
         vars.svAsset = address(_asset);
-        vars.amountConvertedToUnderlyingShares = IYieldSourceOracle(yieldSources[vars.targetedYieldSource].oracle)
+        vars.amountConvertedToUnderlyingShares = IYieldSourceOracle(yieldSources[vars.targetedYieldSource])
             .getShareOutput(vars.targetedYieldSource, vars.svAsset, vars.amountOfAssets);
         hookCalldata =
             ISuperHookOutflow(hook).replaceCalldataAmount(hookCalldata, vars.amountConvertedToUnderlyingShares);
@@ -889,15 +902,14 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     /// @notice Internal function to manage a yield source
     /// @param source Address of the yield source
     /// @param oracle Address of the oracle
-    /// @param actionType Type of action: 0=Add, 1=UpdateOracle, 2=ToggleActivation
-    /// @param activate Boolean flag for activation when actionType is 2
-    function _manageYieldSource(address source, address oracle, uint8 actionType, bool activate) internal {
+    /// @param actionType Type of action: 0=Add, 1=UpdateOracle, 2=Remove
+    function _manageYieldSource(address source, address oracle, uint8 actionType) internal {
         if (actionType == 0) {
             _addYieldSource(source, oracle);
         } else if (actionType == 1) {
             _updateYieldSourceOracle(source, oracle);
         } else if (actionType == 2) {
-            _toggleYieldSourceActivation(source, activate);
+            _removeYieldSource(source);
         } else {
             revert ACTION_TYPE_DISALLOWED();
         }
@@ -908,9 +920,9 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     /// @param oracle Address of the oracle
     function _addYieldSource(address source, address oracle) internal {
         if (source == address(0) || oracle == address(0)) revert ZERO_ADDRESS();
-        if (yieldSources[source].oracle != address(0)) revert YIELD_SOURCE_ALREADY_EXISTS();
-        yieldSources[source] = YieldSource({ oracle: oracle, isActive: true });
-        yieldSourcesList.push(source);
+        if (yieldSources[source] != address(0)) revert YIELD_SOURCE_ALREADY_EXISTS();
+        yieldSources[source] = oracle;
+        if (!yieldSourcesList.add(source)) revert YIELD_SOURCE_ALREADY_EXISTS();
 
         emit YieldSourceAdded(source, oracle);
     }
@@ -920,29 +932,25 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     /// @param oracle Address of the oracle
     function _updateYieldSourceOracle(address source, address oracle) internal {
         if (oracle == address(0)) revert ZERO_ADDRESS();
-        YieldSource storage yieldSource = yieldSources[source];
-        if (yieldSource.oracle == address(0)) revert YIELD_SOURCE_NOT_FOUND();
-        address oldOracle = yieldSource.oracle;
-        yieldSource.oracle = oracle;
+        address oldOracle = yieldSources[source];
+        if (oldOracle == address(0)) revert YIELD_SOURCE_NOT_FOUND();
+        yieldSources[source] = oracle;
 
         emit YieldSourceOracleUpdated(source, oldOracle, oracle);
     }
 
-    /// @notice Internal function to toggle a yield source's activation
+    /// @notice Internal function to remove a yield source
     /// @param source Address of the yield source
-    /// @param activate Boolean flag for activation
-    function _toggleYieldSourceActivation(address source, bool activate) internal {
-        YieldSource storage yieldSource = yieldSources[source];
-        if (yieldSource.oracle == address(0)) revert YIELD_SOURCE_NOT_FOUND();
-        if (activate) {
-            if (yieldSource.isActive) revert YIELD_SOURCE_ALREADY_ACTIVE();
-            yieldSource.isActive = true;
-            emit YieldSourceReactivated(source);
-        } else {
-            if (!yieldSource.isActive) revert YIELD_SOURCE_NOT_ACTIVE();
-            yieldSource.isActive = false;
-            emit YieldSourceDeactivated(source);
-        }
+    function _removeYieldSource(address source) internal {
+        if (yieldSources[source] == address(0)) revert YIELD_SOURCE_NOT_FOUND();
+        
+        // Remove from mapping
+        delete yieldSources[source];
+        
+        // Remove from EnumerableSet
+        if (!yieldSourcesList.remove(source)) revert YIELD_SOURCE_NOT_FOUND();
+        
+        emit YieldSourceRemoved(source);
     }
 
     /// @notice Internal function to propose an emergency withdraw

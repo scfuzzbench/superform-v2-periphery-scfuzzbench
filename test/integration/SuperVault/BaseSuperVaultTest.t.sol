@@ -139,14 +139,12 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         strategy.manageYieldSource(
             address(fluidVault),
             _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY),
-            0,
-            false // addYieldSource
+            0 // addYieldSource
         );
         strategy.manageYieldSource(
             address(aaveVault),
             _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY),
-            0,
-            false // addYieldSource
+            0 // addYieldSource
         );
 
         vm.stopPrank();
@@ -280,12 +278,8 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         actionTypes[0] = 0; // Add yield source
         actionTypes[1] = 0; // Add yield source
 
-        bool[] memory activates = new bool[](2);
-        activates[0] = true; // Activate
-        activates[1] = true; // Activate
-
         SuperVaultManageYieldSourceHook.ManageYieldSourcesArgs memory args = SuperVaultManageYieldSourceHook
-            .ManageYieldSourcesArgs({ sources: sources, oracles: oracles, actionTypes: actionTypes, activates: activates });
+            .ManageYieldSourcesArgs({ sources: sources, oracles: oracles, actionTypes: actionTypes });
 
         // Deploy the SuperVaultManageYieldSourceHook
         address manageYieldSourceHook = address(new SuperVaultManageYieldSourceHook(address(targetStrategy)));

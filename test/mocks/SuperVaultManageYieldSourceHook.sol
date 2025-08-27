@@ -26,7 +26,6 @@ contract SuperVaultManageYieldSourceHook is BaseHook {
         address[] sources;
         address[] oracles;
         uint8[] actionTypes;
-        bool[] activates;
     }
 
     constructor(address _strategy) BaseHook(HookType.NONACCOUNTING, HookSubTypes.CLAIM) {
@@ -57,7 +56,7 @@ contract SuperVaultManageYieldSourceHook is BaseHook {
             target: strategy,
             value: 0,
             callData: abi.encodeCall(
-                ISuperVaultStrategy.manageYieldSources, (args.sources, args.oracles, args.actionTypes, args.activates)
+                ISuperVaultStrategy.manageYieldSources, (args.sources, args.oracles, args.actionTypes)
             )
         });
     }
