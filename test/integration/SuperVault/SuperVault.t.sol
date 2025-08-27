@@ -7223,7 +7223,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         uint256 ethAmount = 1 ether;
 
-        // Fund the strategist with ETH
+        // Fund the manager with ETH
         vm.deal(MANAGER, ethAmount);
         uint256 strategyETHBefore = address(strategy).balance;
 
@@ -7320,7 +7320,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         bytes32[][] memory nativeStrategyProofs = new bytes32[][](1);
         nativeStrategyProofs[0] = new bytes32[](0);
 
-        // Fund strategist with ETH for hook execution
+        // Fund manager with ETH for hook execution
         vm.deal(MANAGER, ethAmount);
 
         // Execute native ETH hook via executeHooks

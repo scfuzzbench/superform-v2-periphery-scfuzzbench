@@ -28,7 +28,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
     address public validator1;
     address public validator2;
     address public validator3;
-    address public mockStrategist;
+    address public mockManager;
     address public governorAddress;
 
     // SuperVault
@@ -56,7 +56,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         validator3 = _deployAccount(validator3PrivateKey, "Validator3");
 
         // Set up mock strategy for testing
-        mockStrategist = _deployAccount(0x6, "MockStrategist");
+        mockManager = _deployAccount(0x6, "mockManager");
 
         // Get the governor role to call validator-related functions
         governorAddress = _deployAccount(0x7, "GovernorRole");
@@ -78,7 +78,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 asset: address(asset),
                 name: "TestVault",
                 symbol: "TV",
-                mainManager: mockStrategist,
+                mainManager: mockManager,
                 secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
@@ -555,7 +555,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 asset: address(asset),
                 name: "Secondary TestVault",
                 symbol: "STV",
-                mainManager: mockStrategist,
+                mainManager: mockManager,
                 secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
