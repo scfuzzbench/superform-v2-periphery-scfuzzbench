@@ -105,7 +105,6 @@ contract VaultBankTest is PeripheryHelpers {
     address internal ppsOracle2;
     address internal superVaultAggregator;
     address internal strategy1;
-    address internal newStrategist;
     address internal admin;
     bytes32 internal yieldSourceOracleId;
 
@@ -122,7 +121,6 @@ contract VaultBankTest is PeripheryHelpers {
         validator2 = _deployAccount(0xA, "Validator2");
         ppsOracle1 = _deployAccount(0xB, "PPSOracle1");
         ppsOracle2 = _deployAccount(0xC, "PPSOracle2");
-        newStrategist = _deployAccount(0xF, "NewStrategist");
         admin = _deployAccount(0xD, "Admin");
         yieldSourceOracleId = bytes32(keccak256(abi.encodePacked("YieldSourceOracleId", address(this))));
         vm.chainId(CURRENT_CHAIN_ID);

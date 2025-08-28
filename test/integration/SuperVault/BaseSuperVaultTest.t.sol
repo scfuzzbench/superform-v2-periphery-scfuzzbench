@@ -135,7 +135,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
 
         _setFeeConfig(100, TREASURY);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.manageYieldSource(
             address(fluidVault),
             _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY),
@@ -187,8 +187,8 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 asset: _asset,
                 name: "SuperVault",
                 symbol: _superVaultSymbol,
-                mainStrategist: STRATEGIST,
-                secondaryStrategists: new address[](0),
+                mainManager: MANAGER,
+                secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: address(this) })
@@ -220,26 +220,26 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     }
 
     /**
-     * @notice Deploys a new SuperVault with a smart account strategist
-     * @param smartAccountStrategist The address of the smart account to use as strategist
+     * @notice Deploys a new SuperVault with a smart account manager
+     * @param smartAccountManager The address of the smart account to use as manager
      * @return vaultAddr The address of the deployed SuperVault
      * @return strategyAddr The address of the deployed SuperVaultStrategy
      * @return escrowAddr The address of the deployed SuperVaultEscrow
      */
-    function _deployVaultWithSmartAccountStrategist(address smartAccountStrategist)
+    function _deployVaultWithSmartAccountManager(address smartAccountManager)
         internal
         returns (address vaultAddr, address strategyAddr, address escrowAddr)
     {
         vm.startPrank(SV_MANAGER);
 
-        // Deploy the vault trio with smart account strategist
+        // Deploy the vault trio with smart account manager
         (vaultAddr, strategyAddr, escrowAddr) = aggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 name: "SuperVault SA",
                 symbol: "SV_SA_USDC",
-                mainStrategist: smartAccountStrategist, // Use smart account instead of EOA
-                secondaryStrategists: new address[](0),
+                mainManager: smartAccountManager, // Use smart account instead of EOA
+                secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
                 feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: address(this) })
@@ -257,12 +257,12 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     }
 
     /**
-     * @notice Helper function to manage yield sources via smart account strategist
-     * @param strategistAccount The smart account that will execute the management calls
+     * @notice Helper function to manage yield sources via smart account manager
+     * @param managerAccount The smart account that will execute the management calls
      * @param targetStrategy The strategy to manage yield sources for
      */
     function _manageYieldSourcesViaSmartAccount(
-        AccountInstance memory strategistAccount,
+        AccountInstance memory managerAccount,
         SuperVaultStrategy targetStrategy
     )
         internal
@@ -299,7 +299,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
 
         ISuperExecutor.ExecutorEntry memory entry =
             ISuperExecutor.ExecutorEntry({ hooksAddresses: hooksAddresses, hooksData: hooksData });
-        UserOpData memory userOpData = _getExecOps(strategistAccount, superExecutorOnEth, abi.encode(entry));
+        UserOpData memory userOpData = _getExecOps(managerAccount, superExecutorOnEth, abi.encode(entry));
         executeOp(userOpData);
     }
 
@@ -553,7 +553,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.executeHooks(
             ISuperVaultStrategy.ExecuteArgs({
                 hooks: fulfillHooksAddresses,
@@ -575,7 +575,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         uint256 depositAmount,
         address vault1,
         address vault2,
-        AccountInstance memory strategistAccount,
+        AccountInstance memory managerAccount,
         SuperVaultStrategy targetStrategy
     )
         internal
@@ -640,7 +640,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.hooksData[0] = abi.encode(vars.executeArgs);
 
         vars.entry = ISuperExecutor.ExecutorEntry({ hooksAddresses: vars.hooksAddresses, hooksData: vars.hooksData });
-        vars.userOpData = _getExecOps(strategistAccount, superExecutorOnEth, abi.encode(vars.entry));
+        vars.userOpData = _getExecOps(managerAccount, superExecutorOnEth, abi.encode(vars.entry));
         executeOp(vars.userOpData);
 
         (vars.pricePerShare) = _getSuperVaultPricePerShare();
@@ -729,7 +729,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).convertToAssets(vars.underlyingSharesForVault1);
         vars.expectedAssetsOrSharesOut[1] = IERC4626(address(vault2)).convertToAssets(vars.underlyingSharesForVault2);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         bytes[] memory argsForProofs = new bytes[](2);
         argsForProofs[0] = ISuperHookInspector(vars.fulfillHooksAddresses[0]).inspect(vars.fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(vars.fulfillHooksAddresses[1]).inspect(vars.fulfillHooksData[1]);
@@ -786,7 +786,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).convertToShares(allocationAmountVault1);
         expectedAssetsOrSharesOut[1] = IERC4626(address(vault2)).convertToShares(allocationAmountVault2);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         bytes[] memory argsForProofs = new bytes[](2);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
@@ -847,7 +847,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         bool revertExpected = revertSelector != bytes4(0);
 
         if (revertExpected) {
@@ -916,7 +916,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         bool revertExpected = revertSelector != bytes4(0);
 
         if (revertExpected) {
@@ -996,7 +996,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).convertToShares(allocationAmountVault1);
         expectedAssetsOrSharesOut[1] = IERC4626(address(vault2)).convertToShares(allocationAmountVault2);
         expectedAssetsOrSharesOut[2] = IERC4626(address(vault3)).convertToShares(allocationAmountVault3);
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         bytes[] memory argsForProofs = new bytes[](3);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
@@ -1062,7 +1062,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         }
 
         console2.log("----requestingUsersLength", requestingUsers.length);
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         bytes[] memory argsForProofs = new bytes[](2);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
@@ -1117,7 +1117,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
         bytes32[][] memory proofs = _getMerkleProofsForHooks(fulfillHooksAddresses, argsForProofs);
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         if (revertSelector != bytes4(0)) {
             vm.expectRevert(revertSelector);
         }
@@ -1400,7 +1400,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
             }
 
             // Execute all hooks in a single transaction
-            vm.startPrank(STRATEGIST);
+            vm.startPrank(MANAGER);
 
             strategy.executeHooks(
                 ISuperVaultStrategy.ExecuteArgs({
@@ -1566,7 +1566,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     }
 
     function _setFeeConfig(uint256 feePercent, address feeRecipient) internal {
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.proposeVaultFeeConfigUpdate(feePercent, 0, feeRecipient);
         vm.warp(block.timestamp + 1 weeks);
         strategy.executeVaultFeeConfigUpdate();
@@ -1574,7 +1574,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     }
 
     function _setFeeConfig(uint256 performanceFeeBps, uint256 managementFeeBps, address feeRecipient) internal {
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         strategy.proposeVaultFeeConfigUpdate(performanceFeeBps, managementFeeBps, feeRecipient);
         vm.warp(block.timestamp + 1 weeks);
         strategy.executeVaultFeeConfigUpdate();
@@ -1592,7 +1592,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     {
         uint256 sharesToRedeem = IERC4626(sourceVault).convertToShares(assetsToMove);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         hooksData[0] = _createRedeem4626HookData(
             _getYieldSourceOracleId(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
             sourceVault,
@@ -1642,7 +1642,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         uint256 assetsToMove = targetAssets - currentAssets;
         uint256 sharesToRedeem = IERC4626(sourceVault).convertToShares(assetsToMove);
 
-        vm.startPrank(STRATEGIST);
+        vm.startPrank(MANAGER);
         hooksData[0] = _createRedeem4626HookData(
             _getYieldSourceOracleId(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
             sourceVault,

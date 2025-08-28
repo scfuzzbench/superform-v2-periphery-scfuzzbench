@@ -48,8 +48,8 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     // VaultBank Hook Target validation
     mapping(address hook => ISuperGovernor.HookMerkleRootData merkleData) private vaultBankHooksMerkleRoots;
 
-    // Global freeze for strategist takeovers
-    bool private _strategistTakeoversFrozen;
+    // Global freeze for manager takeovers
+    bool private _managerTakeoversFrozen;
 
     // Validator registry
     EnumerableSet.AddressSet private _validators;
@@ -57,7 +57,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     // Relayer registry
     EnumerableSet.AddressSet private _relayers;
 
-    // Protected keepers registry (cannot be added as authorized callers by strategists)
+    // Protected keepers registry (cannot be added as authorized callers by managers)
     EnumerableSet.AddressSet private _protectedKeepers;
 
     // Executor registry
@@ -93,8 +93,8 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     bool private _proposedUpkeepPaymentsEnabled;
     uint256 private _upkeepPaymentsChangeEffectiveTime;
 
-    // Superform strategists (exempt from upkeep costs)
-    EnumerableSet.AddressSet private _superformStrategists;
+    // Superform managers (exempt from upkeep costs)
+    EnumerableSet.AddressSet private _superformManagers;
 
     // Min staleness configuration to prevent maxStaleness from being set too low
     uint256 private _minStaleness;
@@ -199,33 +199,27 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function changePrimaryStrategist(
-        address strategy,
-        address newStrategist
-    )
-        external
-        onlyRole(_SUPER_GOVERNOR_ROLE)
-    {
+    function changePrimaryManager(address strategy, address newManager) external onlyRole(_SUPER_GOVERNOR_ROLE) {
         // Check if takeovers are globally frozen
-        if (_strategistTakeoversFrozen) revert STRATEGIST_TAKEOVERS_FROZEN();
+        if (_managerTakeoversFrozen) revert MANAGER_TAKEOVERS_FROZEN();
 
         address aggregator = _addressRegistry[SUPER_VAULT_AGGREGATOR];
         if (aggregator == address(0)) revert CONTRACT_NOT_FOUND();
 
-        // Call the interface method to change the strategist
+        // Call the interface method to change the manager
         // This function can only be called by the SuperGovernor and bypasses the timelock
-        ISuperVaultAggregator(aggregator).changePrimaryStrategist(strategy, newStrategist);
+        ISuperVaultAggregator(aggregator).changePrimaryManager(strategy, newManager);
     }
 
     /// @inheritdoc ISuperGovernor
-    function freezeStrategistTakeover() external onlyRole(_SUPER_GOVERNOR_ROLE) {
-        if (_strategistTakeoversFrozen) revert STRATEGIST_TAKEOVERS_FROZEN();
+    function freezeManagerTakeover() external onlyRole(_SUPER_GOVERNOR_ROLE) {
+        if (_managerTakeoversFrozen) revert MANAGER_TAKEOVERS_FROZEN();
 
         // Set frozen status to true (permanent, cannot be undone)
-        _strategistTakeoversFrozen = true;
+        _managerTakeoversFrozen = true;
 
         // Emit event for the frozen status
-        emit StrategistTakeoversFrozen();
+        emit ManagerTakeoversFrozen();
     }
 
     /// @inheritdoc ISuperGovernor
@@ -564,7 +558,6 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         ISuperVaultAggregator(aggregator).claimUpkeep(amount);
     }
 
-
     /*//////////////////////////////////////////////////////////////
                         UPKEEP COST MANAGEMENT
     //////////////////////////////////////////////////////////////*/
@@ -639,21 +632,21 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /*//////////////////////////////////////////////////////////////
-                      SUPERFORM STRATEGIST MANAGEMENT
+                      SUPERFORM MANAGER MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function addSuperformStrategist(address strategist) external onlyRole(_GOVERNOR_ROLE) {
-        if (strategist == address(0)) revert INVALID_ADDRESS();
-        if (!_superformStrategists.add(strategist)) revert STRATEGIST_ALREADY_REGISTERED();
+    function addSuperformManager(address manager) external onlyRole(_GOVERNOR_ROLE) {
+        if (manager == address(0)) revert INVALID_ADDRESS();
+        if (!_superformManagers.add(manager)) revert MANAGER_ALREADY_REGISTERED();
 
-        emit SuperformStrategistAdded(strategist);
+        emit SuperformManagerAdded(manager);
     }
 
     /// @inheritdoc ISuperGovernor
-    function removeSuperformStrategist(address strategist) external onlyRole(_GOVERNOR_ROLE) {
-        if (!_superformStrategists.remove(strategist)) revert STRATEGIST_NOT_REGISTERED();
+    function removeSuperformManager(address manager) external onlyRole(_GOVERNOR_ROLE) {
+        if (!_superformManagers.remove(manager)) revert MANAGER_NOT_REGISTERED();
 
-        emit SuperformStrategistRemoved(strategist);
+        emit SuperformManagerRemoved(manager);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -879,8 +872,8 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function isStrategistTakeoverFrozen() external view returns (bool) {
-        return _strategistTakeoversFrozen;
+    function isManagerTakeoverFrozen() external view returns (bool) {
+        return _managerTakeoversFrozen;
     }
 
     /// @inheritdoc ISuperGovernor
@@ -1034,25 +1027,25 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     }
 
     /// @inheritdoc ISuperGovernor
-    function isSuperformStrategist(address strategist) external view returns (bool isSuperform) {
-        return _superformStrategists.contains(strategist);
+    function isSuperformManager(address manager) external view returns (bool isSuperform) {
+        return _superformManagers.contains(manager);
     }
 
     /// @inheritdoc ISuperGovernor
-    function getAllSuperformStrategists() external view returns (address[] memory strategists) {
-        return _superformStrategists.values();
+    function getAllSuperformManagers() external view returns (address[] memory managers) {
+        return _superformManagers.values();
     }
 
     /// @inheritdoc ISuperGovernor
-    function getStrategistsPaginated(
+    function getManagersPaginated(
         uint256 cursor,
         uint256 limit
     )
         external
         view
-        returns (address[] memory chunkOfStrategists, uint256 next)
+        returns (address[] memory chunkOfManagers, uint256 next)
     {
-        uint256 len = _superformStrategists.length();
+        uint256 len = _superformManagers.length();
 
         // clamp limit so we don’t read past end
         uint256 realLimit = limit;
@@ -1064,17 +1057,17 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         uint256 remaining = len - cursor;
         if (realLimit > remaining) realLimit = remaining;
 
-        chunkOfStrategists = new address[](realLimit);
+        chunkOfManagers = new address[](realLimit);
         for (uint256 i; i < realLimit; ++i) {
-            chunkOfStrategists[i] = _superformStrategists.at(cursor + i);
+            chunkOfManagers[i] = _superformManagers.at(cursor + i);
         }
 
         next = (cursor + realLimit < len) ? cursor + realLimit : 0;
     }
 
     /// @inheritdoc ISuperGovernor
-    function getSuperformStrategistsCount() external view returns (uint256) {
-        return _superformStrategists.length();
+    function getSuperformManagersCount() external view returns (uint256) {
+        return _superformManagers.length();
     }
 
     /// @inheritdoc ISuperGovernor

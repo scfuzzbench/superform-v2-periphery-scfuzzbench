@@ -24,7 +24,6 @@ interface ISuperVaultStrategy {
     error INVALID_HOOK_ROOT();
     error INVALID_HOOK_TYPE();
     error INSUFFICIENT_FUNDS();
-    error INVALID_STRATEGIST();
     error ZERO_OUTPUT_AMOUNT();
     error INSUFFICIENT_SHARES();
     error ZERO_EXPECTED_VALUE();
@@ -42,7 +41,7 @@ interface ISuperVaultStrategy {
     error MINIMUM_PREVIOUS_HOOK_OUT_AMOUNT_NOT_MET();
     error MINIMUM_OUTPUT_AMOUNT_ASSETS_NOT_MET();
     error INVALID_REDEEM_CLAIM();
-    error STRATEGIST_NOT_AUTHORIZED();
+    error MANAGER_NOT_AUTHORIZED();
     error PPS_UPDATE_RATE_LIMITED();
     error PPS_OUT_OF_BOUNDS();
     error CALCULATION_BLOCK_TOO_OLD();
@@ -237,7 +236,7 @@ interface ISuperVaultStrategy {
     function handleOperations7540(Operation op, address controller, address receiver, uint256 amount) external;
 
     /*//////////////////////////////////////////////////////////////
-                STRATEGIST EXTERNAL ACCESS FUNCTIONS
+                MANAGER EXTERNAL ACCESS FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Execute hooks for general strategy management (rebalancing, etc.).

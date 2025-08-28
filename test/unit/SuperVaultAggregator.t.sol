@@ -23,8 +23,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     address internal governor;
     address internal treasury;
     address internal user;
-    address internal strategist;
-    address internal secondaryStrategist;
+    address internal manager;
+    address internal secondaryManager;
     address internal protectedKeeper1;
     address internal protectedKeeper2;
     address internal normalKeeper1;
@@ -46,8 +46,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         governor = _deployAccount(0x2, "Governor");
         treasury = _deployAccount(0x3, "Treasury");
         user = _deployAccount(0x4, "User");
-        strategist = _deployAccount(0x5, "Strategist");
-        secondaryStrategist = _deployAccount(0x6, "SecondaryStrategist");
+        manager = _deployAccount(0x5, "Manager");
+        secondaryManager = _deployAccount(0x6, "SecondaryManager");
         protectedKeeper1 = _deployAccount(0x7, "ProtectedKeeper1");
         protectedKeeper2 = _deployAccount(0x8, "ProtectedKeeper2");
         normalKeeper1 = _deployAccount(0x9, "NormalKeeper1");
@@ -65,24 +65,24 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superVaultAggregator = new SuperVaultAggregator(address(superGovernor), vaultImpl, strategyImpl, escrowImpl);
 
         // Create a vault and strategy for testing
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategyAddress,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 name: "Test Vault",
                 symbol: "TV",
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
         strategy = strategyAddress;
 
-        // Add secondary strategist for testing
-        vm.prank(strategist);
-        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist);
+        // Add secondary manager for testing
+        vm.prank(manager);
+        superVaultAggregator.addSecondaryManager(strategy, secondaryManager);
 
         // Register some protected keepers
         vm.startPrank(governor);
@@ -105,8 +105,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
     /// @notice Tests adding a normal (non-protected) keeper as authorized caller
     function test_AddAuthorizedCaller_Success_NormalKeeper() public {
-        // Primary strategist adds normal keeper
-        vm.prank(strategist);
+        // Primary manager adds normal keeper
+        vm.prank(manager);
         vm.expectEmit(true, true, false, false);
         emit ISuperVaultAggregator.AuthorizedCallerAdded(strategy, normalKeeper1);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
@@ -117,10 +117,10 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(callers[0], normalKeeper1, "Authorized caller should match");
     }
 
-    /// @notice Tests secondary strategist can add authorized callers
-    function test_AddAuthorizedCaller_Success_SecondaryStrategist() public {
-        // Secondary strategist adds normal keeper
-        vm.prank(secondaryStrategist);
+    /// @notice Tests secondary manager can add authorized callers
+    function test_AddAuthorizedCaller_Success_SecondaryManager() public {
+        // Secondary manager adds normal keeper
+        vm.prank(secondaryManager);
         vm.expectEmit(true, true, false, false);
         emit ISuperVaultAggregator.AuthorizedCallerAdded(strategy, normalKeeper1);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
@@ -133,7 +133,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
     /// @notice Tests adding multiple normal keepers as authorized callers
     function test_AddAuthorizedCaller_Success_MultipleKeepers() public {
-        vm.startPrank(strategist);
+        vm.startPrank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper2);
         vm.stopPrank();
@@ -152,15 +152,15 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertTrue(foundKeeper2, "normalKeeper2 should be in authorized callers");
     }
 
-    /// @notice Tests reverting when strategist tries to add protected keeper
+    /// @notice Tests reverting when manager tries to add protected keeper
     function test_AddAuthorizedCaller_Revert_ProtectedKeeper() public {
-        // Primary strategist tries to add protected keeper
-        vm.prank(strategist);
+        // Primary manager tries to add protected keeper
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
         superVaultAggregator.addAuthorizedCaller(strategy, protectedKeeper1);
 
-        // Secondary strategist tries to add protected keeper
-        vm.prank(secondaryStrategist);
+        // Secondary manager tries to add protected keeper
+        vm.prank(secondaryManager);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
         superVaultAggregator.addAuthorizedCaller(strategy, protectedKeeper2);
 
@@ -169,7 +169,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(callers.length, 0, "Should have 0 authorized callers");
     }
 
-    /// @notice Tests reverting when non-strategist tries to add authorized caller
+    /// @notice Tests reverting when non-manager tries to add authorized caller
     function test_AddAuthorizedCaller_Revert_UnauthorizedCaller() public {
         vm.prank(user);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
@@ -178,7 +178,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
     /// @notice Tests reverting when adding zero address as authorized caller
     function test_AddAuthorizedCaller_Revert_ZeroAddress() public {
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
         superVaultAggregator.addAuthorizedCaller(strategy, address(0));
     }
@@ -186,11 +186,11 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     /// @notice Tests reverting when adding duplicate authorized caller
     function test_AddAuthorizedCaller_Revert_AlreadyAuthorized() public {
         // Add keeper first
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
 
         // Try to add same keeper again
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.CALLER_ALREADY_AUTHORIZED.selector);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
     }
@@ -199,7 +199,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     function test_AddAuthorizedCaller_Revert_UnknownStrategy() public {
         address unknownStrategy = _deployAccount(0x99, "UnknownStrategy");
 
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.UNKNOWN_STRATEGY.selector);
         superVaultAggregator.addAuthorizedCaller(unknownStrategy, normalKeeper1);
     }
@@ -211,11 +211,11 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     /// @notice Tests removing authorized caller successfully
     function test_RemoveAuthorizedCaller_Success() public {
         // Add caller first
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
 
         // Remove caller
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectEmit(true, true, false, false);
         emit ISuperVaultAggregator.AuthorizedCallerRemoved(strategy, normalKeeper1);
         superVaultAggregator.removeAuthorizedCaller(strategy, normalKeeper1);
@@ -228,13 +228,13 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     /// @notice Tests removing authorized caller when multiple exist
     function test_RemoveAuthorizedCaller_Success_WithMultiple() public {
         // Add multiple callers
-        vm.startPrank(strategist);
+        vm.startPrank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper2);
         vm.stopPrank();
 
         // Remove one caller
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.removeAuthorizedCaller(strategy, normalKeeper1);
 
         // Verify only normalKeeper2 remains
@@ -245,19 +245,19 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
     /// @notice Tests reverting when removing non-existent authorized caller
     function test_RemoveAuthorizedCaller_Revert_CallerNotFound() public {
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.CALLER_NOT_AUTHORIZED.selector);
         superVaultAggregator.removeAuthorizedCaller(strategy, normalKeeper1);
     }
 
-    /// @notice Tests secondary strategist can remove authorized callers
-    function test_RemoveAuthorizedCaller_Success_SecondaryStrategist() public {
-        // Add caller with primary strategist
-        vm.prank(strategist);
+    /// @notice Tests secondary manager can remove authorized callers
+    function test_RemoveAuthorizedCaller_Success_SecondaryManager() public {
+        // Add caller with primary manager
+        vm.prank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
 
-        // Remove caller with secondary strategist
-        vm.prank(secondaryStrategist);
+        // Remove caller with secondary manager
+        vm.prank(secondaryManager);
         superVaultAggregator.removeAuthorizedCaller(strategy, normalKeeper1);
 
         // Verify caller was removed
@@ -266,68 +266,68 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     }
 
     // =============================================================
-    // Emergency Strategist Replacement Tests
+    // Emergency Manager Replacement Tests
     // =============================================================
 
-    /// @notice Tests emergency strategist replacement clears pending proposals
-    function test_ChangePrimaryStrategist_ClearsPendingProposals() public {
-        // Setup: Create pending strategist proposal
-        address newStrategist = _deployAccount(0xC, "NewStrategist");
+    /// @notice Tests emergency manager replacement clears pending proposals
+    function test_ChangePrimaryManager_ClearsPendingProposals() public {
+        // Setup: Create pending manager proposal
+        address newManager = _deployAccount(0xC, "NewManager");
 
-        // Secondary strategist proposes a change
-        vm.prank(secondaryStrategist);
-        superVaultAggregator.proposeChangePrimaryStrategist(strategy, newStrategist);
+        // Secondary manager proposes a change
+        vm.prank(secondaryManager);
+        superVaultAggregator.proposeChangePrimaryManager(strategy, newManager);
 
         // SuperGovernor performs emergency replacement
-        address emergencyStrategist = _deployAccount(0xD, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0xD, "EmergencyManager");
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
 
-        // Verify new strategist is set
-        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
-        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be set");
+        // Verify new manager is set
+        address currentManager = superVaultAggregator.getMainManager(strategy);
+        assertEq(currentManager, emergencyManager, "Emergency manager should be set");
     }
 
-    /// @notice Tests emergency replacement clears all secondary strategists
-    function test_ChangePrimaryStrategist_ClearsSecondaryStrategists() public {
-        // Setup: Add multiple secondary strategists
-        address secondaryStrategist2 = _deployAccount(0xE, "SecondaryStrategist2");
-        address secondaryStrategist3 = _deployAccount(0xF, "SecondaryStrategist3");
+    /// @notice Tests emergency replacement clears all secondary managers
+    function test_ChangePrimaryManager_ClearsSecondaryManagers() public {
+        // Setup: Add multiple secondary managers
+        address secondaryManager2 = _deployAccount(0xE, "SecondaryManager2");
+        address secondaryManager3 = _deployAccount(0xF, "SecondaryManager3");
 
-        vm.startPrank(strategist);
-        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist2);
-        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist3);
+        vm.startPrank(manager);
+        superVaultAggregator.addSecondaryManager(strategy, secondaryManager2);
+        superVaultAggregator.addSecondaryManager(strategy, secondaryManager3);
         vm.stopPrank();
 
-        // Verify secondary strategists exist
-        address[] memory secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
-        assertEq(secondaryStrategists.length, 3, "Should have 3 secondary strategists");
+        // Verify secondary managers exist
+        address[] memory secondaryManagers = superVaultAggregator.getSecondaryManagers(strategy);
+        assertEq(secondaryManagers.length, 3, "Should have 3 secondary managers");
 
         // SuperGovernor performs emergency replacement
-        address emergencyStrategist = _deployAccount(0x10, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0x10, "EmergencyManager");
 
-        // Expect SecondaryStrategistRemoved events for all secondary strategists
+        // Expect SecondaryManagerRemoved events for all secondary managers
         vm.expectEmit(true, true, false, false);
-        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist);
+        emit ISuperVaultAggregator.SecondaryManagerRemoved(strategy, secondaryManager);
         vm.expectEmit(true, true, false, false);
-        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist2);
+        emit ISuperVaultAggregator.SecondaryManagerRemoved(strategy, secondaryManager2);
         vm.expectEmit(true, true, false, false);
-        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist3);
+        emit ISuperVaultAggregator.SecondaryManagerRemoved(strategy, secondaryManager3);
 
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
 
-        // Verify all secondary strategists were cleared
-        secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
-        assertEq(secondaryStrategists.length, 0, "All secondary strategists should be cleared");
+        // Verify all secondary managers were cleared
+        secondaryManagers = superVaultAggregator.getSecondaryManagers(strategy);
+        assertEq(secondaryManagers.length, 0, "All secondary managers should be cleared");
     }
 
     /// @notice Tests emergency replacement clears pending hook root proposals
-    function test_ChangePrimaryStrategist_ClearsPendingHookProposals() public {
+    function test_ChangePrimaryManager_ClearsPendingHookProposals() public {
         // Setup: Create pending hook root proposal
         bytes32 newHookRoot = keccak256("new_hook_root");
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, newHookRoot);
 
         // Verify hook proposal exists
@@ -336,9 +336,9 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertTrue(effectiveTime > 0, "Hook effective time should be set");
 
         // SuperGovernor performs emergency replacement
-        address emergencyStrategist = _deployAccount(0x11, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0x11, "EmergencyManager");
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
 
         // Verify hook proposal was cleared
         (proposedRoot, effectiveTime) = superVaultAggregator.getProposedStrategyHooksRoot(strategy);
@@ -346,144 +346,144 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(effectiveTime, 0, "Hook effective time should be cleared");
     }
 
-    /// @notice Tests the complete attack scenario - malicious strategist cannot regain control
-    function test_ChangePrimaryStrategist_PreventsAttackScenario() public {
+    /// @notice Tests the complete attack scenario - malicious manager cannot regain control
+    function test_ChangePrimaryManager_PreventsAttackScenario() public {
         // Setup malicious scenario:
-        // 1. Malicious strategist has secondary strategists under their control
+        // 1. Malicious manager has secondary managers under their control
         address maliciousSecondary1 = _deployAccount(0x12, "MaliciousSecondary1");
         address maliciousSecondary2 = _deployAccount(0x13, "MaliciousSecondary2");
 
-        vm.startPrank(strategist); // strategist is acting maliciously
-        superVaultAggregator.addSecondaryStrategist(strategy, maliciousSecondary1);
-        superVaultAggregator.addSecondaryStrategist(strategy, maliciousSecondary2);
+        vm.startPrank(manager); // manager is acting maliciously
+        superVaultAggregator.addSecondaryManager(strategy, maliciousSecondary1);
+        superVaultAggregator.addSecondaryManager(strategy, maliciousSecondary2);
         vm.stopPrank();
 
-        // 2. Malicious strategist creates a proposal to regain control after emergency replacement
+        // 2. Malicious manager creates a proposal to regain control after emergency replacement
         address controlledAccount = _deployAccount(0x14, "ControlledAccount");
         vm.prank(maliciousSecondary1);
-        superVaultAggregator.proposeChangePrimaryStrategist(strategy, controlledAccount);
+        superVaultAggregator.proposeChangePrimaryManager(strategy, controlledAccount);
 
         // 3. SuperGovernor detects malicious behavior and performs emergency replacement
-        address emergencyStrategist = _deployAccount(0x15, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0x15, "EmergencyManager");
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
 
         // 4. Verify the attack is thwarted:
 
-        // a) All secondary strategists are removed
-        address[] memory secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
-        assertEq(secondaryStrategists.length, 0, "All malicious secondary strategists should be removed");
+        // a) All secondary managers are removed
+        address[] memory secondaryManagers = superVaultAggregator.getSecondaryManagers(strategy);
+        assertEq(secondaryManagers.length, 0, "All malicious secondary managers should be removed");
 
-        // b) Emergency strategist is in control
-        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
-        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be in control");
+        // b) Emergency manager is in control
+        address currentManager = superVaultAggregator.getMainManager(strategy);
+        assertEq(currentManager, emergencyManager, "Emergency manager should be in control");
 
         // 5. Malicious accounts can no longer propose changes
         vm.prank(maliciousSecondary1);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
-        superVaultAggregator.proposeChangePrimaryStrategist(strategy, controlledAccount);
+        superVaultAggregator.proposeChangePrimaryManager(strategy, controlledAccount);
 
         vm.prank(maliciousSecondary2);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
-        superVaultAggregator.proposeChangePrimaryStrategist(strategy, controlledAccount);
+        superVaultAggregator.proposeChangePrimaryManager(strategy, controlledAccount);
     }
 
-    /// @notice Tests that only SuperGovernor can call changePrimaryStrategist
-    function test_ChangePrimaryStrategist_OnlySuperGovernor() public {
-        address newStrategist = _deployAccount(0x16, "NewStrategist");
+    /// @notice Tests that only SuperGovernor can call changePrimaryManager
+    function test_ChangePrimaryManager_OnlySuperGovernor() public {
+        address newManager = _deployAccount(0x16, "NewManager");
 
         // Test unauthorized callers
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
-        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, newManager);
 
-        vm.prank(secondaryStrategist);
+        vm.prank(secondaryManager);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
-        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, newManager);
 
         vm.prank(user);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
-        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, newManager);
 
         // Test that SuperGovernor can call it
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, newStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, newManager);
 
         // Verify change was successful
-        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
-        assertEq(currentStrategist, newStrategist, "New strategist should be set");
+        address currentManager = superVaultAggregator.getMainManager(strategy);
+        assertEq(currentManager, newManager, "New manager should be set");
     }
 
     /// @notice Tests emergency replacement with zero address reverts
-    function test_ChangePrimaryStrategist_RevertZeroAddress() public {
+    function test_ChangePrimaryManager_RevertZeroAddress() public {
         vm.prank(address(superGovernor));
         vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
-        superVaultAggregator.changePrimaryStrategist(strategy, address(0));
+        superVaultAggregator.changePrimaryManager(strategy, address(0));
     }
 
     /// @notice Tests emergency replacement with unknown strategy reverts
-    function test_ChangePrimaryStrategist_RevertUnknownStrategy() public {
+    function test_ChangePrimaryManager_RevertUnknownStrategy() public {
         address unknownStrategy = _deployAccount(0x17, "UnknownStrategy");
-        address newStrategist = _deployAccount(0x18, "NewStrategist");
+        address newManager = _deployAccount(0x18, "NewManager");
 
         vm.prank(address(superGovernor));
         vm.expectRevert(ISuperVaultAggregator.UNKNOWN_STRATEGY.selector);
-        superVaultAggregator.changePrimaryStrategist(unknownStrategy, newStrategist);
+        superVaultAggregator.changePrimaryManager(unknownStrategy, newManager);
     }
 
     /// @notice Tests emergency replacement works when no pending proposals exist
-    function test_ChangePrimaryStrategist_NoPendingProposals() public {
+    function test_ChangePrimaryManager_NoPendingProposals() public {
         // Emergency replacement should still work
-        address emergencyStrategist = _deployAccount(0x19, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0x19, "EmergencyManager");
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
 
         // Verify change was successful
-        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
-        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be set");
+        address currentManager = superVaultAggregator.getMainManager(strategy);
+        assertEq(currentManager, emergencyManager, "Emergency manager should be set");
     }
 
-    /// @notice Tests emergency replacement works when no secondary strategists exist
-    function test_ChangePrimaryStrategist_NoSecondaryStrategists() public {
-        // Remove the existing secondary strategist
-        vm.prank(strategist);
-        superVaultAggregator.removeSecondaryStrategist(strategy, secondaryStrategist);
+    /// @notice Tests emergency replacement works when no secondary managers exist
+    function test_ChangePrimaryManager_NoSecondaryManagers() public {
+        // Remove the existing secondary manager
+        vm.prank(manager);
+        superVaultAggregator.removeSecondaryManager(strategy, secondaryManager);
 
-        // Verify no secondary strategists exist
-        address[] memory secondaryStrategists = superVaultAggregator.getSecondaryStrategists(strategy);
-        assertEq(secondaryStrategists.length, 0, "No secondary strategists should exist");
+        // Verify no secondary managers exist
+        address[] memory secondaryManagers = superVaultAggregator.getSecondaryManagers(strategy);
+        assertEq(secondaryManagers.length, 0, "No secondary managers should exist");
 
         // Emergency replacement should still work
-        address emergencyStrategist = _deployAccount(0x1A, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0x1A, "EmergencyManager");
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
 
         // Verify change was successful
-        address currentStrategist = superVaultAggregator.getMainStrategist(strategy);
-        assertEq(currentStrategist, emergencyStrategist, "Emergency strategist should be set");
+        address currentManager = superVaultAggregator.getMainManager(strategy);
+        assertEq(currentManager, emergencyManager, "Emergency manager should be set");
     }
 
     /// @notice Tests that emergency replacement emits proper events
-    function test_ChangePrimaryStrategist_EmitsEvents() public {
-        // Setup: Add secondary strategists for event testing
-        address secondaryStrategist2 = _deployAccount(0x1B, "SecondaryStrategist2");
-        vm.prank(strategist);
-        superVaultAggregator.addSecondaryStrategist(strategy, secondaryStrategist2);
+    function test_ChangePrimaryManager_EmitsEvents() public {
+        // Setup: Add secondary managers for event testing
+        address secondaryManager2 = _deployAccount(0x1B, "SecondaryManager2");
+        vm.prank(manager);
+        superVaultAggregator.addSecondaryManager(strategy, secondaryManager2);
 
-        address emergencyStrategist = _deployAccount(0x1C, "EmergencyStrategist");
+        address emergencyManager = _deployAccount(0x1C, "EmergencyManager");
 
-        // Expect SecondaryStrategistRemoved events first (during the clearing loop)
+        // Expect SecondaryManagerRemoved events first (during the clearing loop)
         vm.expectEmit(true, true, false, false);
-        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist);
+        emit ISuperVaultAggregator.SecondaryManagerRemoved(strategy, secondaryManager);
         vm.expectEmit(true, true, false, false);
-        emit ISuperVaultAggregator.SecondaryStrategistRemoved(strategy, secondaryStrategist2);
+        emit ISuperVaultAggregator.SecondaryManagerRemoved(strategy, secondaryManager2);
 
-        // Then expect PrimaryStrategistChanged event (emitted at the end)
+        // Then expect PrimaryManagerChanged event (emitted at the end)
         vm.expectEmit(true, true, true, false);
-        emit ISuperVaultAggregator.PrimaryStrategistChanged(strategy, strategist, emergencyStrategist);
+        emit ISuperVaultAggregator.PrimaryManagerChanged(strategy, manager, emergencyManager);
 
         vm.prank(address(superGovernor));
-        superVaultAggregator.changePrimaryStrategist(strategy, emergencyStrategist);
+        superVaultAggregator.changePrimaryManager(strategy, emergencyManager);
     }
 
     // =============================================================
@@ -493,7 +493,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     /// @notice Tests that previously added keepers become blocked if later protected
     function test_Security_KeeperProtectedAfterAdding() public {
         // Add a normal keeper
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
 
         // Verify keeper was added
@@ -504,23 +504,23 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.prank(governor);
         superGovernor.registerProtectedKeeper(normalKeeper1);
 
-        // Strategist should no longer be able to add the same keeper to other strategies
+        // Manager should no longer be able to add the same keeper to other strategies
         // (Create another strategy for testing)
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
 
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
         superVaultAggregator.addAuthorizedCaller(strategy2, normalKeeper1);
 
@@ -536,8 +536,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.prank(governor);
         superGovernor.unregisterProtectedKeeper(protectedKeeper1);
 
-        // Now strategist should be able to add it
-        vm.prank(strategist);
+        // Now manager should be able to add it
+        vm.prank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, protectedKeeper1);
 
         // Verify keeper was added
@@ -546,37 +546,37 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(callers[0], protectedKeeper1, "Authorized caller should be former protected keeper");
     }
 
-    /// @notice Tests complex scenario with multiple strategists and protected keepers
+    /// @notice Tests complex scenario with multiple managers and protected keepers
     function test_Security_ComplexScenario() public {
-        // Create another strategy with different strategist
-        address strategist2 = _deployAccount(0xB, "Strategist2");
-        vm.prank(strategist2);
+        // Create another strategy with different manager
+        address manager2 = _deployAccount(0xB, "Manager2");
+        vm.prank(manager2);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist2,
-                secondaryStrategists: new address[](0),
+                mainManager: manager2,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist2 })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager2 })
             })
         );
 
-        // Both strategists can add normal keepers
-        vm.prank(strategist);
+        // Both managers can add normal keepers
+        vm.prank(manager);
         superVaultAggregator.addAuthorizedCaller(strategy, normalKeeper1);
 
-        vm.prank(strategist2);
+        vm.prank(manager2);
         superVaultAggregator.addAuthorizedCaller(strategy2, normalKeeper2);
 
         // Neither can add protected keepers
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
         superVaultAggregator.addAuthorizedCaller(strategy, protectedKeeper1);
 
-        vm.prank(strategist2);
+        vm.prank(manager2);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
         superVaultAggregator.addAuthorizedCaller(strategy2, protectedKeeper2);
 
@@ -590,33 +590,33 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(callers2[0], normalKeeper2, "Strategy 2 caller should match");
     }
 
-    /// @notice Tests that the strategist themselves can be added as authorized caller (if not protected)
-    function test_Security_StrategistCanAddSelf() public {
-        // Strategist adds themselves as authorized caller
-        vm.prank(strategist);
-        superVaultAggregator.addAuthorizedCaller(strategy, strategist);
+    /// @notice Tests that the manager themselves can be added as authorized caller (if not protected)
+    function test_Security_ManagerCanAddSelf() public {
+        // Manager adds themselves as authorized caller
+        vm.prank(manager);
+        superVaultAggregator.addAuthorizedCaller(strategy, manager);
 
-        // Verify strategist was added
+        // Verify manager was added
         address[] memory callers = superVaultAggregator.getAuthorizedCallers(strategy);
         assertEq(callers.length, 1, "Should have 1 authorized caller");
-        assertEq(callers[0], strategist, "Authorized caller should be strategist");
+        assertEq(callers[0], manager, "Authorized caller should be manager");
     }
 
-    /// @notice Tests that protected strategist cannot be added as authorized caller
-    function test_Security_ProtectedStrategistCannotBeAdded() public {
-        // Protect the strategist
+    /// @notice Tests that protected manager cannot be added as authorized caller
+    function test_Security_ProtectedManagerCannotBeAdded() public {
+        // Protect the manager
         vm.prank(governor);
-        superGovernor.registerProtectedKeeper(strategist);
+        superGovernor.registerProtectedKeeper(manager);
 
-        // Strategist tries to add themselves but should fail
-        vm.prank(strategist);
+        // Manager tries to add themselves but should fail
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
-        superVaultAggregator.addAuthorizedCaller(strategy, strategist);
+        superVaultAggregator.addAuthorizedCaller(strategy, manager);
 
-        // Secondary strategist also cannot add the protected primary strategist
-        vm.prank(secondaryStrategist);
+        // Secondary manager also cannot add the protected primary manager
+        vm.prank(secondaryManager);
         vm.expectRevert(ISuperVaultAggregator.CANNOT_ADD_PROTECTED_KEEPER.selector);
-        superVaultAggregator.addAuthorizedCaller(strategy, strategist);
+        superVaultAggregator.addAuthorizedCaller(strategy, manager);
     }
 
     // =============================================================
@@ -712,17 +712,17 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superGovernor.setActivePPSOracle(address(this));
 
         // Create second strategy for batch testing
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
 
@@ -783,17 +783,17 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superGovernor.setActivePPSOracle(address(this));
 
         // Create second strategy for batch testing
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
 
@@ -861,17 +861,17 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superGovernor.executeUpkeepPaymentsChange();
 
         // Create second strategy for batch testing with shorter maxStaleness
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 400, // Shorter staleness period for testing (must be >= minStaleness of 300)
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
 
@@ -944,24 +944,24 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.stopPrank();
 
         // Create second strategy for testing upkeep; otherwise is stale
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 10 days,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
         address _upToken = superGovernor.getAddress(superGovernor.UP());
 
         deal(_upToken, address(this), 1e18);
         IERC20(_upToken).approve(address(superVaultAggregator), 1e18);
-        superVaultAggregator.depositUpkeep(strategist, 1e18);
+        superVaultAggregator.depositUpkeep(manager, 1e18);
 
         // Get initial timestamp
         uint256 initialTimestamp = superVaultAggregator.getLastUpdateTimestamp(strategy2);
@@ -1056,7 +1056,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(mockHookAddress, hookArgs))));
 
         // Set strategy root to be the leaf itself (single-leaf tree)
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
 
         // Fast forward past timelock
@@ -1134,7 +1134,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.warp(block.timestamp + 24 hours + 1);
         superVaultAggregator.executeGlobalHooksRootUpdate();
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
 
         vm.warp(block.timestamp + 24 hours + 1);
@@ -1172,7 +1172,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(mockHookAddress, hookArgs))));
 
         // Set strategy root to be the leaf (single-leaf tree)
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
 
         vm.warp(block.timestamp + 24 hours + 1);
@@ -1219,7 +1219,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superVaultAggregator.executeGlobalHooksRootUpdate();
 
         // Set strategy root to second leaf (single-leaf tree)
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf2);
 
         vm.warp(block.timestamp + 24 hours + 1);
@@ -1281,14 +1281,14 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         statuses[0] = true; // Ban leaf1
         statuses[1] = false; // Allow leaf2
 
-        // Primary strategist bans global leaves
-        vm.prank(strategist);
+        // Primary manager bans global leaves
+        vm.prank(manager);
         vm.expectEmit(true, false, false, true);
         emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, leaves, statuses);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
     }
 
-    /// @notice Tests that only primary strategist can change global leaves status
+    /// @notice Tests that only primary manager can change global leaves status
     function test_ChangeGlobalLeavesStatus_Revert_UnauthorizedCaller() public {
         bytes32[] memory leaves = new bytes32[](1);
         leaves[0] = keccak256("test_leaf");
@@ -1296,8 +1296,8 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true;
 
-        // Secondary strategist cannot change global leaves status
-        vm.prank(secondaryStrategist);
+        // Secondary manager cannot change global leaves status
+        vm.prank(secondaryManager);
         vm.expectRevert(ISuperVaultAggregator.UNAUTHORIZED_UPDATE_AUTHORITY.selector);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
@@ -1316,7 +1316,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1); // Mismatched length
         statuses[0] = true;
 
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.MISMATCHED_ARRAY_LENGTHS.selector);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
     }
@@ -1331,7 +1331,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true;
 
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectRevert(ISuperVaultAggregator.UNKNOWN_STRATEGY.selector);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, unknownStrategy);
     }
@@ -1379,7 +1379,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true; // Ban the leaf
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Now hook should be invalid
@@ -1414,7 +1414,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true; // Ban the leaf
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Hook should be invalid
@@ -1434,7 +1434,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
         // Unban the leaf
         statuses[0] = false; // Unban the leaf
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Now hook should be valid again
@@ -1468,7 +1468,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superVaultAggregator.executeGlobalHooksRootUpdate();
 
         // Set strategy root to leaf2 for testing
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf2);
         vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
         superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
@@ -1479,7 +1479,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true; // Ban leaf1
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Prepare batch validation
@@ -1528,7 +1528,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(hookAddress, hookArgs))));
 
         // Set strategy root to the leaf
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.proposeStrategyHooksRoot(strategy, leaf);
         vm.warp(block.timestamp + superVaultAggregator.getHooksRootUpdateTimelock() + 1);
         superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
@@ -1539,7 +1539,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true; // Ban the leaf globally
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Hook should still be valid via strategy root
@@ -1576,7 +1576,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         statuses[1] = true;
         statuses[2] = true;
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Unban leaf2 only
@@ -1585,7 +1585,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory singleStatus = new bool[](1);
         singleStatus[0] = false;
 
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectEmit(true, false, false, true);
         emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, singleLeaf, singleStatus);
         superVaultAggregator.changeGlobalLeavesStatus(singleLeaf, singleStatus, strategy);
@@ -1594,17 +1594,17 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     /// @notice Tests that different strategies have independent banned leaves
     function test_ChangeGlobalLeavesStatus_StrategyIndependence() public {
         // Create second strategy
-        vm.prank(strategist);
+        vm.prank(manager);
         (, address strategy2,) = superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: strategist,
-                secondaryStrategists: new address[](0),
+                mainManager: manager,
+                secondaryManagers: new address[](0),
                 name: "Test Vault 2",
                 symbol: "TV2",
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: strategist })
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager })
             })
         );
 
@@ -1624,7 +1624,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bool[] memory statuses = new bool[](1);
         statuses[0] = true;
 
-        vm.prank(strategist);
+        vm.prank(manager);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
 
         // Hook should be invalid for strategy1
@@ -1660,7 +1660,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         bytes32[] memory leaves = new bytes32[](0);
         bool[] memory statuses = new bool[](0);
 
-        vm.prank(strategist);
+        vm.prank(manager);
         vm.expectEmit(true, false, false, true);
         emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, leaves, statuses);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);

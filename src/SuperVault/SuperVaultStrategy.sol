@@ -236,12 +236,12 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     }
 
     /*//////////////////////////////////////////////////////////////
-                STRATEGIST EXTERNAL ACCESS FUNCTIONS
+                MANAGER EXTERNAL ACCESS FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc ISuperVaultStrategy
     function executeHooks(ExecuteArgs calldata args) external payable nonReentrant {
-        _isStrategist(msg.sender);
+        _isManager(msg.sender);
 
         uint256 hooksLength = args.hooks.length;
         if (hooksLength == 0) revert ZERO_LENGTH();
@@ -268,7 +268,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
     /// @inheritdoc ISuperVaultStrategy
     function fulfillRedeemRequests(FulfillArgs calldata args) external nonReentrant {
-        _isStrategist(msg.sender);
+        _isManager(msg.sender);
 
         // Check if strategy is paused
         if (_isPaused()) revert STRATEGY_PAUSED();
@@ -314,7 +314,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
     // @inheritdoc ISuperVaultStrategy
     function manageYieldSource(address source, address oracle, uint8 actionType, bool activate) external {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
         _manageYieldSource(source, oracle, actionType, activate);
     }
 
@@ -327,7 +327,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     )
         external
     {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
 
         uint256 length = sources.length;
         if (length == 0) revert ZERO_LENGTH();
@@ -348,7 +348,8 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     )
         external
     {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
+        
         if (performanceFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
         if (managementFeeBps > BPS_PRECISION) revert INVALID_PERFORMANCE_FEE_BPS();
         if (recipient == address(0)) revert ZERO_ADDRESS();
@@ -373,7 +374,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
     // @inheritdoc ISuperVaultStrategy
     function updateMaxPPSSlippage(uint256 maxSlippageBps) external {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
         if (maxSlippageBps > BPS_PRECISION) revert INVALID_MAX_SLIPPAGE_BPS();
         _maxPPSSlippage = maxSlippageBps;
         emit MaxPPSSlippageUpdated(maxSlippageBps);
@@ -869,19 +870,19 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
         return ISuperVaultAggregator(aggregatorAddress);
     }
 
-    /// @notice Internal function to check if a strategist is authorized
-    /// @param strategist_ The strategist to check
-    function _isStrategist(address strategist_) internal view {
-        if (!_getSuperVaultAggregator().isAnyStrategist(strategist_, address(this))) {
-            revert STRATEGIST_NOT_AUTHORIZED();
+    /// @notice Internal function to check if a manager is authorized
+    /// @param manager_ The manager to check
+    function _isManager(address manager_) internal view {
+        if (!_getSuperVaultAggregator().isAnyManager(manager_, address(this))) {
+            revert MANAGER_NOT_AUTHORIZED();
         }
     }
 
-    /// @notice Internal function to check if a strategist is the primary strategist
-    /// @param strategist_ The strategist to check
-    function _isPrimaryStrategist(address strategist_) internal view {
-        if (!_getSuperVaultAggregator().isMainStrategist(strategist_, address(this))) {
-            revert STRATEGIST_NOT_AUTHORIZED();
+    /// @notice Internal function to check if a manager is the primary manager
+    /// @param manager_ The manager to check
+    function _isPrimaryManager(address manager_) internal view {
+        if (!_getSuperVaultAggregator().isMainManager(manager_, address(this))) {
+            revert MANAGER_NOT_AUTHORIZED();
         }
     }
 
@@ -946,7 +947,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
     /// @notice Internal function to propose an emergency withdraw
     function _proposeEmergencyWithdraw() internal {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
 
         proposedEmergencyWithdrawable = true;
         emergencyWithdrawableEffectiveTime = block.timestamp + ONE_WEEK;
@@ -965,7 +966,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
 
     /// @notice Internal function to cancel an emergency withdraw proposal
     function _cancelEmergencyWithdrawProposal() internal {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
 
         if (emergencyWithdrawableEffectiveTime == 0) revert NO_PROPOSAL();
         proposedEmergencyWithdrawable = false;
@@ -977,7 +978,7 @@ contract SuperVaultStrategy is Initializable, ISuperVaultStrategy, ReentrancyGua
     /// @param recipient Address to receive the assets
     /// @param amount Amount of assets to withdraw
     function _performEmergencyWithdraw(address recipient, uint256 amount) internal {
-        _isPrimaryStrategist(msg.sender);
+        _isPrimaryManager(msg.sender);
 
         if (!emergencyWithdrawable) revert INVALID_EMERGENCY_WITHDRAWAL();
         if (recipient == address(0)) revert ZERO_ADDRESS();

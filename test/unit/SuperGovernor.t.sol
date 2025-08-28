@@ -31,7 +31,7 @@ contract SuperGovernorTest is PeripheryHelpers {
     address internal ppsOracle2;
     address internal superVaultAggregator;
     address internal strategy1;
-    address internal newStrategist;
+    address internal newManager;
 
     // Role Hashes
     bytes32 internal constant SUPER_GOVERNOR_ROLE = keccak256("SUPER_GOVERNOR_ROLE");
@@ -62,7 +62,7 @@ contract SuperGovernorTest is PeripheryHelpers {
         validator2 = _deployAccount(0xA, "Validator2");
         ppsOracle1 = _deployAccount(0xB, "PPSOracle1");
         ppsOracle2 = _deployAccount(0xC, "PPSOracle2");
-        newStrategist = _deployAccount(0xF, "NewStrategist");
+        newManager = _deployAccount(0xF, "NewManager");
 
         asset = new MockERC20("Asset", "ASSET", 18);
 
@@ -78,8 +78,8 @@ contract SuperGovernorTest is PeripheryHelpers {
         (, address strategy,) = ISuperVaultAggregator(superVaultAggregator).createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
-                mainStrategist: address(this),
-                secondaryStrategists: new address[](0),
+                mainManager: address(this),
+                secondaryManagers: new address[](0),
                 name: "SUP",
                 symbol: "SUP",
                 minUpdateInterval: 5,
@@ -201,58 +201,58 @@ contract SuperGovernorTest is PeripheryHelpers {
     }
 
     // =============================================================
-    // Strategist Takeover Tests
+    // Manager Takeover Tests
     // =============================================================
 
-    /// @notice Tests changing a strategist for a strategy
-    function test_StrategistTakeover_ChangeStrategist() public {
+    /// @notice Tests changing a manager for a strategy
+    function test_ManagerTakeover_ChangeManager() public {
         // Set up SuperVaultAggregator address in registry
         vm.prank(sGovernor);
         superGovernor.setAddress(SUPER_VAULT_AGGREGATOR, superVaultAggregator);
 
         // Test with governor role
         vm.prank(sGovernor);
-        superGovernor.changePrimaryStrategist(strategy1, newStrategist);
+        superGovernor.changePrimaryManager(strategy1, newManager);
 
-        assertEq(ISuperVaultAggregator(superVaultAggregator).getMainStrategist(strategy1), newStrategist);
+        assertEq(ISuperVaultAggregator(superVaultAggregator).getMainManager(strategy1), newManager);
     }
 
-    /// @notice Tests freezing strategist takeovers
-    function test_StrategistTakeover_Freeze() public {
+    /// @notice Tests freezing manager takeovers
+    function test_ManagerTakeover_Freeze() public {
         vm.prank(sGovernor);
         vm.expectEmit(true, false, false, false);
-        emit ISuperGovernor.StrategistTakeoversFrozen();
-        superGovernor.freezeStrategistTakeover();
+        emit ISuperGovernor.ManagerTakeoversFrozen();
+        superGovernor.freezeManagerTakeover();
 
-        assertTrue(superGovernor.isStrategistTakeoverFrozen(), "Strategist takeovers should be frozen");
+        assertTrue(superGovernor.isManagerTakeoverFrozen(), "Manager takeovers should be frozen");
     }
 
-    /// @notice Tests reverting when trying to freeze already frozen strategist takeovers
-    function test_StrategistTakeover_Revert_AlreadyFrozen() public {
+    /// @notice Tests reverting when trying to freeze already frozen manager takeovers
+    function test_ManagerTakeover_Revert_AlreadyFrozen() public {
         // First freeze
         vm.prank(sGovernor);
-        superGovernor.freezeStrategistTakeover();
+        superGovernor.freezeManagerTakeover();
 
         // Try to freeze again
         vm.prank(sGovernor);
-        vm.expectRevert(ISuperGovernor.STRATEGIST_TAKEOVERS_FROZEN.selector);
-        superGovernor.freezeStrategistTakeover();
+        vm.expectRevert(ISuperGovernor.MANAGER_TAKEOVERS_FROZEN.selector);
+        superGovernor.freezeManagerTakeover();
     }
 
-    /// @notice Tests reverting when trying to change strategist after freeze
-    function test_StrategistTakeover_Revert_FrozenChangeAttempt() public {
+    /// @notice Tests reverting when trying to change manager after freeze
+    function test_ManagerTakeover_Revert_FrozenChangeAttempt() public {
         // Set up SuperVaultAggregator address in registry
         vm.prank(sGovernor);
         superGovernor.setAddress(SUPER_VAULT_AGGREGATOR, superVaultAggregator);
 
-        // Freeze strategist takeovers
+        // Freeze manager takeovers
         vm.prank(sGovernor);
-        superGovernor.freezeStrategistTakeover();
+        superGovernor.freezeManagerTakeover();
 
-        // Try to change strategist after freeze
+        // Try to change manager after freeze
         vm.prank(sGovernor);
-        vm.expectRevert(ISuperGovernor.STRATEGIST_TAKEOVERS_FROZEN.selector);
-        superGovernor.changePrimaryStrategist(strategy1, newStrategist);
+        vm.expectRevert(ISuperGovernor.MANAGER_TAKEOVERS_FROZEN.selector);
+        superGovernor.changePrimaryManager(strategy1, newManager);
     }
 
     // =============================================================
@@ -663,125 +663,125 @@ contract SuperGovernorTest is PeripheryHelpers {
     }
 
     // =============================================================
-    // Superform Strategist Management Tests
+    // Superform Manager Management Tests
     // =============================================================
 
-    /// @notice Tests adding a superform strategist
-    function test_SuperformStrategist_AddStrategist() public {
+    /// @notice Tests adding a superform manager
+    function test_SuperformManager_AddManager() public {
         vm.prank(governor);
         vm.expectEmit(true, false, false, false);
-        emit ISuperGovernor.SuperformStrategistAdded(newStrategist);
-        superGovernor.addSuperformStrategist(newStrategist);
+        emit ISuperGovernor.SuperformManagerAdded(newManager);
+        superGovernor.addSuperformManager(newManager);
 
-        assertTrue(superGovernor.isSuperformStrategist(newStrategist), "Strategist should be added");
+        assertTrue(superGovernor.isSuperformManager(newManager), "Manager should be added");
 
-        address[] memory strategists = superGovernor.getAllSuperformStrategists();
-        assertEq(strategists.length, 1, "Should have 1 strategist");
-        assertEq(strategists[0], newStrategist, "Strategist in list should match");
+        address[] memory managers = superGovernor.getAllSuperformManagers();
+        assertEq(managers.length, 1, "Should have 1 manager");
+        assertEq(managers[0], newManager, "Manager in list should match");
     }
 
-    /// @notice Tests reverting when adding a strategist with zero address
-    function test_SuperformStrategist_Revert_ZeroAddress() public {
+    /// @notice Tests reverting when adding a manager with zero address
+    function test_SuperformManager_Revert_ZeroAddress() public {
         vm.prank(governor);
         vm.expectRevert(ISuperGovernor.INVALID_ADDRESS.selector);
-        superGovernor.addSuperformStrategist(address(0));
+        superGovernor.addSuperformManager(address(0));
     }
 
-    /// @notice Tests reverting when adding an already registered strategist
-    function test_SuperformStrategist_Revert_AlreadyRegistered() public {
-        // Add strategist first
+    /// @notice Tests reverting when adding an already registered manager
+    function test_SuperformManager_Revert_AlreadyRegistered() public {
+        // Add manager first
         vm.prank(governor);
-        superGovernor.addSuperformStrategist(newStrategist);
+        superGovernor.addSuperformManager(newManager);
 
         // Try to add again
         vm.prank(governor);
-        vm.expectRevert(ISuperGovernor.STRATEGIST_ALREADY_REGISTERED.selector);
-        superGovernor.addSuperformStrategist(newStrategist);
+        vm.expectRevert(ISuperGovernor.MANAGER_ALREADY_REGISTERED.selector);
+        superGovernor.addSuperformManager(newManager);
     }
 
-    /// @notice Tests removing a superform strategist
-    function test_SuperformStrategist_RemoveStrategist() public {
-        // Add strategist first
+    /// @notice Tests removing a superform manager
+    function test_SuperformManager_RemoveManager() public {
+        // Add manager first
         vm.prank(governor);
-        superGovernor.addSuperformStrategist(newStrategist);
+        superGovernor.addSuperformManager(newManager);
 
-        // Remove strategist
+        // Remove manager
         vm.prank(governor);
         vm.expectEmit(true, false, false, false);
-        emit ISuperGovernor.SuperformStrategistRemoved(newStrategist);
-        superGovernor.removeSuperformStrategist(newStrategist);
+        emit ISuperGovernor.SuperformManagerRemoved(newManager);
+        superGovernor.removeSuperformManager(newManager);
 
-        assertFalse(superGovernor.isSuperformStrategist(newStrategist), "Strategist should be removed");
+        assertFalse(superGovernor.isSuperformManager(newManager), "Manager should be removed");
 
-        address[] memory strategists = superGovernor.getAllSuperformStrategists();
-        assertEq(strategists.length, 0, "Should have 0 strategists");
+        address[] memory managers = superGovernor.getAllSuperformManagers();
+        assertEq(managers.length, 0, "Should have 0 managers");
     }
 
-    /// @notice Tests reverting when removing a non-existent strategist
-    function test_SuperformStrategist_Revert_NotRegistered() public {
+    /// @notice Tests reverting when removing a non-existent manager
+    function test_SuperformManager_Revert_NotRegistered() public {
         vm.prank(governor);
-        vm.expectRevert(ISuperGovernor.STRATEGIST_NOT_REGISTERED.selector);
-        superGovernor.removeSuperformStrategist(newStrategist);
+        vm.expectRevert(ISuperGovernor.MANAGER_NOT_REGISTERED.selector);
+        superGovernor.removeSuperformManager(newManager);
     }
 
-    /// @notice Tests paginated retrieval of strategists with various scenarios
-    function test_SuperformStrategist_GetStrategistsPaginated() public {
-        // Create additional strategist addresses for testing
-        address strategist1 = _deployAccount(0x10, "Strategist1");
-        address strategist2 = _deployAccount(0x11, "Strategist2");
-        address strategist3 = _deployAccount(0x12, "Strategist3");
-        address strategist4 = _deployAccount(0x13, "Strategist4");
-        address strategist5 = _deployAccount(0x14, "Strategist5");
+    /// @notice Tests paginated retrieval of managers with various scenarios
+    function test_SuperformManager_GetManagersPaginated() public {
+        // Create additional manager addresses for testing
+        address manager1 = _deployAccount(0x10, "Manager1");
+        address manager2 = _deployAccount(0x11, "Manager2");
+        address manager3 = _deployAccount(0x12, "Manager3");
+        address manager4 = _deployAccount(0x13, "Manager4");
+        address manager5 = _deployAccount(0x14, "Manager5");
 
-        // Test with no strategists
-        (address[] memory chunk, uint256 next) = superGovernor.getStrategistsPaginated(0, 10);
-        assertEq(chunk.length, 0, "Should return empty array when no strategists");
-        assertEq(next, 0, "Next cursor should be 0 when no strategists");
+        // Test with no managers
+        (address[] memory chunk, uint256 next) = superGovernor.getManagersPaginated(0, 10);
+        assertEq(chunk.length, 0, "Should return empty array when no managers");
+        assertEq(next, 0, "Next cursor should be 0 when no managers");
 
-        // Add 5 strategists
+        // Add 5 managers
         vm.startPrank(governor);
-        superGovernor.addSuperformStrategist(strategist1);
-        superGovernor.addSuperformStrategist(strategist2);
-        superGovernor.addSuperformStrategist(strategist3);
-        superGovernor.addSuperformStrategist(strategist4);
-        superGovernor.addSuperformStrategist(strategist5);
+        superGovernor.addSuperformManager(manager1);
+        superGovernor.addSuperformManager(manager2);
+        superGovernor.addSuperformManager(manager3);
+        superGovernor.addSuperformManager(manager4);
+        superGovernor.addSuperformManager(manager5);
         vm.stopPrank();
 
-        // Test getting first 3 strategists
-        (chunk, next) = superGovernor.getStrategistsPaginated(0, 3);
-        assertEq(chunk.length, 3, "Should return 3 strategists");
+        // Test getting first 3 managers
+        (chunk, next) = superGovernor.getManagersPaginated(0, 3);
+        assertEq(chunk.length, 3, "Should return 3 managers");
         assertEq(next, 3, "Next cursor should be 3");
 
-        // Verify the strategists are in the expected order (note: EnumerableSet doesn't guarantee order)
-        assertTrue(_addressInArray(chunk, strategist1), "strategist1 should be in chunk");
-        assertTrue(_addressInArray(chunk, strategist2), "strategist2 should be in chunk");
-        assertTrue(_addressInArray(chunk, strategist3), "strategist3 should be in chunk");
+        // Verify the managers are in the expected order (note: EnumerableSet doesn't guarantee order)
+        assertTrue(_addressInArray(chunk, manager1), "manager1 should be in chunk");
+        assertTrue(_addressInArray(chunk, manager2), "manager2 should be in chunk");
+        assertTrue(_addressInArray(chunk, manager3), "manager3 should be in chunk");
 
-        // Test getting next 2 strategists
-        (chunk, next) = superGovernor.getStrategistsPaginated(3, 3);
-        assertEq(chunk.length, 2, "Should return 2 remaining strategists");
+        // Test getting next 2 managers
+        (chunk, next) = superGovernor.getManagersPaginated(3, 3);
+        assertEq(chunk.length, 2, "Should return 2 remaining managers");
         assertEq(next, 0, "Next cursor should be 0 when reached end");
 
-        assertTrue(_addressInArray(chunk, strategist4), "strategist4 should be in chunk");
-        assertTrue(_addressInArray(chunk, strategist5), "strategist5 should be in chunk");
+        assertTrue(_addressInArray(chunk, manager4), "manager4 should be in chunk");
+        assertTrue(_addressInArray(chunk, manager5), "manager5 should be in chunk");
 
         // Test limit larger than remaining items
-        (chunk, next) = superGovernor.getStrategistsPaginated(0, 10);
-        assertEq(chunk.length, 5, "Should return all 5 strategists when limit > total");
+        (chunk, next) = superGovernor.getManagersPaginated(0, 10);
+        assertEq(chunk.length, 5, "Should return all 5 managers when limit > total");
         assertEq(next, 0, "Next cursor should be 0 when all items returned");
 
         // Test cursor at the end
-        (chunk, next) = superGovernor.getStrategistsPaginated(5, 3);
+        (chunk, next) = superGovernor.getManagersPaginated(5, 3);
         assertEq(chunk.length, 0, "Should return empty array when cursor at end");
         assertEq(next, 0, "Next cursor should be 0 when cursor at end");
 
-        // Test getting single strategist
-        (chunk, next) = superGovernor.getStrategistsPaginated(1, 1);
-        assertEq(chunk.length, 1, "Should return 1 strategist");
+        // Test getting single manager
+        (chunk, next) = superGovernor.getManagersPaginated(1, 1);
+        assertEq(chunk.length, 1, "Should return 1 manager");
         assertEq(next, 2, "Next cursor should be 2");
 
         // Test edge case: cursor beyond end
-        (chunk, next) = superGovernor.getStrategistsPaginated(10, 3);
+        (chunk, next) = superGovernor.getManagersPaginated(10, 3);
         assertEq(chunk.length, 0, "Should return empty array when cursor beyond end");
         assertEq(next, 0, "Next cursor should be 0 when cursor beyond end");
     }

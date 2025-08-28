@@ -49,7 +49,6 @@ contract SuperBankTest is PeripheryHelpers, InternalHelpers, OdosAPIParser {
     address internal ppsOracle2;
     address internal superVaultAggregator;
     address internal strategy1;
-    address internal newStrategist;
     address internal admin;
 
     address underlying;
@@ -71,7 +70,6 @@ contract SuperBankTest is PeripheryHelpers, InternalHelpers, OdosAPIParser {
         ppsOracle1 = _deployAccount(0xB, "PPSOracle1");
         ppsOracle2 = _deployAccount(0xC, "PPSOracle2");
         admin = _deployAccount(0xD, "Admin");
-        newStrategist = _deployAccount(0xE, "NewStrategist");
 
         superGovernor = new SuperGovernor(sGovernor, governor, governor, treasury, address(this));
         superBank = new SuperBank(address(superGovernor));
