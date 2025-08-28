@@ -12,7 +12,7 @@ import { SuperVaultEscrow } from "../../src/SuperVault/SuperVaultEscrow.sol";
 import { ISuperVaultStrategy } from "../../src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import { PeripheryHelpers } from "../utils/PeripheryHelpers.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
-import { Up } from "../../src/UP/Up.sol";
+import { MockUp } from "../mocks/MockUp.sol";
 
 contract SuperVaultAggregatorTest is PeripheryHelpers {
     SuperGovernor internal superGovernor;
@@ -91,7 +91,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.stopPrank();
 
         // Register UP token on SuperGovernor
-        upToken = address(new Up(address(this)));
+        upToken = address(new MockUp(address(this)));
         superBank = makeAddr("superBank");
         vm.startPrank(sGovernor);
         superGovernor.setAddress(superGovernor.UP(), upToken);
@@ -1664,5 +1664,392 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.expectEmit(true, false, false, true);
         emit ISuperVaultAggregator.GlobalLeavesStatusChanged(strategy, leaves, statuses);
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
+    }
+
+    // =============================================================
+    // Stake Management Tests
+    // =============================================================
+
+    /// @notice Tests successful stake deposit by any user for a manager
+    function test_DepositStake_Success() public {
+        uint256 stakeAmount = 1000e18;
+        
+        // Mint UP tokens to user
+        MockUp(upToken).mint(user, stakeAmount);
+        
+        // User approves and deposits stake for manager
+        vm.startPrank(user);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        
+        vm.expectEmit(true, false, false, true);
+        emit ISuperVaultAggregator.StakeDeposited(manager, stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        // Verify stake balance
+        assertEq(superVaultAggregator.getStakeBalance(manager), stakeAmount, "Manager stake balance should match deposited amount");
+        
+        // Verify tokens were transferred
+        assertEq(IERC20(upToken).balanceOf(address(superVaultAggregator)), stakeAmount, "Contract should hold the staked tokens");
+        assertEq(IERC20(upToken).balanceOf(user), 0, "User balance should be zero after deposit");
+    }
+
+    /// @notice Tests manager can deposit stake for themselves
+    function test_DepositStake_SelfDeposit() public {
+        uint256 stakeAmount = 500e18;
+        
+        // Mint UP tokens to manager
+        MockUp(upToken).mint(manager, stakeAmount);
+        
+        // Manager deposits stake for themselves
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        // Verify stake balance
+        assertEq(superVaultAggregator.getStakeBalance(manager), stakeAmount, "Manager stake balance should match deposited amount");
+    }
+
+    /// @notice Tests multiple stake deposits accumulate correctly
+    function test_DepositStake_MultipleDeposits() public {
+        uint256 firstDeposit = 300e18;
+        uint256 secondDeposit = 700e18;
+        uint256 totalStake = firstDeposit + secondDeposit;
+        
+        // Mint UP tokens to user
+        MockUp(upToken).mint(user, totalStake);
+        
+        vm.startPrank(user);
+        IERC20(upToken).approve(address(superVaultAggregator), totalStake);
+        
+        // First deposit
+        superVaultAggregator.depositStake(manager, firstDeposit);
+        assertEq(superVaultAggregator.getStakeBalance(manager), firstDeposit, "First deposit should be recorded");
+        
+        // Second deposit
+        superVaultAggregator.depositStake(manager, secondDeposit);
+        assertEq(superVaultAggregator.getStakeBalance(manager), totalStake, "Total stake should be sum of deposits");
+        vm.stopPrank();
+    }
+
+    /// @notice Tests stake deposit reverts with zero amount
+    function test_DepositStake_RevertZeroAmount() public {
+        vm.prank(user);
+        vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
+        superVaultAggregator.depositStake(manager, 0);
+    }
+
+    /// @notice Tests stake deposit reverts with zero manager address
+    function test_DepositStake_RevertZeroManager() public {
+        vm.prank(user);
+        vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
+        superVaultAggregator.depositStake(address(0), 1000e18);
+    }
+
+    /// @notice Tests successful stake withdrawal
+    function test_WithdrawStake_Success() public {
+        uint256 stakeAmount = 1000e18;
+        uint256 withdrawAmount = 400e18;
+        uint256 remainingStake = stakeAmount - withdrawAmount;
+        
+        // Setup: Deposit stake first
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        
+        // Withdraw stake
+        vm.expectEmit(true, false, false, true);
+        emit ISuperVaultAggregator.StakeWithdrawn(manager, withdrawAmount);
+        superVaultAggregator.withdrawStake(withdrawAmount);
+        vm.stopPrank();
+        
+        // Verify balances
+        assertEq(superVaultAggregator.getStakeBalance(manager), remainingStake, "Remaining stake should be correct");
+        assertEq(IERC20(upToken).balanceOf(manager), withdrawAmount, "Manager should receive withdrawn tokens");
+        assertEq(IERC20(upToken).balanceOf(address(superVaultAggregator)), remainingStake, "Contract should hold remaining stake");
+    }
+
+    /// @notice Tests complete stake withdrawal
+    function test_WithdrawStake_CompleteWithdrawal() public {
+        uint256 stakeAmount = 1000e18;
+        
+        // Setup: Deposit stake first
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        
+        // Withdraw all stake
+        superVaultAggregator.withdrawStake(stakeAmount);
+        vm.stopPrank();
+        
+        // Verify balances
+        assertEq(superVaultAggregator.getStakeBalance(manager), 0, "Stake balance should be zero");
+        assertEq(IERC20(upToken).balanceOf(manager), stakeAmount, "Manager should receive all tokens back");
+    }
+
+    /// @notice Tests stake withdrawal reverts with zero amount
+    function test_WithdrawStake_RevertZeroAmount() public {
+        vm.prank(manager);
+        vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
+        superVaultAggregator.withdrawStake(0);
+    }
+
+    /// @notice Tests stake withdrawal reverts with insufficient balance
+    function test_WithdrawStake_RevertInsufficientBalance() public {
+        uint256 stakeAmount = 500e18;
+        uint256 withdrawAmount = 1000e18;
+        
+        // Setup: Deposit smaller stake
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        
+        // Try to withdraw more than deposited
+        vm.expectRevert(ISuperVaultAggregator.INSUFFICIENT_STAKE_BALANCE.selector);
+        superVaultAggregator.withdrawStake(withdrawAmount);
+        vm.stopPrank();
+    }
+
+    /// @notice Tests stake withdrawal reverts when no stake deposited
+    function test_WithdrawStake_RevertNoStake() public {
+        vm.prank(manager);
+        vm.expectRevert(ISuperVaultAggregator.INSUFFICIENT_STAKE_BALANCE.selector);
+        superVaultAggregator.withdrawStake(100e18);
+    }
+
+    /// @notice Tests successful stake slashing by SuperGovernor
+    function test_SlashStake_Success() public {
+        uint256 stakeAmount = 1000e18;
+        uint256 slashAmount = 300e18;
+        uint256 remainingStake = stakeAmount - slashAmount;
+        
+        // Setup: Deposit stake first
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        // Record initial SuperBank balance
+        uint256 initialBankBalance = IERC20(upToken).balanceOf(superBank);
+        
+        // SuperGovernor slashes stake
+        vm.prank(address(superGovernor));
+        vm.expectEmit(true, false, false, true);
+        emit ISuperVaultAggregator.StakeSlashed(manager, slashAmount);
+        superVaultAggregator.slashStake(manager, slashAmount);
+        
+        // Verify balances
+        assertEq(superVaultAggregator.getStakeBalance(manager), remainingStake, "Manager stake should be reduced");
+        assertEq(IERC20(upToken).balanceOf(superBank), initialBankBalance + slashAmount, "SuperBank should receive slashed tokens");
+        assertEq(IERC20(upToken).balanceOf(address(superVaultAggregator)), remainingStake, "Contract should hold remaining stake");
+    }
+
+    /// @notice Tests complete stake slashing
+    function test_SlashStake_CompleteSlashing() public {
+        uint256 stakeAmount = 1000e18;
+        
+        // Setup: Deposit stake first
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        // SuperGovernor slashes all stake
+        vm.prank(address(superGovernor));
+        superVaultAggregator.slashStake(manager, stakeAmount);
+        
+        // Verify balances
+        assertEq(superVaultAggregator.getStakeBalance(manager), 0, "Manager stake should be zero");
+        assertEq(IERC20(upToken).balanceOf(superBank), stakeAmount, "SuperBank should receive all slashed tokens");
+    }
+
+    /// @notice Tests slashing with multiple managers
+    function test_SlashStake_MultipleManagers() public {
+        uint256 stakeAmount = 1000e18;
+        uint256 slashAmount = 200e18;
+        
+        // Create second strategy with different manager
+        address manager2 = _deployAccount(0xBB, "Manager2");
+        vm.prank(manager2);
+        (, address strategy2,) = superVaultAggregator.createVault(
+            ISuperVaultAggregator.VaultCreationParams({
+                asset: address(asset),
+                name: "Test Vault 2",
+                symbol: "TV2",
+                mainManager: manager2,
+                secondaryManagers: new address[](0),
+                minUpdateInterval: 5,
+                maxStaleness: 300,
+                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: manager2 })
+            })
+        );
+        
+        // Setup: Both managers deposit stake
+        MockUp(upToken).mint(manager, stakeAmount);
+        MockUp(upToken).mint(manager2, stakeAmount);
+        
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        vm.startPrank(manager2);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager2, stakeAmount);
+        vm.stopPrank();
+        
+        // Slash only first manager's stake
+        vm.prank(address(superGovernor));
+        superVaultAggregator.slashStake(manager, slashAmount);
+        
+        // Verify only first manager was slashed
+        assertEq(superVaultAggregator.getStakeBalance(manager), stakeAmount - slashAmount, "First manager stake should be reduced");
+        assertEq(superVaultAggregator.getStakeBalance(manager2), stakeAmount, "Second manager stake should be unchanged");
+    }
+
+    /// @notice Tests slashing reverts when called by non-SuperGovernor
+    function test_SlashStake_RevertUnauthorized() public {
+        uint256 stakeAmount = 1000e18;
+        
+        // Setup: Deposit stake first
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        // Test various unauthorized callers
+        vm.prank(manager);
+        vm.expectRevert(ISuperVaultAggregator.CALLER_NOT_AUTHORIZED.selector);
+        superVaultAggregator.slashStake(manager, 100e18);
+        
+        vm.prank(user);
+        vm.expectRevert(ISuperVaultAggregator.CALLER_NOT_AUTHORIZED.selector);
+        superVaultAggregator.slashStake(manager, 100e18);
+        
+        vm.prank(governor);
+        vm.expectRevert(ISuperVaultAggregator.CALLER_NOT_AUTHORIZED.selector);
+        superVaultAggregator.slashStake(manager, 100e18);
+    }
+
+    /// @notice Tests slashing reverts with zero address manager
+    function test_SlashStake_RevertZeroAddress() public {
+        vm.prank(address(superGovernor));
+        vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
+        superVaultAggregator.slashStake(address(0), 100e18);
+    }
+
+    /// @notice Tests slashing reverts with zero amount
+    function test_SlashStake_RevertZeroAmount() public {
+        vm.prank(address(superGovernor));
+        vm.expectRevert(ISuperVaultAggregator.ZERO_ADDRESS.selector);
+        superVaultAggregator.slashStake(manager, 0);
+    }
+
+    /// @notice Tests slashing reverts with insufficient stake balance
+    function test_SlashStake_RevertInsufficientStake() public {
+        uint256 stakeAmount = 500e18;
+        uint256 slashAmount = 1000e18;
+        
+        // Setup: Deposit smaller stake
+        MockUp(upToken).mint(manager, stakeAmount);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount);
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        vm.stopPrank();
+        
+        // Try to slash more than available
+        vm.prank(address(superGovernor));
+        vm.expectRevert(ISuperVaultAggregator.INSUFFICIENT_STAKE_BALANCE.selector);
+        superVaultAggregator.slashStake(manager, slashAmount);
+    }
+
+    /// @notice Tests slashing reverts when no stake deposited
+    function test_SlashStake_RevertNoStake() public {
+        vm.prank(address(superGovernor));
+        vm.expectRevert(ISuperVaultAggregator.INSUFFICIENT_STAKE_BALANCE.selector);
+        superVaultAggregator.slashStake(manager, 100e18);
+    }
+
+    /// @notice Tests stake and upkeep systems are independent
+    function test_StakeUpkeepIndependence() public {
+        uint256 stakeAmount = 1000e18;
+        uint256 upkeepAmount = 500e18;
+        
+        // Mint tokens to manager
+        MockUp(upToken).mint(manager, stakeAmount + upkeepAmount);
+        
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), stakeAmount + upkeepAmount);
+        
+        // Deposit both stake and upkeep
+        superVaultAggregator.depositStake(manager, stakeAmount);
+        superVaultAggregator.depositUpkeep(manager, upkeepAmount);
+        vm.stopPrank();
+        
+        // Verify independent balances
+        assertEq(superVaultAggregator.getStakeBalance(manager), stakeAmount, "Stake balance should be independent");
+        assertEq(superVaultAggregator.getUpkeepBalance(manager), upkeepAmount, "Upkeep balance should be independent");
+        
+        // Slash stake - should not affect upkeep
+        uint256 slashAmount = 300e18;
+        vm.prank(address(superGovernor));
+        superVaultAggregator.slashStake(manager, slashAmount);
+        
+        // Verify only stake was affected
+        assertEq(superVaultAggregator.getStakeBalance(manager), stakeAmount - slashAmount, "Only stake should be reduced");
+        assertEq(superVaultAggregator.getUpkeepBalance(manager), upkeepAmount, "Upkeep should be unchanged");
+        
+        // Withdraw upkeep - should not affect stake
+        uint256 withdrawUpkeep = 200e18;
+        vm.prank(manager);
+        superVaultAggregator.withdrawUpkeep(withdrawUpkeep);
+        
+        // Verify only upkeep was affected
+        assertEq(superVaultAggregator.getStakeBalance(manager), stakeAmount - slashAmount, "Stake should be unchanged");
+        assertEq(superVaultAggregator.getUpkeepBalance(manager), upkeepAmount - withdrawUpkeep, "Only upkeep should be reduced");
+    }
+
+    /// @notice Tests getStakeBalance returns zero for addresses with no stake
+    function test_GetStakeBalance_ZeroForNoStake() public {
+        assertEq(superVaultAggregator.getStakeBalance(manager), 0, "Initial stake balance should be zero");
+        assertEq(superVaultAggregator.getStakeBalance(user), 0, "User stake balance should be zero");
+        assertEq(superVaultAggregator.getStakeBalance(address(0)), 0, "Zero address stake balance should be zero");
+    }
+
+    /// @notice Tests edge case: slashing after partial withdrawal
+    function test_SlashStake_AfterPartialWithdrawal() public {
+        uint256 initialStake = 1000e18;
+        uint256 withdrawAmount = 300e18;
+        uint256 slashAmount = 200e18;
+        uint256 finalStake = initialStake - withdrawAmount - slashAmount;
+        
+        // Setup: Deposit stake
+        MockUp(upToken).mint(manager, initialStake);
+        vm.startPrank(manager);
+        IERC20(upToken).approve(address(superVaultAggregator), initialStake);
+        superVaultAggregator.depositStake(manager, initialStake);
+        
+        // Partial withdrawal
+        superVaultAggregator.withdrawStake(withdrawAmount);
+        vm.stopPrank();
+        
+        // Verify state after withdrawal
+        assertEq(superVaultAggregator.getStakeBalance(manager), initialStake - withdrawAmount, "Stake after withdrawal should be correct");
+        
+        // Slash remaining stake
+        vm.prank(address(superGovernor));
+        superVaultAggregator.slashStake(manager, slashAmount);
+        
+        // Verify final state
+        assertEq(superVaultAggregator.getStakeBalance(manager), finalStake, "Final stake should be correct");
+        assertEq(IERC20(upToken).balanceOf(superBank), slashAmount, "SuperBank should receive slashed amount");
+        assertEq(IERC20(upToken).balanceOf(manager), withdrawAmount, "Manager should have withdrawn amount");
     }
 }
