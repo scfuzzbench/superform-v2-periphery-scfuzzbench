@@ -41,6 +41,7 @@ import { ITranche } from "@superform-v2-core/test/mocks/centrifuge/ITranch.sol";
 import { RestrictionManagerLike } from "@superform-v2-core/test/mocks/centrifuge/IRestrictionManagerLike.sol";
 import { IInvestmentManager } from "@superform-v2-core/test/mocks/centrifuge/IInvestmentManager.sol";
 import { IPoolManager } from "@superform-v2-core/test/mocks/centrifuge/IPoolManager.sol";
+import { IERC7540 } from "@superform-v2-core/src/vendor/vaults/7540/IERC7540.sol";
 
 contract SuperVaultTest is BaseSuperVaultTest {
     using Math for uint256;
@@ -48,14 +49,32 @@ contract SuperVaultTest is BaseSuperVaultTest {
     address operator = address(0x123);
     uint256 constant userPrivateKey = 0xA11CE; // Replace with a known good testing private key
     address userAddress; // Will be derived from private key
+
     ERC7540YieldSourceOracle public oracle;
     ISuperLedger public superLedgerETH;
+
     address gearToken;
     IERC4626 gearboxVault;
     IGearboxFarmingPool gearboxFarmingPool;
+
     SuperVault gearSuperVault;
     SuperVaultEscrow escrowGearSuperVault;
     SuperVaultStrategy strategyGearSuperVault;
+
+    // Centrifuge
+    uint64 public poolId;
+    uint128 public assetId;
+    bytes16 public trancheId;
+
+    IRoot public root;
+    address public rootManager;
+    IPoolManager public poolManager;
+
+    IERC7540 public centrifugeVault;
+    address public yieldSource7540AddressETH_USDC;
+    
+    IInvestmentManager public investmentManager;
+    RestrictionManagerLike public restrictionManager;
 
     function setUp() public override {
         super.setUp();
@@ -84,6 +103,13 @@ contract SuperVaultTest is BaseSuperVaultTest {
         console2.log("gearboxStakingAddr: ", gearboxStakingAddr);
         vm.label(gearboxStakingAddr, "GearboxStaking");
         gearboxFarmingPool = IGearboxFarmingPool(gearboxStakingAddr);
+
+        // Centrifuge setup
+        rootManager = 0x0C1fDfd6a1331a875EA013F3897fc8a76ada5DfC;
+        yieldSource7540AddressETH_USDC =
+            realVaultAddresses[ETH][ERC7540_FULLY_ASYNC_KEY][CENTRIFUGE_USDC_VAULT_KEY][USDC_KEY];
+        vm.label(yieldSource7540AddressETH_USDC, "CentrifugeUSDCVault");
+        centrifugeVault = IERC7540(yieldSource7540AddressETH_USDC);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -7358,6 +7384,57 @@ contract SuperVaultTest is BaseSuperVaultTest {
             ethAmount // ETH amount to send
         );
     }
+
+    /*//////////////////////////////////////////////////////////////
+                       7540 UNDERLYING TESTS
+    //////////////////////////////////////////////////////////////*/
+    function test_7540Underlying_E2E_Flow() public {
+        // Set up the vault
+        _setUp7540UnderlyingSuperVault();
+
+        // Deposit USDC into the SuperVault
+        uint256 depositAmount = 1000e6; // 1000 USDC
+        _getTokens(address(asset), accInstances[0].account, depositAmount);
+        __deposit(accInstances[0], depositAmount);
+
+        // Verify state
+        assertEq(asset.balanceOf(address(strategy)), depositAmount, "Wrong strategy balance");
+
+        _depositFreeAssetsFromSingleAmount7540(depositAmount, address(vault), address(centrifugeVault)); // change vault to other underlying
+
+        uint256 userShares = vault.balanceOf(accountEth);
+        assertGt(userShares, 0, "No shares minted to user");
+    }
+
+    function _setUp7540UnderlyingSuperVault() internal {
+        // Set the vault to use the 7540 underlying
+        vm.startPrank(MANAGER);
+        strategy.manageYieldSource(
+            address(centrifugeVault),
+            _getContract(ETH, ERC7540_YIELD_SOURCE_ORACLE_KEY),
+            0 // addYieldSource
+        );
+        vm.stopPrank();
+
+        // Centrifuge setup
+        address share = IERC7540(yieldSource7540AddressETH_USDC).share();
+        address mngr = ITranche(share).hook();
+
+        restrictionManager = RestrictionManagerLike(mngr);
+        vm.startPrank(RestrictionManagerLike(mngr).root());
+        restrictionManager.updateMember(share, address(vault), type(uint64).max);
+        vm.stopPrank();
+
+        poolId = centrifugeVault.poolId();
+        assertEq(poolId, 4_139_607_887);
+        trancheId = centrifugeVault.trancheId();
+        assertEq(trancheId, bytes16(0x97aa65f23e7be09fcd62d0554d2e9273));
+
+        poolManager = IPoolManager(0x91808B5E2F6d7483D41A681034D7c9DbB64B9E29);
+        assetId = poolManager.assetToId(address(asset));
+        assertEq(assetId, uint128(242_333_941_209_166_991_950_178_742_833_476_896_417));
+    }
+    
 
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
