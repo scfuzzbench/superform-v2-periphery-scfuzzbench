@@ -76,7 +76,6 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     uint256 public validator2PrivateKey;
     uint256 public validator3PrivateKey;
 
-
     function setUp() public virtual override {
         super.setUp();
         console2.log("--- SETUP BASE SUPERVAULT ---");
@@ -189,7 +188,11 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: address(this) })
+                feeConfig: ISuperVaultStrategy.FeeConfig({
+                    performanceFeeBps: 1000,
+                    managementFeeBps: 0,
+                    recipient: address(this)
+                })
             })
         );
 
@@ -240,7 +243,11 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 secondaryManagers: new address[](0),
                 minUpdateInterval: 5,
                 maxStaleness: 300,
-                feeConfig: ISuperVaultStrategy.FeeConfig({ performanceFeeBps: 1000, managementFeeBps: 0, recipient: address(this) })
+                feeConfig: ISuperVaultStrategy.FeeConfig({
+                    performanceFeeBps: 1000,
+                    managementFeeBps: 0,
+                    recipient: address(this)
+                })
             })
         );
 
@@ -641,6 +648,61 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.shares = depositAmount.mulDiv(targetStrategy.PRECISION(), vars.pricePerShare);
 
         _trackDeposit(accountEth, vars.shares, depositAmount);
+    }
+
+    function _depositFreeAssetsFromSingleAmount7540(uint256 depositAmount, address vault1, address vault2) internal {
+        address deposit4626HookAddress = _getHookAddress(ETH, APPROVE_AND_DEPOSIT_4626_VAULT_HOOK_KEY);
+        address deposit7540HookAddress = _getHookAddress(ETH, APPROVE_AND_REQUEST_DEPOSIT_7540_VAULT_HOOK_KEY);
+
+        address[] memory fulfillHooksAddresses = new address[](2);
+        fulfillHooksAddresses[0] = deposit4626HookAddress;
+        fulfillHooksAddresses[1] = deposit7540HookAddress;
+
+        bytes[] memory fulfillHooksData = new bytes[](2);
+
+        // Split the deposit between two hooks
+        uint256 halfAmount = depositAmount / 2;
+        fulfillHooksData[0] = _createApproveAndDeposit4626HookData(
+            _getYieldSourceOracleId(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
+            vault1,
+            address(asset),
+            halfAmount,
+            false,
+            address(0),
+            0
+        );
+
+        fulfillHooksData[1] = _createApproveAndRequestDeposit7540HookData(
+            vault2,
+            address(asset),
+            depositAmount - halfAmount,
+            false
+        );
+
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](2);
+        expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).convertToShares(halfAmount);
+        expectedAssetsOrSharesOut[1] = 0;
+
+        bytes[] memory argsForProofs = new bytes[](2);
+        argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
+        argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
+
+        vm.startPrank(MANAGER);
+        strategy.executeHooks(
+            ISuperVaultStrategy.ExecuteArgs({
+                hooks: fulfillHooksAddresses,
+                hookCalldata: fulfillHooksData,
+                expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+                globalProofs: _getMerkleProofsForHooks(fulfillHooksAddresses, argsForProofs),
+                strategyProofs: new bytes32[][](2)
+            })
+        );
+        vm.stopPrank();
+
+        (uint256 pricePerShare) = _getSuperVaultPricePerShare();
+        uint256 shares = depositAmount.mulDiv(strategy.PRECISION(), pricePerShare);
+
+        _trackDeposit(accountEth, shares, depositAmount);
     }
 
     // Local variables struct for _depositFreeAssetsFromSingleAmountViaSmartAccount
