@@ -72,7 +72,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
     IERC7540 public centrifugeVault;
     address public yieldSource7540AddressETH_USDC;
-    
+
     IInvestmentManager public investmentManager;
     RestrictionManagerLike public restrictionManager;
 
@@ -181,8 +181,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _getTokens(address(asset), managerAccount.account, 1 ether); // Fund the manager account
 
         // Deploy vault with smart account manager
-        (address newVaultAddr, address newStrategyAddr,) =
-            _deployVaultWithSmartAccountManager(managerAccount.account);
+        (address newVaultAddr, address newStrategyAddr,) = _deployVaultWithSmartAccountManager(managerAccount.account);
 
         SuperVault newVault = SuperVault(newVaultAddr);
         SuperVaultStrategy newStrategy = SuperVaultStrategy(payable(newStrategyAddr));
@@ -7392,24 +7391,46 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Set up the vault
         _setUp7540UnderlyingSuperVault();
 
+        AccountInstance memory instance = accInstances[0];
+        address account = instance.account;
+
         // Deposit USDC into the SuperVault
         uint256 depositAmount = 1000e6; // 1000 USDC
-        _getTokens(address(asset), accInstances[0].account, depositAmount);
-        __deposit(accInstances[0], depositAmount);
+        _getTokens(address(asset), account, depositAmount);
+        __deposit(instance, depositAmount);
 
         // Verify state
         assertEq(asset.balanceOf(address(strategy)), depositAmount, "Wrong strategy balance");
 
-        _depositFreeAssetsFromSingleAmount7540(depositAmount, address(aaveVault), address(centrifugeVault)); // change vault to other underlying
+        _depositFreeAssetsFromSingleAmount7540(depositAmount, address(aaveVault), address(centrifugeVault));
 
-        uint256 userShares = vault.balanceOf(accountEth);
+        uint256 userShares = vault.balanceOf(account);
         assertGt(userShares, 0, "No shares minted to user");
+
+        // Record balances before redeem
+        uint256 preRedeemUserAssets = asset.balanceOf(account);
+        uint256 feeBalanceBefore = asset.balanceOf(TREASURY);
+
+        // Fast forward time to simulate yield on underlying vaults
+        vm.warp(block.timestamp + 50 weeks);
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+        // Step 4: Request Redeem
+        _requestRedeem(userShares);
+
+        // Verify shares are escrowed
+        assertEq(IERC20(vault.share()).balanceOf(account), 0, "User shares not transferred from account");
+        assertEq(IERC20(vault.share()).balanceOf(address(escrow)), userShares, "Shares not transferred to escrow");
     }
 
     function _setUp7540UnderlyingSuperVault() internal {
         // Set the vault to use the 7540 underlying
         vm.startPrank(MANAGER);
-        strategy.manageYieldSources(
+        strategy.manageYieldSource(
             address(fluidVault),
             _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY),
             2 // removeYieldSource
@@ -7440,7 +7461,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         assetId = poolManager.assetToId(address(asset));
         assertEq(assetId, uint128(242_333_941_209_166_991_950_178_742_833_476_896_417));
     }
-    
 
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
