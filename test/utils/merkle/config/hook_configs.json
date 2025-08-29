@@ -62,5 +62,17 @@
                 "type": "token"
             }
         ]
+    },
+    "ApproveAndDeposit5115VaultHook": {
+        "args": [
+            {
+                "name": "yieldSource",
+                "type": "yieldSource"
+            },
+            {
+                "name": "token",
+                "type": "token"
+            }
+        ]
     }
 }
