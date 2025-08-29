@@ -148,8 +148,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _getTokens(address(asset), managerAccount.account, 1 ether); // Fund the manager account
 
         // Deploy vault with smart account manager
-        (address newVaultAddr, address newStrategyAddr,) =
-            _deployVaultWithSmartAccountManager(managerAccount.account);
+        (address newVaultAddr, address newStrategyAddr,) = _deployVaultWithSmartAccountManager(managerAccount.account);
 
         SuperVault newVault = SuperVault(newVaultAddr);
         SuperVaultStrategy newStrategy = SuperVaultStrategy(payable(newStrategyAddr));
@@ -7302,7 +7301,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         // STEP 1: Execute native ETH hook separately via executeHooks
         address[] memory nativeHooks = new address[](1);
-        nativeHooks[0] = globalMerkleHooksPeriphery[0]; // MockNativeETHHook
+        nativeHooks[0] = contractAddresses[ETH]["MOCK_NATIVE_ETH_HOOK"]; // MockNativeETHHook
 
         bytes[] memory nativeHookCalldata = new bytes[](1);
         nativeHookCalldata[0] = _createMockNativeETHHookData(ethReceiver, ethAmount);
