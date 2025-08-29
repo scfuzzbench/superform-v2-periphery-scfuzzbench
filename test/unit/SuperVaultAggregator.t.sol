@@ -1877,7 +1877,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         // Create second strategy with different manager
         address manager2 = _deployAccount(0xBB, "Manager2");
         vm.prank(manager2);
-        (, address strategy2,) = superVaultAggregator.createVault(
+        superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 name: "Test Vault 2",
@@ -2017,7 +2017,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
     }
 
     /// @notice Tests getStakeBalance returns zero for addresses with no stake
-    function test_GetStakeBalance_ZeroForNoStake() public {
+    function test_GetStakeBalance_ZeroForNoStake() public view {
         assertEq(superVaultAggregator.getStakeBalance(manager), 0, "Initial stake balance should be zero");
         assertEq(superVaultAggregator.getStakeBalance(user), 0, "User stake balance should be zero");
         assertEq(superVaultAggregator.getStakeBalance(address(0)), 0, "Zero address stake balance should be zero");

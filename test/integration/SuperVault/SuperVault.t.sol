@@ -35,6 +35,13 @@ import { MockNativeETHHook } from "../../mocks/MockNativeETHHook.sol";
 import { MockETHReceiver } from "../../mocks/MockETHReceiver.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 
+// centrifuge mocks
+import { IRoot } from "@superform-v2-core/test/mocks/centrifuge/IRoot.sol";
+import { ITranche } from "@superform-v2-core/test/mocks/centrifuge/ITranch.sol";
+import { RestrictionManagerLike } from "@superform-v2-core/test/mocks/centrifuge/IRestrictionManagerLike.sol";
+import { IInvestmentManager } from "@superform-v2-core/test/mocks/centrifuge/IInvestmentManager.sol";
+import { IPoolManager } from "@superform-v2-core/test/mocks/centrifuge/IPoolManager.sol";
+
 contract SuperVaultTest is BaseSuperVaultTest {
     using Math for uint256;
 
