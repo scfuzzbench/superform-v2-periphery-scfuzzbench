@@ -7389,23 +7389,26 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _updateSuperVaultPPS(address(strategy), address(vault));
 
         console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+
         // Step 4: Request Redeem
-        _requestRedeem(userShares);
+        __requestRedeem(instance, userShares, false);
 
         // Verify shares are escrowed
         assertEq(IERC20(vault.share()).balanceOf(account), 0, "User shares not transferred from account");
         assertEq(IERC20(vault.share()).balanceOf(address(escrow)), userShares, "Shares not transferred to escrow");
 
         console2.log("--pps before---", aggregator.getPPS(address(strategy)));
-        vm.warp(block.timestamp + 6);
+        vm.warp(block.timestamp + 1 weeks);
         _updateSuperVaultPPS(address(strategy), address(vault));
 
         console2.log("--pps after---", aggregator.getPPS(address(strategy)));
 
-        (, uint256 superformFee, uint256 recipientFee) = strategy.previewPerformanceFee(accountEth, userShares);
+        (, uint256 superformFee, uint256 recipientFee) = strategy.previewPerformanceFee(account, userShares);
+
+        _requestRedeemFrom7540Underlying(userShares, address(centrifugeVault));
 
         // Step 5: Fulfill Redeem
-        _fulfillRedeem7540Underlying(userShares, address(centrifugeVault), address(aaveVault));
+        _fulfillRedeem7540Underlying(userShares, address(centrifugeVault), address(aaveVault), account);
 
         // Verify balances
         assertEq(asset.balanceOf(account), preRedeemUserAssets, "User assets not returned");
