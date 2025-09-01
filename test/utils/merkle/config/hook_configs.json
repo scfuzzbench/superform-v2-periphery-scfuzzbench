@@ -100,10 +100,6 @@
             {
                 "name": "yieldSource",
                 "type": "yieldSource"
-            },
-            {
-                "name": "token",
-                "type": "token"
             }
         ]
     },
