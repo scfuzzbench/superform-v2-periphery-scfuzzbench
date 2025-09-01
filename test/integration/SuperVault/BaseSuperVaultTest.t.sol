@@ -1351,7 +1351,9 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.fulfillHooksAddresses[0] = vars.withdrawHookAddress[0];
         vars.fulfillHooksAddresses[1] = vars.withdrawHookAddress[1];
 
-        (vars.aaveSharesOut, vars.centrifugeSharesOut) = _calculateVaultShares7540Underlying(redeemShares);
+        // Get current shares in each vault
+        vars.aaveSharesOut = aaveVault.balanceOf(address(strategy));
+        vars.centrifugeSharesOut = IERC20Metadata(centrifugeVault.share()).balanceOf(address(strategy));
 
         _requestRedeemFrom7540Underlying(vars.centrifugeSharesOut, vault2);
 
@@ -2162,39 +2164,6 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         }
 
         return (fluidSharesOut, aaveSharesOut);
-    }
-
-    /**
-     * @notice Calculates the shares out for each vault based on the redeem shares
-     * @param redeemShares The number of shares to redeem
-     * @return aaveSharesOut The number of shares out for the aave vault
-     * @return centrifugeSharesOut The number of shares out for the centrifuge vault
-     */
-    function _calculateVaultShares7540Underlying(uint256 redeemShares)
-        internal
-        view
-        returns (uint256 aaveSharesOut, uint256 centrifugeSharesOut)
-    {
-        // Get current shares in each vault
-        uint256 aaveShares = aaveVault.balanceOf(address(strategy));
-        uint256 centrifugeShares = IERC20Metadata(centrifugeVault.share()).balanceOf(address(strategy));
-
-        // Convert shares to underlying asset values
-        uint256 aaveUsdcValue = aaveVault.convertToAssets(aaveShares);
-        uint256 centrifugeUsdcValue = centrifugeVault.convertToAssets(centrifugeShares);
-
-        console2.log("aaveUsdcValue", aaveUsdcValue);
-        console2.log("centrifugeUsdcValue", centrifugeUsdcValue);
-
-        // Calculate proportional split based on USD values
-        uint256 totalUsdValue = aaveUsdcValue + centrifugeUsdcValue;
-
-        if (totalUsdValue > 0) {
-            aaveSharesOut = (redeemShares * aaveUsdcValue) / totalUsdValue;
-            centrifugeSharesOut = redeemShares - aaveSharesOut; // Use subtraction to avoid rounding errors
-        }
-
-        return (aaveSharesOut, centrifugeSharesOut);
     }
 
     /**
