@@ -92,10 +92,6 @@
             {
                 "name": "yieldSource",
                 "type": "yieldSource"
-            },
-            {
-                "name": "token",
-                "type": "token"
             }
         ]
     },
@@ -111,15 +107,19 @@
             }
         ]
     },
+    "Redeem7540VaultHook": {
+        "args": [
+            {
+                "name": "yieldSource",
+                "type": "yieldSource"
+            }
+        ]
+    },
     "Withdraw7540VaultHook": {
         "args": [
             {
                 "name": "yieldSource",
                 "type": "yieldSource"
-            },
-            {
-                "name": "token",
-                "type": "token"
             }
         ]
     }
