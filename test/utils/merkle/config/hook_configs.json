@@ -74,5 +74,53 @@
                 "type": "token"
             }
         ]
+    },
+    "ApproveAndRequestDeposit7540VaultHook": {
+        "args": [
+            {
+                "name": "yieldSource",
+                "type": "yieldSource"
+            },
+            {
+                "name": "token",
+                "type": "token"
+            }
+        ]
+    },
+    "Deposit7540VaultHook": {
+        "args": [
+            {
+                "name": "yieldSource",
+                "type": "yieldSource"
+            },
+            {
+                "name": "token",
+                "type": "token"
+            }
+        ]
+    },
+    "ApproveAndRequestRedeem7540VaultHook": {
+        "args": [
+            {
+                "name": "yieldSource",
+                "type": "yieldSource"
+            },
+            {
+                "name": "token",
+                "type": "token"
+            }
+        ]
+    },
+    "Withdraw7540VaultHook": {
+        "args": [
+            {
+                "name": "yieldSource",
+                "type": "yieldSource"
+            },
+            {
+                "name": "token",
+                "type": "token"
+            }
+        ]
     }
 }

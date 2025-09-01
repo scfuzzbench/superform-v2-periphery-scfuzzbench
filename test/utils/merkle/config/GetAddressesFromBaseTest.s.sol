@@ -48,8 +48,13 @@ contract GetAddressesFromBaseTest is BaseTest {
         console.log("Deposit5115VaultHook:", globalMerkleHooksPeriphery[2]);
         console.log("ApproveAndDeposit4626VaultHook:", globalMerkleHooksPeriphery[4]);
         console.log("ApproveAndDeposit5115VaultHook:", globalMerkleHooksPeriphery[5]);
+        console.log("ApproveAndRequestDeposit7540VaultHook:", globalMerkleHooksPeriphery[6]);
+        console.log("Deposit7540VaultHook:", globalMerkleHooksPeriphery[7]);
+        console.log("ApproveAndRequestRedeem7540VaultHook:", globalMerkleHooksPeriphery[8]);
         console.log("MockNativeETHHook:", globalMerkleHooksPeriphery[9]);
         console.log("ApproveAndGearboxStakeHook:", globalMerkleHooksPeriphery[10]);
         console.log("GearboxUnstakeHook:", globalMerkleHooksPeriphery[11]);
+        console.log("Withdraw7540VaultHook:", globalMerkleHooksPeriphery[12]);
+        console.log("Redeem7540VaultHook:", globalMerkleHooksPeriphery[13]);
     }
 }
