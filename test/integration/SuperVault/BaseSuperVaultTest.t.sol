@@ -1368,7 +1368,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.fulfillHooksAddresses[0] = _getHookAddress(ETH, REDEEM_4626_VAULT_HOOK_KEY);
         vars.fulfillHooksAddresses[1] = _getHookAddress(ETH, REDEEM_7540_VAULT_HOOK_KEY);
 
-        (vars.aaveSharesOut, vars.centrifugeSharesOut) = _calculateVaultShares7540Underlying(redeemShares);
+        (vars.aaveSharesOut, vars.centrifugeSharesOut) = _calculateVaultShares7540Underlying(redeemShares, vault1, vault2);
 
         uint256 aaveShares = IERC4626(address(vault1)).balanceOf(address(strategy));
         uint256 centrifugeShares = IERC20Metadata(centrifugeVault.share()).balanceOf(address(strategy));
@@ -2180,37 +2180,37 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         return (fluidSharesOut, aaveSharesOut);
     }
 
-    function _calculateVaultShares7540Underlying(uint256 redeemShares)
+    function _calculateVaultShares7540Underlying(uint256 redeemShares, address vault1, address vault2)
         internal
         view
-        returns (uint256 aaveSharesOut, uint256 centrifugeSharesOut)
+        returns (uint256 vault1SharesOut, uint256 vault2SharesOut)
     {
         // Get current shares in each vault
-        uint256 aaveShares = aaveVault.balanceOf(address(strategy));
-        uint256 centrifugeShares = IERC20Metadata(centrifugeVault.share()).balanceOf(address(strategy));
+        uint256 vault1Shares = IERC4626(vault1).balanceOf(address(strategy));
+        uint256 vault2Shares = IERC7540(vault2).balanceOf(address(strategy));
 
         // Convert shares to underlying asset values
-        uint256 aaveUsdcValue = aaveVault.convertToAssets(aaveShares);
-        uint256 centrifugeUsdcValue = centrifugeVault.convertToAssets(centrifugeShares);
+        uint256 vault1UsdcValue = IERC4626(vault1).convertToAssets(vault1Shares);
+        uint256 vault2UsdcValue = IERC7540(vault2).convertToAssets(vault2Shares);
 
-        console2.log("---aaveSharesBalance", aaveShares);
-        console2.log("---centrifugeSharesBalance", centrifugeShares);
+        console2.log("---vault1SharesBalance", vault1Shares);
+        console2.log("---vault2SharesBalance", vault2Shares);
 
-        console2.log("---aaveUsdcValue", aaveUsdcValue);
-        console2.log("---centrifugeUsdcValue", centrifugeUsdcValue);
+        console2.log("---vault1UsdcValue", vault1UsdcValue);
+        console2.log("---vault2UsdcValue", vault2UsdcValue);
 
         // Calculate proportional split based on USD values
-        uint256 totalUsdValue = aaveUsdcValue + centrifugeUsdcValue;
+        uint256 totalUsdValue = vault1UsdcValue + vault2UsdcValue;
 
         if (totalUsdValue > 0) {
-            aaveSharesOut = (redeemShares * aaveUsdcValue) / totalUsdValue;
-            centrifugeSharesOut = redeemShares - aaveSharesOut;
+            vault1SharesOut = (redeemShares * vault1UsdcValue) / totalUsdValue;
+            vault2SharesOut = redeemShares - vault1SharesOut;
 
-            console2.log("---aaveSharesOut", aaveSharesOut);
-            console2.log("---centrifugeSharesOut", centrifugeSharesOut);
+            console2.log("---vault1SharesOut", vault1SharesOut);
+            console2.log("---vault2SharesOut", vault2SharesOut);
         }
 
-        return (aaveSharesOut, centrifugeSharesOut);
+        return (vault1SharesOut, vault2SharesOut);
     }
 
     /**
