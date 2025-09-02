@@ -24,6 +24,7 @@ broadcast/*/31337/
 lib/modulekit/node_modules
 lib/chimera
 lib/setup-helpers
+
 # Coverage files
 crytic-export
 echidna
