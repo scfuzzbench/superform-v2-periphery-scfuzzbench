@@ -1311,13 +1311,15 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     struct FulfillRedeem7540UnderlyingLocalVars {
         address[] requestingUsers;
         address[] fulfillHooksAddresses;
-        uint256 centrifugeShares;
-        uint256 aaveShares;
+        uint256 centrifugeSharesOut;
+        uint256 aaveSharesOut;
         bytes[] fulfillHooksData;
-        // uint256 totalSvAssets;
-        // uint256 pricePerShare;
-        // uint256 amountForVault1;
-        // uint256 amountForVault2;
+        uint256 totalSvAssets;
+        uint256 pricePerShare;
+        uint256 amountForAave;
+        uint256 amountForCentrifuge;
+        uint256 underlyingSharesForAave;
+        uint256 underlyingSharesForCentrifuge;
         uint256[] expectedAssetsOrSharesOut;
     }
 
@@ -1344,37 +1346,38 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.fulfillHooksAddresses[0] = _getHookAddress(ETH, REDEEM_4626_VAULT_HOOK_KEY);
         vars.fulfillHooksAddresses[1] = _getHookAddress(ETH, REDEEM_7540_VAULT_HOOK_KEY);
 
-        // Get current shares in each vault
-        vars.aaveShares = aaveVault.balanceOf(address(strategy));
-        vars.centrifugeShares = IERC20Metadata(centrifugeVault.share()).balanceOf(address(strategy));
+        (vars.aaveSharesOut, vars.centrifugeSharesOut) = _calculateVaultShares7540Underlying(redeemShares);
 
-        _requestRedeemFrom7540Underlying(vars.centrifugeShares, vault2);
+        _requestRedeemFrom7540Underlying(vars.centrifugeSharesOut, vault2);
 
         vars.fulfillHooksData = new bytes[](2);
         vars.fulfillHooksData[0] = _createRedeem4626HookData(
             _getYieldSourceOracleId(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
             vault1,
             address(strategy),
-            vars.aaveShares,
+            vars.aaveSharesOut,
             false
         );
 
         vars.fulfillHooksData[1] = _createRedeem7540VaultHookData(
             _getYieldSourceOracleId(bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY)), MANAGER),
             vault2,
-            vars.centrifugeShares,
+            vars.centrifugeSharesOut,
             false
         );
 
-        // (vars.totalSvAssets,) = totalAssetHelper.totalAssets(address(strategy));
-        // vars.pricePerShare = vars.totalSvAssets.mulDiv(strategy.PRECISION(), vault.totalSupply(), Math.Rounding.Floor);
+        (vars.totalSvAssets,) = totalAssetHelper.totalAssets(address(strategy));
+        vars.pricePerShare = vars.totalSvAssets.mulDiv(strategy.PRECISION(), vault.totalSupply(), Math.Rounding.Floor);
 
-        // vars.amountForVault1 = vars.aaveSharesOut * vault.PRECISION() / vars.pricePerShare;
-        // vars.amountForVault2 = vars.centrifugeSharesOut * vault.PRECISION() / vars.pricePerShare;
+        vars.amountForAave = vars.aaveSharesOut * vault.PRECISION() / vars.pricePerShare;
+        vars.amountForCentrifuge = vars.centrifugeSharesOut * vault.PRECISION() / vars.pricePerShare;
+
+        vars.underlyingSharesForAave = IERC4626(address(vault1)).convertToShares(vars.amountForAave);
+        vars.underlyingSharesForCentrifuge = IERC4626(address(vault2)).convertToShares(vars.amountForCentrifuge);
 
         vars.expectedAssetsOrSharesOut = new uint256[](2);
-        vars.expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).previewRedeem(vars.aaveShares);
-        vars.expectedAssetsOrSharesOut[1] = IERC7540(address(vault2)).convertToAssets(vars.centrifugeShares);
+        vars.expectedAssetsOrSharesOut[0] = IERC4626(address(vault1)).convertToAssets(vars.underlyingSharesForAave);
+        vars.expectedAssetsOrSharesOut[1] = IERC4626(address(vault2)).convertToAssets(vars.underlyingSharesForCentrifuge);
 
         vm.startPrank(MANAGER);
         bytes[] memory argsForProofs = new bytes[](2);
@@ -2154,6 +2157,36 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         }
 
         return (fluidSharesOut, aaveSharesOut);
+    }
+
+    function _calculateVaultShares7540Underlying(uint256 redeemShares)
+        internal
+        view
+        returns (uint256 aaveSharesOut, uint256 centrifugeSharesOut)
+    {
+        // Get current shares in each vault
+        uint256 aaveShares = aaveVault.balanceOf(address(strategy));
+        uint256 centrifugeShares = centrifugeVault.balanceOf(address(strategy));
+
+        // Convert shares to underlying asset values
+        uint256 aaveUsdcValue = aaveVault.convertToAssets(aaveShares);
+        uint256 centrifugeUsdcValue = centrifugeVault.convertToAssets(centrifugeShares);
+
+        console2.log("aaveUsdcValue", aaveUsdcValue);
+        console2.log("centrifugeUsdcValue", centrifugeUsdcValue);
+
+        // Calculate proportional split based on USD values
+        uint256 totalUsdValue = aaveUsdcValue + centrifugeUsdcValue;
+
+        if (totalUsdValue > 0) {
+            aaveSharesOut = (redeemShares * aaveUsdcValue) / totalUsdValue;
+            centrifugeSharesOut = redeemShares - aaveSharesOut; // Use subtraction to avoid rounding errors
+
+            console2.log("aaveSharesOut", aaveSharesOut);
+            console2.log("centrifugeSharesOut", centrifugeSharesOut);
+        }
+
+        return (aaveSharesOut, centrifugeSharesOut);
     }
 
     /**
