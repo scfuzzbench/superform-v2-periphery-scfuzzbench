@@ -37,10 +37,6 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.changeGlobalLeavesStatus(leaves, statuses, strategy);
     }
 
-    function superVaultAggregator_changePrimaryManager(address strategy, address newManager) public asActor {
-        superVaultAggregator.changePrimaryManager(strategy, newManager);
-    }
-
     function superVaultAggregator_claimUpkeep(uint256 amount) public asActor {
         superVaultAggregator.claimUpkeep(amount);
     }
@@ -61,10 +57,6 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.executeChangePrimaryManager(strategy);
     }
 
-    function superVaultAggregator_executeGlobalHooksRootUpdate() public asActor {
-        superVaultAggregator.executeGlobalHooksRootUpdate();
-    }
-
     function superVaultAggregator_executeStrategyHooksRootUpdate(address strategy) public asActor {
         superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
     }
@@ -77,10 +69,6 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.proposeChangePrimaryManager(strategy, newManager);
     }
 
-    function superVaultAggregator_proposeGlobalHooksRoot(bytes32 newRoot) public asActor {
-        superVaultAggregator.proposeGlobalHooksRoot(newRoot);
-    }
-
     function superVaultAggregator_proposeStrategyHooksRoot(address strategy, bytes32 newRoot) public asActor {
         superVaultAggregator.proposeStrategyHooksRoot(strategy, newRoot);
     }
@@ -91,22 +79,6 @@ abstract contract SuperVaultAggregatorTargets is
 
     function superVaultAggregator_removeSecondaryManager(address strategy, address manager) public asActor {
         superVaultAggregator.removeSecondaryManager(strategy, manager);
-    }
-
-    function superVaultAggregator_setGlobalHooksRootVetoStatus(bool vetoed) public asActor {
-        superVaultAggregator.setGlobalHooksRootVetoStatus(vetoed);
-    }
-
-    function superVaultAggregator_setHooksRootUpdateTimelock(uint256 newTimelock) public asActor {
-        superVaultAggregator.setHooksRootUpdateTimelock(newTimelock);
-    }
-
-    function superVaultAggregator_setStrategyHooksRootVetoStatus(address strategy, bool vetoed) public asActor {
-        superVaultAggregator.setStrategyHooksRootVetoStatus(strategy, vetoed);
-    }
-
-    function superVaultAggregator_slashStake(address manager, uint256 amount) public asActor {
-        superVaultAggregator.slashStake(manager, amount);
     }
 
     function superVaultAggregator_updatePPSVerificationThresholds(address strategy, uint256 dispersionThreshold_, uint256 deviationThreshold_, uint256 mnThreshold_) public asActor {

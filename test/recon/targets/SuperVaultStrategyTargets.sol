@@ -77,13 +77,6 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         );
     }
 
-    function superVaultStrategy_initialize(
-        address vaultAddress,
-        ISuperVaultStrategy.FeeConfig memory feeConfigData
-    ) public asActor {
-        superVaultStrategy.initialize(vaultAddress, feeConfigData);
-    }
-
     function superVaultStrategy_manageEmergencyWithdraw(
         uint8 action,
         address recipient,
