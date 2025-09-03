@@ -464,7 +464,7 @@ forge install
 
 ```bash
 cd lib/v2-core/lib/modulekit/
-pnpm install
+yarn
 ```
 
 ```bash
