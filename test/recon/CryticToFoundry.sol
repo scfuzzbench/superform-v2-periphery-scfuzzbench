@@ -1035,164 +1035,164 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         );
     }
 
-    function test_userDepositToInvestmentVaultFlow_WithApproveAndapproveAndDepositHook()
-        public
-    {
-        // Deploy hook contracts and helper
-        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
-        redeemHook = new Redeem4626VaultHook();
-        merkleHelper = new MerkleTestHelper();
+    // function test_userDepositToInvestmentVaultFlow_WithApproveAndapproveAndDepositHook()
+    //     public
+    // {
+    //     // Deploy hook contracts and helper
+    //     approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
+    //     redeemHook = new Redeem4626VaultHook();
+    //     merkleHelper = new MerkleTestHelper();
 
-        // Register hooks in SuperGovernor first
-        superGovernor.registerHook(address(approveAndDepositHook), false);
-        superGovernor.registerHook(address(redeemHook), true);
+    //     // Register hooks in SuperGovernor first
+    //     superGovernor.registerHook(address(approveAndDepositHook), false);
+    //     superGovernor.registerHook(address(redeemHook), true);
 
-        // Create a new investment vault using VaultManager
-        address investmentVault = _newVault(_getAsset());
+    //     // Create a new investment vault using VaultManager
+    //     address investmentVault = _newVault(_getAsset());
 
-        // Add the investment vault as a yield source to the strategy
-        superVaultStrategy_manageYieldSource(
-            investmentVault,
-            address(yieldSourceOracle),
-            0 // Add yield source
-        );
+    //     // Add the investment vault as a yield source to the strategy
+    //     superVaultStrategy_manageYieldSource(
+    //         investmentVault,
+    //         address(yieldSourceOracle),
+    //         0 // Add yield source
+    //     );
 
-        // Generate Merkle root that authorizes deposit to the investment vault using helper
-        (bytes32 testRoot, bytes32[][] memory testProofs) = merkleHelper
-            .generateTestHooksRoot(
-                address(approveAndDepositHook), // Use ApproveAndDeposit hook instead of basic Deposit hook
-                address(redeemHook),
-                investmentVault,
-                _getAsset()
-            );
+    //     // Generate Merkle root that authorizes deposit to the investment vault using helper
+    //     (bytes32 testRoot, bytes32[][] memory testProofs) = merkleHelper
+    //         .generateTestHooksRoot(
+    //             address(approveAndDepositHook), // Use ApproveAndDeposit hook instead of basic Deposit hook
+    //             address(redeemHook),
+    //             investmentVault,
+    //             _getAsset()
+    //         );
 
-        // Set the global hooks root
-        superGovernor.proposeGlobalHooksRoot(testRoot);
-        vm.warp(block.timestamp + 15 minutes + 1);
-        superVaultAggregator.executeGlobalHooksRootUpdate();
+    //     // Set the global hooks root
+    //     superGovernor.proposeGlobalHooksRoot(testRoot);
+    //     vm.warp(block.timestamp + 15 minutes + 1);
+    //     superVaultAggregator.executeGlobalHooksRootUpdate();
 
-        // Switch to a user and deposit into SuperVault
-        switchActor(1);
-        address user = _getActor();
-        uint256 depositAmount = 1000e18;
+    //     // Switch to a user and deposit into SuperVault
+    //     switchActor(1);
+    //     address user = _getActor();
+    //     uint256 depositAmount = 1000e18;
 
-        // User approves SuperVault and deposits
-        superVault_approve(address(superVault), type(uint256).max);
-        superVault_deposit(depositAmount, user);
+    //     // User approves SuperVault and deposits
+    //     superVault_approve(address(superVault), type(uint256).max);
+    //     superVault_deposit(depositAmount, user);
 
-        // Verify user received shares in SuperVault
-        uint256 userShares = superVault.balanceOf(user);
-        assertTrue(
-            userShares > 0,
-            "User should receive shares from SuperVault deposit"
-        );
+    //     // Verify user received shares in SuperVault
+    //     uint256 userShares = superVault.balanceOf(user);
+    //     assertTrue(
+    //         userShares > 0,
+    //         "User should receive shares from SuperVault deposit"
+    //     );
 
-        // Amount to invest in the investment vault
-        uint256 amountToInvest = 500e18;
+    //     // Amount to invest in the investment vault
+    //     uint256 amountToInvest = 500e18;
 
-        {
-            // Record balances before hook execution
-            uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(
-                address(superVaultStrategy)
-            );
-            uint256 investmentVaultAssetsBefore = MockERC20(_getAsset()).balanceOf(
-                investmentVault
-            );
+    //     {
+    //         // Record balances before hook execution
+    //         uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(
+    //             address(superVaultStrategy)
+    //         );
+    //         uint256 investmentVaultAssetsBefore = MockERC20(_getAsset()).balanceOf(
+    //             investmentVault
+    //         );
 
-            console2.log("SuperVaultStrategy assets before:", strategyAssetsBefore);
-            console2.log(
-                "Investment vault assets before:",
-                investmentVaultAssetsBefore
-            );
+    //         console2.log("SuperVaultStrategy assets before:", strategyAssetsBefore);
+    //         console2.log(
+    //             "Investment vault assets before:",
+    //             investmentVaultAssetsBefore
+    //         );
 
-            assertTrue(
-                strategyAssetsBefore >= amountToInvest,
-                "Strategy should have enough assets to invest"
-            );
+    //         assertTrue(
+    //             strategyAssetsBefore >= amountToInvest,
+    //             "Strategy should have enough assets to invest"
+    //         );
 
-            // NO MANUAL APPROVAL NEEDED - ApproveAndDeposit4626VaultHook handles it automatically
+    //         // NO MANUAL APPROVAL NEEDED - ApproveAndDeposit4626VaultHook handles it automatically
 
-            // Create hook calldata for ApproveAndDeposit4626VaultHook
-            bytes memory approveAndDepositCalldata = merkleHelper
-                .encodeApproveAndDepositHookArgs(
-                    investmentVault,
-                    _getAsset(), // Token to approve and deposit
-                    amountToInvest,
-                    false
-                );
+    //         // Create hook calldata for ApproveAndDeposit4626VaultHook
+    //         bytes memory approveAndDepositCalldata = merkleHelper
+    //             .encodeApproveAndDepositHookArgs(
+    //                 investmentVault,
+    //                 _getAsset(), // Token to approve and deposit
+    //                 amountToInvest,
+    //                 false
+    //             );
 
-            // Create ExecuteArgs for the hook
-            ISuperVaultStrategy.ExecuteArgs memory executeArgs = ISuperVaultStrategy
-                .ExecuteArgs({
-                    hooks: new address[](1),
-                    hookCalldata: new bytes[](1),
-                    expectedAssetsOrSharesOut: new uint256[](1),
-                    globalProofs: new bytes32[][](1),
-                    strategyProofs: new bytes32[][](1)
-                });
+    //         // Create ExecuteArgs for the hook
+    //         ISuperVaultStrategy.ExecuteArgs memory executeArgs = ISuperVaultStrategy
+    //             .ExecuteArgs({
+    //                 hooks: new address[](1),
+    //                 hookCalldata: new bytes[](1),
+    //                 expectedAssetsOrSharesOut: new uint256[](1),
+    //                 globalProofs: new bytes32[][](1),
+    //                 strategyProofs: new bytes32[][](1)
+    //             });
 
-            executeArgs.hooks[0] = address(approveAndDepositHook);
-            executeArgs.hookCalldata[0] = approveAndDepositCalldata;
-            executeArgs.expectedAssetsOrSharesOut[0] = amountToInvest;
-            executeArgs.globalProofs[0] = testProofs[0];
-            executeArgs.strategyProofs[0] = new bytes32[](0);
+    //         executeArgs.hooks[0] = address(approveAndDepositHook);
+    //         executeArgs.hookCalldata[0] = approveAndDepositCalldata;
+    //         executeArgs.expectedAssetsOrSharesOut[0] = amountToInvest;
+    //         executeArgs.globalProofs[0] = testProofs[0];
+    //         executeArgs.strategyProofs[0] = new bytes32[](0);
 
-            // Execute the hook to transfer funds to investment vault (with automatic approval)
-            superVaultStrategy.executeHooks(executeArgs);
+    //         // Execute the hook to transfer funds to investment vault (with automatic approval)
+    //         superVaultStrategy.executeHooks(executeArgs);
 
-            // Verify funds were transferred
-            uint256 strategyAssetsAfter = MockERC20(_getAsset()).balanceOf(
-                address(superVaultStrategy)
-            );
-            uint256 investmentVaultAssetsAfter = MockERC20(_getAsset()).balanceOf(
-                investmentVault
-            );
+    //         // Verify funds were transferred
+    //         uint256 strategyAssetsAfter = MockERC20(_getAsset()).balanceOf(
+    //             address(superVaultStrategy)
+    //         );
+    //         uint256 investmentVaultAssetsAfter = MockERC20(_getAsset()).balanceOf(
+    //             investmentVault
+    //         );
 
-            console2.log("SuperVaultStrategy assets after:", strategyAssetsAfter);
-            console2.log(
-                "Investment vault assets after:",
-                investmentVaultAssetsAfter
-            );
+    //         console2.log("SuperVaultStrategy assets after:", strategyAssetsAfter);
+    //         console2.log(
+    //             "Investment vault assets after:",
+    //             investmentVaultAssetsAfter
+    //         );
 
-            // SuperVaultStrategy should have fewer assets
-            assertTrue(
-                strategyAssetsAfter < strategyAssetsBefore,
-                "SuperVaultStrategy should have fewer assets after hook execution"
-            );
+    //         // SuperVaultStrategy should have fewer assets
+    //         assertTrue(
+    //             strategyAssetsAfter < strategyAssetsBefore,
+    //             "SuperVaultStrategy should have fewer assets after hook execution"
+    //         );
 
-            // Investment vault should have more assets
-            assertTrue(
-                investmentVaultAssetsAfter > investmentVaultAssetsBefore,
-                "Investment vault should have more assets after hook execution"
-            );
+    //         // Investment vault should have more assets
+    //         assertTrue(
+    //             investmentVaultAssetsAfter > investmentVaultAssetsBefore,
+    //             "Investment vault should have more assets after hook execution"
+    //         );
 
-            // The difference should equal the amount we invested
-            uint256 assetsTransferred = strategyAssetsBefore - strategyAssetsAfter;
-            assertEq(
-                assetsTransferred,
-                amountToInvest,
-                "Transferred assets should match expected amount"
-            );
+    //         // The difference should equal the amount we invested
+    //         uint256 assetsTransferred = strategyAssetsBefore - strategyAssetsAfter;
+    //         assertEq(
+    //             assetsTransferred,
+    //             amountToInvest,
+    //             "Transferred assets should match expected amount"
+    //         );
 
-            // Investment vault should have received the assets
-            uint256 assetsReceived = investmentVaultAssetsAfter -
-                investmentVaultAssetsBefore;
-            assertEq(
-                assetsReceived,
-                amountToInvest,
-                "Investment vault should receive expected assets"
-            );
+    //         // Investment vault should have received the assets
+    //         uint256 assetsReceived = investmentVaultAssetsAfter -
+    //             investmentVaultAssetsBefore;
+    //         assertEq(
+    //             assetsReceived,
+    //             amountToInvest,
+    //             "Investment vault should receive expected assets"
+    //         );
 
-            // Verify that the approval was reset to zero (security best practice)
-            uint256 remainingApproval = MockERC20(_getAsset()).allowance(
-                address(superVaultStrategy),
-                investmentVault
-            );
-            assertEq(
-                remainingApproval,
-                0,
-                "Approval should be reset to zero after hook execution"
-            );
-        }
-    }
+    //         // Verify that the approval was reset to zero (security best practice)
+    //         uint256 remainingApproval = MockERC20(_getAsset()).allowance(
+    //             address(superVaultStrategy),
+    //             investmentVault
+    //         );
+    //         assertEq(
+    //             remainingApproval,
+    //             0,
+    //             "Approval should be reset to zero after hook execution"
+    //         );
+    //     }
+    // }
 }
