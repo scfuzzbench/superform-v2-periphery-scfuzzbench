@@ -8,7 +8,6 @@ import "forge-std/console2.sol";
 import {Test} from "forge-std/Test.sol";
 import {TargetFunctions} from "./TargetFunctions.sol";
 
-
 // forge test --match-contract CryticToFoundry -vv
 contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     function setUp() public {
@@ -17,6 +16,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     // forge test --match-test test_crytic -vvv
     function test_crytic() public {
-        // TODO: add failing property tests here for debugging
+        add_new_vault();
+        superVaultStrategy_manageYieldSource_clamped();
     }
 }

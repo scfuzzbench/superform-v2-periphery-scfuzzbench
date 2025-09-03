@@ -8,21 +8,16 @@ import {vm} from "@chimera/Hevm.sol";
 
 import {MockERC20} from "@recon/MockERC20.sol";
 
-
 // Target functions that are effectively inherited from the Actor and AssetManagers
 // Once properly standardized, managers will expose these by default
 // Keeping them out makes your project more custom
-abstract contract ManagersTargets is
-    BaseTargetFunctions,
-    Properties
-{
+abstract contract ManagersTargets is BaseTargetFunctions, Properties {
     // == ACTOR HANDLERS == //
-    
+
     /// @dev Start acting as another actor
     function switchActor(uint256 entropy) public {
         _switchActor(entropy);
     }
-
 
     /// @dev Starts using a new asset
     function switch_asset(uint256 entropy) public {
@@ -35,13 +30,28 @@ abstract contract ManagersTargets is
         return newAsset;
     }
 
+    /// @dev Switches the current vault based on the entropy
+    /// @param entropy The entropy to choose a random vault in the array for switching
+    function switch_vault(uint256 entropy) public {
+        _switchVault(entropy);
+    }
+
+    /// @dev Deploy a new vault using the current asset and add it to the list of vaults,
+    /// then set it as the current vault
+    function add_new_vault() public {
+        _newVault(_getAsset());
+    }
+
     /// === GHOST UPDATING HANDLERS ===///
     /// We `updateGhosts` cause you never know (e.g. donations)
     /// If you don't want to track donations, remove the `updateGhosts`
 
     /// @dev Approve to arbitrary address, uses Actor by default
     /// NOTE: You're almost always better off setting approvals in `Setup`
-    function asset_approve(address to, uint128 amt) public updateGhosts asActor {
+    function asset_approve(
+        address to,
+        uint128 amt
+    ) public updateGhosts asActor {
         MockERC20(_getAsset()).approve(to, amt);
     }
 
