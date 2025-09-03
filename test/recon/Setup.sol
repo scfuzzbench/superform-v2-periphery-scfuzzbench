@@ -7,6 +7,9 @@ import {vm} from "@chimera/Hevm.sol";
 import {ActorManager} from "@recon/ActorManager.sol";
 import {AssetManager} from "@recon/AssetManager.sol";
 import {Utils} from "@recon/Utils.sol";
+import {Deposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Deposit4626VaultHook.sol";
+import {ApproveAndDeposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/ApproveAndDeposit4626VaultHook.sol";
+import {Redeem4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Redeem4626VaultHook.sol";
 
 // Source dependencies
 import "src/SuperVault/SuperVault.sol";
@@ -20,6 +23,7 @@ import {MockYieldSourceOracle} from "test/mocks/MockYieldSourceOracle.sol";
 
 // Test suite dependencies
 import {VaultManager} from "./managers/VaultManager.sol";
+import {MerkleTestHelper} from "test/recon/helpers/MerkleTestHelper.sol";
 
 abstract contract Setup is
     BaseSetup,
@@ -42,6 +46,11 @@ abstract contract Setup is
     SuperVault vaultImpl;
     SuperVaultStrategy strategyImpl;
     SuperVaultEscrow escrowImpl;
+
+    // Helpers
+    MerkleTestHelper merkleHelper;
+    ApproveAndDeposit4626VaultHook approveAndDepositHook;
+    Redeem4626VaultHook redeemHook;
 
     // Mocks
     MockYieldSourceOracle yieldSourceOracle;
@@ -120,12 +129,20 @@ abstract contract Setup is
         superVaultStrategy = SuperVaultStrategy(payable(strategyAddr));
         superVaultEscrow = SuperVaultEscrow(escrowAddr);
 
-        // 9. Set up approval array for contracts that need token access
+        /// 9. Deploy hook contracts and helper
+        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
+        redeemHook = new Redeem4626VaultHook();
+        merkleHelper = new MerkleTestHelper();
+
+        superGovernor.registerHook(address(approveAndDepositHook), false);
+        superGovernor.registerHook(address(redeemHook), true);
+
+        // 10. Set up approval array for contracts that need token access
         address[] memory approvalArray = new address[](2);
         approvalArray[0] = address(superVault);
         approvalArray[1] = address(superVaultStrategy);
 
-        // 10. Finalize asset deployment (mints to actors and sets approvals)
+        // 11. Finalize asset deployment (mints to actors and sets approvals)
         _finalizeAssetDeployment(_getActors(), approvalArray, type(uint88).max);
     }
 

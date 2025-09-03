@@ -24,6 +24,50 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         );
     }
 
+    function superVaultStrategy_executeHooks_clamped(
+        bool depositHook,
+        uint256 amountToInvest
+    ) public payable {
+        (, bytes32[][] memory testProofs) = merkleHelper.generateTestHooksRoot(
+            address(approveAndDepositHook), // Use ApproveAndDeposit hook instead of basic Deposit hook
+            address(redeemHook),
+            _getVault(),
+            _getAsset()
+        );
+
+        // Create hook calldata for ApproveAndDeposit4626VaultHook
+        bytes memory approveAndDepositCalldata = abi.encodePacked(
+            bytes32(0), // yieldSourceOracleId placeholder
+            _getVault(), // Address of the yield source vault
+            _getAsset(), // Address of the token to approve and deposit
+            amountToInvest, // Amount to deposit
+            false
+        );
+
+        // Create ExecuteArgs for the hook
+        ISuperVaultStrategy.ExecuteArgs memory executeArgs = ISuperVaultStrategy
+            .ExecuteArgs({
+                hooks: new address[](1),
+                hookCalldata: new bytes[](1),
+                expectedAssetsOrSharesOut: new uint256[](1),
+                globalProofs: new bytes32[][](1),
+                strategyProofs: new bytes32[][](1)
+            });
+
+        executeArgs.hooks[0] = depositHook
+            ? address(approveAndDepositHook)
+            : address(redeemHook);
+        executeArgs.hookCalldata[0] = approveAndDepositCalldata;
+        executeArgs.expectedAssetsOrSharesOut[0] = amountToInvest;
+        executeArgs.globalProofs[0] = depositHook
+            ? testProofs[0]
+            : testProofs[1];
+        executeArgs.strategyProofs[0] = new bytes32[](0);
+
+        // Execute the hook to transfer funds to investment vault (with automatic approval)
+        this.superVaultStrategy_executeHooks{value: msg.value}(executeArgs);
+    }
+
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 
     function superVaultStrategy_executeHooks(

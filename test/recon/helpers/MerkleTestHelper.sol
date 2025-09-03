@@ -7,10 +7,10 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 /// @notice Helper contract for generating test Merkle roots and proofs for hook validation
 contract MerkleTestHelper {
     /// @notice Generate a test Merkle root for ERC4626 deposit and redeem hooks
-    /// @param depositHook Address of the Deposit4626VaultHook contract
+    /// @param depositHook Address of the Deposit4626VaultHook or ApproveAndDeposit4626VaultHook contract
     /// @param redeemHook Address of the Redeem4626VaultHook contract  
     /// @param mockVault Address of the mock ERC4626 vault
-    /// @param mockToken Address of the mock token
+    /// @param mockToken Address of the mock token (unused but kept for compatibility)
     /// @return root The Merkle root for the tree
     /// @return proofs Array of proofs for each leaf [depositProof, redeemProof]
     function generateTestHooksRoot(
@@ -22,25 +22,14 @@ contract MerkleTestHelper {
         // Create leaves for the two hooks following the exact format from SuperVaultAggregator._createLeaf()
         bytes32[] memory leaves = new bytes32[](2);
         
-        // Leaf 1: Deposit hook with mock vault + token args
-        // Based on Deposit4626VaultHook data structure: yieldSourceOracleId(32) + yieldSource(20) + amount(32) + usePrevHookAmount(1)
-        bytes memory depositArgs = abi.encodePacked(
-            bytes32(0), // yieldSourceOracleId placeholder
-            mockVault,   // yieldSource (20 bytes)
-            uint256(1000e18), // amount (32 bytes)
-            false        // usePrevHookAmount (1 byte)
-        );
+        // Leaf 1: Deposit hook with yield source only (what inspect() returns)
+        // The inspect() function only returns abi.encodePacked(yieldSource)
+        bytes memory depositArgs = abi.encodePacked(mockVault); // Only yield source address
         leaves[0] = keccak256(bytes.concat(keccak256(abi.encode(depositHook, depositArgs))));
         
-        // Leaf 2: Redeem hook with mock vault + owner + shares args  
-        // Based on Redeem4626VaultHook data structure: yieldSourceOracleId(32) + yieldSource(20) + owner(20) + shares(32) + usePrevHookAmount(1)
-        bytes memory redeemArgs = abi.encodePacked(
-            bytes32(0), // yieldSourceOracleId placeholder
-            mockVault,   // yieldSource (20 bytes)
-            mockToken,   // owner (20 bytes) - using mockToken address as owner for simplicity
-            uint256(500e18), // shares (32 bytes)
-            false        // usePrevHookAmount (1 byte)
-        );
+        // Leaf 2: Redeem hook with yield source only (what inspect() returns)
+        // The inspect() function only returns abi.encodePacked(yieldSource)
+        bytes memory redeemArgs = abi.encodePacked(mockVault); // Only yield source address
         leaves[1] = keccak256(bytes.concat(keccak256(abi.encode(redeemHook, redeemArgs))));
         
         // Sort leaves to match standard Merkle tree ordering
@@ -51,20 +40,25 @@ contract MerkleTestHelper {
         // For a 2-leaf tree, root is hash of the sorted leaves
         root = keccak256(abi.encodePacked(leaves[0], leaves[1]));
         
+        // Store original leaf hashes for proof assignment
+        bytes32 depositLeaf = keccak256(bytes.concat(keccak256(abi.encode(depositHook, depositArgs))));
+        bytes32 redeemLeaf = keccak256(bytes.concat(keccak256(abi.encode(redeemHook, redeemArgs))));
+        
         // Generate proofs for each leaf
         proofs = new bytes32[][](2);
-        proofs[0] = new bytes32[](1); // Proof for first leaf
-        proofs[1] = new bytes32[](1); // Proof for second leaf
+        proofs[0] = new bytes32[](1); // Proof for deposit hook
+        proofs[1] = new bytes32[](1); // Proof for redeem hook
         
         // In a 2-leaf tree, each leaf's proof is just its sibling
-        if (leaves[0] == keccak256(bytes.concat(keccak256(abi.encode(depositHook, depositArgs))))) {
-            // depositHook is first leaf
+        // Find which position each leaf ended up in after sorting
+        if (leaves[0] == depositLeaf) {
+            // depositHook is first leaf after sorting
+            proofs[0][0] = leaves[1]; // Sibling of deposit leaf
+            proofs[1][0] = leaves[0]; // Sibling of redeem leaf  
+        } else {
+            // redeemHook is first leaf after sorting
             proofs[0][0] = leaves[1]; // Sibling of deposit leaf
             proofs[1][0] = leaves[0]; // Sibling of redeem leaf
-        } else {
-            // redeemHook is first leaf  
-            proofs[0][0] = leaves[0]; // Sibling of deposit leaf
-            proofs[1][0] = leaves[1]; // Sibling of redeem leaf
         }
         
         return (root, proofs);
@@ -105,6 +99,27 @@ contract MerkleTestHelper {
             yieldSource,
             owner,
             shares,
+            usePrevHookAmount
+        );
+    }
+    
+    /// @notice Generate encoded hook arguments for ApproveAndDeposit4626VaultHook
+    /// @param yieldSource Address of the yield source vault
+    /// @param token Address of the token to approve and deposit
+    /// @param amount Amount to deposit
+    /// @param usePrevHookAmount Whether to use previous hook amount
+    /// @return Encoded hook arguments
+    function encodeApproveAndDepositHookArgs(
+        address yieldSource,
+        address token,
+        uint256 amount,
+        bool usePrevHookAmount
+    ) public pure returns (bytes memory) {
+        return abi.encodePacked(
+            bytes32(0), // yieldSourceOracleId placeholder
+            yieldSource,
+            token,
+            amount,
             usePrevHookAmount
         );
     }
