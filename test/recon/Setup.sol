@@ -7,9 +7,28 @@ import {vm} from "@chimera/Hevm.sol";
 import {ActorManager} from "@recon/ActorManager.sol";
 import {AssetManager} from "@recon/AssetManager.sol";
 import {Utils} from "@recon/Utils.sol";
+// ERC4626 Hooks
 import {Deposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Deposit4626VaultHook.sol";
 import {ApproveAndDeposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/ApproveAndDeposit4626VaultHook.sol";
 import {Redeem4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Redeem4626VaultHook.sol";
+
+// ERC5115 Hooks
+import {Deposit5115VaultHook} from "lib/v2-core/src/hooks/vaults/5115/Deposit5115VaultHook.sol";
+import {ApproveAndDeposit5115VaultHook} from "lib/v2-core/src/hooks/vaults/5115/ApproveAndDeposit5115VaultHook.sol";
+import {Redeem5115VaultHook} from "lib/v2-core/src/hooks/vaults/5115/Redeem5115VaultHook.sol";
+
+// ERC7540 Hooks
+import {Deposit7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/Deposit7540VaultHook.sol";
+import {Redeem7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/Redeem7540VaultHook.sol";
+import {RequestDeposit7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/RequestDeposit7540VaultHook.sol";
+import {RequestRedeem7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/RequestRedeem7540VaultHook.sol";
+import {ApproveAndRequestDeposit7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/ApproveAndRequestDeposit7540VaultHook.sol";
+import {ApproveAndRequestRedeem7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/ApproveAndRequestRedeem7540VaultHook.sol";
+import {CancelDepositRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/CancelDepositRequest7540Hook.sol";
+import {CancelRedeemRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/CancelRedeemRequest7540Hook.sol";
+import {ClaimCancelDepositRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/ClaimCancelDepositRequest7540Hook.sol";
+import {ClaimCancelRedeemRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/ClaimCancelRedeemRequest7540Hook.sol";
+import {Withdraw7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/Withdraw7540VaultHook.sol";
 
 // Source dependencies
 import "src/SuperVault/SuperVault.sol";
@@ -20,9 +39,12 @@ import "src/SuperGovernor.sol";
 import {ISuperVaultAggregator} from "src/interfaces/SuperVault/ISuperVaultAggregator.sol";
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import {MockYieldSourceOracle} from "test/mocks/MockYieldSourceOracle.sol";
+import {MockERC4626YieldSourceOracle} from "test/recon/mocks/MockERC4626YieldSourceOracle.sol";
+import {MockERC5115YieldSourceOracle} from "test/recon/mocks/MockERC5115YieldSourceOracle.sol";
+import {MockERC7540YieldSourceOracle} from "test/recon/mocks/MockERC7540YieldSourceOracle.sol";
 
 // Test suite dependencies
-import {VaultManager} from "test/recon/managers/VaultManager.sol";
+import {YieldManager, YieldSourceType} from "test/recon/managers/YieldManager.sol";
 import {MerkleTestHelper} from "test/recon/helpers/MerkleTestHelper.sol";
 import {UnsafeSuperVaultAggregator} from "test/recon/helpers/UnsafeSuperVaultAggregator.sol";
 
@@ -30,7 +52,7 @@ abstract contract Setup is
     BaseSetup,
     ActorManager,
     AssetManager,
-    VaultManager,
+    YieldManager,
     Utils
 {
     // Configuration constants
@@ -50,11 +72,40 @@ abstract contract Setup is
 
     // Helpers
     MerkleTestHelper merkleHelper;
-    ApproveAndDeposit4626VaultHook approveAndDepositHook;
-    Redeem4626VaultHook redeemHook;
+
+    // ERC4626 Hooks
+    ApproveAndDeposit4626VaultHook approveAndDeposit4626Hook;
+    Deposit4626VaultHook deposit4626Hook;
+    Redeem4626VaultHook redeem4626Hook;
+
+    // ERC5115 Hooks
+    ApproveAndDeposit5115VaultHook approveAndDeposit5115Hook;
+    Deposit5115VaultHook deposit5115Hook;
+    Redeem5115VaultHook redeem5115Hook;
+
+    // ERC7540 Hooks
+    Deposit7540VaultHook deposit7540Hook;
+    Redeem7540VaultHook redeem7540Hook;
+    RequestDeposit7540VaultHook requestDeposit7540Hook;
+    RequestRedeem7540VaultHook requestRedeem7540Hook;
+    ApproveAndRequestDeposit7540VaultHook approveAndRequestDeposit7540Hook;
+    ApproveAndRequestRedeem7540VaultHook approveAndRequestRedeem7540Hook;
+    CancelDepositRequest7540Hook cancelDepositRequest7540Hook;
+    CancelRedeemRequest7540Hook cancelRedeemRequest7540Hook;
+    ClaimCancelDepositRequest7540Hook claimCancelDepositRequest7540Hook;
+    ClaimCancelRedeemRequest7540Hook claimCancelRedeemRequest7540Hook;
+    Withdraw7540VaultHook withdraw7540Hook;
 
     // Mocks
-    MockYieldSourceOracle yieldSourceOracle;
+    MockYieldSourceOracle yieldSourceOracle; // Legacy - keep for compatibility
+    MockERC4626YieldSourceOracle erc4626YieldSourceOracle;
+    MockERC5115YieldSourceOracle erc5115YieldSourceOracle;
+    MockERC7540YieldSourceOracle erc7540YieldSourceOracle;
+
+    // Yield sources for different standards
+    address erc4626YieldSource;
+    address erc5115YieldSource;
+    address erc7540YieldSource;
 
     /// === Setup === ///
     /// This contains all calls to be performed in the tester constructor, both for Echidna and Foundry
@@ -66,8 +117,27 @@ abstract contract Setup is
         // 2. Create assets using AssetManager
         _newAsset(DECIMALS); // Deploy token with 18 decimals
 
-        // 3. Create new yield vault using VaultManager
-        _newVault(_getAsset());
+        // 3. Deploy all three types of yield sources using YieldManager
+        // Deploy ERC4626 yield source (default)
+        erc4626YieldSource = _newYieldSource(
+            _getAsset(),
+            YieldSourceType.ERC4626
+        );
+
+        // Deploy ERC5115 yield source
+        erc5115YieldSource = _newYieldSource(
+            _getAsset(),
+            YieldSourceType.ERC5115
+        );
+
+        // Deploy ERC7540 yield source
+        erc7540YieldSource = _newYieldSource(
+            _getAsset(),
+            YieldSourceType.ERC7540
+        );
+
+        // Set ERC4626 as the default active yield source
+        _switchYieldSource(0); // Switch to first yield source in the array (ERC4626)
 
         // 4. Deploy SuperGovernor first (required by other contracts)
         superGovernor = new SuperGovernor(
@@ -97,13 +167,25 @@ abstract contract Setup is
             address(superVaultAggregator)
         );
 
-        // 8. Deploy Mocks
+        // 8. Deploy Mocks and Oracles
+        // Deploy legacy oracle for backward compatibility
         yieldSourceOracle = new MockYieldSourceOracle(
             1e18,
             1000e18,
             1000e18,
             true
         );
+
+        // Deploy specific oracles for each yield source type
+        erc4626YieldSourceOracle = new MockERC4626YieldSourceOracle();
+        erc5115YieldSourceOracle = new MockERC5115YieldSourceOracle();
+        erc7540YieldSourceOracle = new MockERC7540YieldSourceOracle();
+
+        // Set valid assets for all oracles
+        address asset = _getAsset();
+        erc4626YieldSourceOracle.setValidAsset(asset, true);
+        erc5115YieldSourceOracle.setValidAsset(asset, true);
+        erc7540YieldSourceOracle.setValidAsset(asset, true);
 
         // 9. Create a vault trio using the aggregator
         ISuperVaultAggregator.VaultCreationParams
@@ -133,18 +215,78 @@ abstract contract Setup is
         superVaultStrategy = SuperVaultStrategy(payable(strategyAddr));
         superVaultEscrow = SuperVaultEscrow(escrowAddr);
 
-        /// 11. Deploy hook contracts and helper
-        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
-        redeemHook = new Redeem4626VaultHook();
+        /// 11. Deploy all hook contracts and helper
         merkleHelper = new MerkleTestHelper();
 
-        superGovernor.registerHook(address(approveAndDepositHook), false);
-        superGovernor.registerHook(address(redeemHook), true);
+        // Deploy ERC4626 Hooks
+        approveAndDeposit4626Hook = new ApproveAndDeposit4626VaultHook();
+        deposit4626Hook = new Deposit4626VaultHook();
+        redeem4626Hook = new Redeem4626VaultHook();
+
+        // Deploy ERC5115 Hooks
+        approveAndDeposit5115Hook = new ApproveAndDeposit5115VaultHook();
+        deposit5115Hook = new Deposit5115VaultHook();
+        redeem5115Hook = new Redeem5115VaultHook();
+
+        // Deploy ERC7540 Hooks
+        deposit7540Hook = new Deposit7540VaultHook();
+        redeem7540Hook = new Redeem7540VaultHook();
+        requestDeposit7540Hook = new RequestDeposit7540VaultHook();
+        requestRedeem7540Hook = new RequestRedeem7540VaultHook();
+        approveAndRequestDeposit7540Hook = new ApproveAndRequestDeposit7540VaultHook();
+        approveAndRequestRedeem7540Hook = new ApproveAndRequestRedeem7540VaultHook();
+        cancelDepositRequest7540Hook = new CancelDepositRequest7540Hook();
+        cancelRedeemRequest7540Hook = new CancelRedeemRequest7540Hook();
+        claimCancelDepositRequest7540Hook = new ClaimCancelDepositRequest7540Hook();
+        claimCancelRedeemRequest7540Hook = new ClaimCancelRedeemRequest7540Hook();
+        withdraw7540Hook = new Withdraw7540VaultHook();
+
+        // Register all hooks with SuperGovernor
+        // ERC4626 Hooks (deposit hooks are non-lockable, redeem hooks are lockable)
+        superGovernor.registerHook(address(approveAndDeposit4626Hook), false);
+        superGovernor.registerHook(address(deposit4626Hook), false);
+        superGovernor.registerHook(address(redeem4626Hook), true);
+
+        // ERC5115 Hooks
+        superGovernor.registerHook(address(approveAndDeposit5115Hook), false);
+        superGovernor.registerHook(address(deposit5115Hook), false);
+        superGovernor.registerHook(address(redeem5115Hook), true);
+
+        // ERC7540 Hooks (deposit/request hooks are non-lockable, redeem/withdraw hooks are lockable)
+        superGovernor.registerHook(address(deposit7540Hook), false);
+        superGovernor.registerHook(address(redeem7540Hook), true);
+        superGovernor.registerHook(address(requestDeposit7540Hook), false);
+        superGovernor.registerHook(address(requestRedeem7540Hook), false);
+        superGovernor.registerHook(
+            address(approveAndRequestDeposit7540Hook),
+            false
+        );
+        superGovernor.registerHook(
+            address(approveAndRequestRedeem7540Hook),
+            false
+        );
+        superGovernor.registerHook(
+            address(cancelDepositRequest7540Hook),
+            false
+        );
+        superGovernor.registerHook(address(cancelRedeemRequest7540Hook), false);
+        superGovernor.registerHook(
+            address(claimCancelDepositRequest7540Hook),
+            false
+        );
+        superGovernor.registerHook(
+            address(claimCancelRedeemRequest7540Hook),
+            false
+        );
+        superGovernor.registerHook(address(withdraw7540Hook), true);
 
         // 12. Set up approval array for contracts that need token access
-        address[] memory approvalArray = new address[](2);
+        address[] memory approvalArray = new address[](5);
         approvalArray[0] = address(superVault);
         approvalArray[1] = address(superVaultStrategy);
+        approvalArray[2] = erc4626YieldSource;
+        approvalArray[3] = erc5115YieldSource;
+        approvalArray[4] = erc7540YieldSource;
 
         // 13. Finalize asset deployment (mints to actors and sets approvals)
         _finalizeAssetDeployment(_getActors(), approvalArray, type(uint88).max);
@@ -161,5 +303,60 @@ abstract contract Setup is
     modifier asActor() {
         vm.prank(address(_getActor()));
         _;
+    }
+
+    /// Get hook addresses for different yield source types
+
+    function _getApproveAndDepositHookForType(
+        YieldSourceType sourceType
+    ) internal view returns (address) {
+        if (sourceType == YieldSourceType.ERC4626) {
+            return address(approveAndDeposit4626Hook);
+        } else if (sourceType == YieldSourceType.ERC5115) {
+            return address(approveAndDeposit5115Hook);
+        } else if (sourceType == YieldSourceType.ERC7540) {
+            return address(approveAndRequestDeposit7540Hook);
+        }
+        return address(0);
+    }
+
+    function _getRedeemHookForType(
+        YieldSourceType sourceType
+    ) internal view returns (address) {
+        if (sourceType == YieldSourceType.ERC4626) {
+            return address(redeem4626Hook);
+        } else if (sourceType == YieldSourceType.ERC5115) {
+            return address(redeem5115Hook);
+        } else if (sourceType == YieldSourceType.ERC7540) {
+            return address(redeem7540Hook);
+        }
+        return address(0);
+    }
+
+    /// Get oracle addresses for different yield source types
+
+    function _getYieldSourceOracleForType(
+        YieldSourceType sourceType
+    ) internal view returns (address) {
+        if (sourceType == YieldSourceType.ERC4626) {
+            return address(erc4626YieldSourceOracle);
+        } else if (sourceType == YieldSourceType.ERC5115) {
+            return address(erc5115YieldSourceOracle);
+        } else if (sourceType == YieldSourceType.ERC7540) {
+            return address(erc7540YieldSourceOracle);
+        }
+        return address(yieldSourceOracle); // fallback to legacy oracle
+    }
+
+    function _getERC4626YieldSourceOracle() internal view returns (address) {
+        return address(erc4626YieldSourceOracle);
+    }
+
+    function _getERC5115YieldSourceOracle() internal view returns (address) {
+        return address(erc5115YieldSourceOracle);
+    }
+
+    function _getERC7540YieldSourceOracle() internal view returns (address) {
+        return address(erc7540YieldSourceOracle);
     }
 }

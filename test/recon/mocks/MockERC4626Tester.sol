@@ -164,6 +164,8 @@ enum RevertType {
     REVERT_BOMB
 }
 
+/// @dev This will use the simplest possible implementation initially to allow getting coverage and will be expanded on as necessary for testing potentially more interesting behaviors
+/// @dev Note that blindspots not testable with this current implementation are covered in the ERC4626-integrations.md file
 contract MockERC4626Tester is ERC4626 {
     mapping(FunctionType => RevertType) public revertBehaviours;
 

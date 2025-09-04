@@ -16,6 +16,7 @@ import { SuperVaultTargets } from "./targets/SuperVaultTargets.sol";
 import { SuperVaultAggregatorTargets } from "./targets/SuperVaultAggregatorTargets.sol";
 import { SuperVaultEscrowTargets } from "./targets/SuperVaultEscrowTargets.sol";
 import { SuperVaultStrategyTargets } from "./targets/SuperVaultStrategyTargets.sol";
+import { YieldSourceTargets } from "./targets/YieldSourceTargets.sol";
 
 abstract contract TargetFunctions is
     AdminTargets,
@@ -24,7 +25,8 @@ abstract contract TargetFunctions is
     SuperVaultTargets,
     SuperVaultAggregatorTargets,
     SuperVaultEscrowTargets,
-    SuperVaultStrategyTargets
+    SuperVaultStrategyTargets,
+    YieldSourceTargets
 {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
 

@@ -19,9 +19,9 @@ abstract contract SuperGovernorTargets is BaseTargetFunctions, Properties {
     ) public {
         (bytes32 testRoot, bytes32[][] memory testProofs) = merkleHelper
             .generateTestHooksRoot(
-                address(approveAndDepositHook),
-                address(redeemHook),
-                _getVault(),
+                address(approveAndDeposit4626Hook),
+                address(redeem4626Hook),
+                _getYieldSource(),
                 _getAsset()
             );
 

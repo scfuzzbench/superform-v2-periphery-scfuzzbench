@@ -18,7 +18,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
     /// @dev Clamps the action type to 0 to add a vault as a yield source
     function superVaultStrategy_manageYieldSource_clamped() public {
         superVaultStrategy_manageYieldSource(
-            _getVault(),
+            _getYieldSource(),
             address(yieldSourceOracle),
             0
         );

@@ -22,7 +22,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         // Create hook calldata for ApproveAndDeposit4626VaultHook
         bytes memory approveAndDepositCalldata = abi.encodePacked(
             bytes32(0), // yieldSourceOracleId placeholder
-            _getVault(), // Address of the yield source vault
+            _getYieldSource(), // Address of the yield source
             _getAsset(), // Address of the token to approve and deposit
             amountToInvest, // Amount to deposit
             false
@@ -39,8 +39,8 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             });
 
         executeArgs.hooks[0] = depositHook
-            ? address(approveAndDepositHook)
-            : address(redeemHook);
+            ? address(approveAndDeposit4626Hook)
+            : address(redeem4626Hook);
         executeArgs.hookCalldata[0] = approveAndDepositCalldata;
         executeArgs.expectedAssetsOrSharesOut[0] = amountToInvest;
         executeArgs.globalProofs[0] = new bytes32[](1);

@@ -231,7 +231,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Use contract itself as it's the main manager
 
         // Manage yield source
-        address yieldSource = _getVault(); // Use existing vault as yield source
+        address yieldSource = _getYieldSource(); // Use existing vault as yield source
         address oracle = address(yieldSourceOracle);
         uint8 action = 0; // Add yield source
 
@@ -247,7 +247,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         address[] memory oracles = new address[](1);
         uint8[] memory actions = new uint8[](1);
 
-        yieldSources[0] = _getVault();
+        yieldSources[0] = _getYieldSource();
         oracles[0] = address(yieldSourceOracle);
         actions[0] = 0; // Add yield source
 
@@ -682,13 +682,13 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_proposeAndExecuteGlobalHooksRoot() public {
         // Deploy hook contracts and helper
-        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
-        redeemHook = new Redeem4626VaultHook();
+        approveAndDeposit4626Hook = new ApproveAndDeposit4626VaultHook();
+        redeem4626Hook = new Redeem4626VaultHook();
         merkleHelper = new MerkleTestHelper();
 
         // Register hooks in SuperGovernor first
-        superGovernor.registerHook(address(approveAndDepositHook), false);
-        superGovernor.registerHook(address(redeemHook), true); // Mark as fulfill requests hook
+        superGovernor.registerHook(address(approveAndDeposit4626Hook), false);
+        superGovernor.registerHook(address(redeem4626Hook), true); // Mark as fulfill requests hook
 
         // Create a new mock vault using VaultManager
         address mockVault = _newVault(_getAsset()); // Create new ERC4626 vault via VaultManager
@@ -696,8 +696,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
         (bytes32 testRoot, bytes32[][] memory testProofs) = merkleHelper
             .generateTestHooksRoot(
-                address(approveAndDepositHook),
-                address(redeemHook),
+                address(approveAndDeposit4626Hook),
+                address(redeem4626Hook),
                 mockVault,
                 mockToken
             );
@@ -749,19 +749,19 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_globalHooksRootVeto() public {
         // Deploy hook contracts and helper
-        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
-        redeemHook = new Redeem4626VaultHook();
+        approveAndDeposit4626Hook = new ApproveAndDeposit4626VaultHook();
+        redeem4626Hook = new Redeem4626VaultHook();
         merkleHelper = new MerkleTestHelper();
 
         // Register hooks first
-        superGovernor.registerHook(address(approveAndDepositHook), false);
-        superGovernor.registerHook(address(redeemHook), true);
+        superGovernor.registerHook(address(approveAndDeposit4626Hook), false);
+        superGovernor.registerHook(address(redeem4626Hook), true);
 
         // Create a new mock vault using VaultManager and generate test root
         address mockVault = _newVault(_getAsset()); // Create new ERC4626 vault via VaultManager
         (bytes32 testRoot, ) = merkleHelper.generateTestHooksRoot(
-            address(approveAndDepositHook),
-            address(redeemHook),
+            address(approveAndDeposit4626Hook),
+            address(redeem4626Hook),
             mockVault,
             _getAsset()
         );
@@ -795,13 +795,13 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookValidationWithMerkleProofs() public {
         // Deploy hook contracts and helper
-        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
-        redeemHook = new Redeem4626VaultHook();
+        approveAndDeposit4626Hook = new ApproveAndDeposit4626VaultHook();
+        redeem4626Hook = new Redeem4626VaultHook();
         merkleHelper = new MerkleTestHelper();
 
         // Register hooks
-        superGovernor.registerHook(address(approveAndDepositHook), false);
-        superGovernor.registerHook(address(redeemHook), true);
+        superGovernor.registerHook(address(approveAndDeposit4626Hook), false);
+        superGovernor.registerHook(address(redeem4626Hook), true);
 
         // Create a new mock vault using VaultManager and generate test root and proofs
         address mockVault = _newVault(_getAsset()); // Create new ERC4626 vault via VaultManager
@@ -809,8 +809,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
         (bytes32 testRoot, bytes32[][] memory testProofs) = merkleHelper
             .generateTestHooksRoot(
-                address(approveAndDepositHook),
-                address(redeemHook),
+                address(approveAndDeposit4626Hook),
+                address(redeem4626Hook),
                 mockVault,
                 mockToken
             );
@@ -827,7 +827,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         ISuperVaultAggregator.ValidateHookArgs
             memory depositValidateArgs = ISuperVaultAggregator
                 .ValidateHookArgs({
-                    hookAddress: address(approveAndDepositHook),
+                    hookAddress: address(approveAndDeposit4626Hook),
                     hookArgs: depositInspectResult, // Use what inspect() would return
                     globalProof: testProofs[0],
                     strategyProof: new bytes32[](0)
@@ -848,7 +848,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
         ISuperVaultAggregator.ValidateHookArgs
             memory redeemValidateArgs = ISuperVaultAggregator.ValidateHookArgs({
-                hookAddress: address(redeemHook),
+                hookAddress: address(redeem4626Hook),
                 hookArgs: redeemInspectResult, // Use what inspect() would return
                 globalProof: testProofs[1],
                 strategyProof: new bytes32[](0)
@@ -866,7 +866,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Test validation with wrong proof (should fail)
         ISuperVaultAggregator.ValidateHookArgs
             memory wrongProofArgs = ISuperVaultAggregator.ValidateHookArgs({
-                hookAddress: address(approveAndDepositHook),
+                hookAddress: address(approveAndDeposit4626Hook),
                 hookArgs: depositInspectResult,
                 globalProof: testProofs[1], // Wrong proof
                 strategyProof: new bytes32[](0)
@@ -884,13 +884,13 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_userDepositToInvestmentVaultFlow() public {
         // Deploy hook contracts and helper
-        approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
-        redeemHook = new Redeem4626VaultHook();
+        approveAndDeposit4626Hook = new ApproveAndDeposit4626VaultHook();
+        redeem4626Hook = new Redeem4626VaultHook();
         merkleHelper = new MerkleTestHelper();
 
         // Register hooks in SuperGovernor first
-        superGovernor.registerHook(address(approveAndDepositHook), false);
-        superGovernor.registerHook(address(redeemHook), true);
+        superGovernor.registerHook(address(approveAndDeposit4626Hook), false);
+        superGovernor.registerHook(address(redeem4626Hook), true);
 
         // Create a new investment vault using VaultManager
         address investmentVault = _newVault(_getAsset());
@@ -905,8 +905,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Generate Merkle root that authorizes deposit to the investment vault
         (bytes32 testRoot, bytes32[][] memory testProofs) = merkleHelper
             .generateTestHooksRoot(
-                address(approveAndDepositHook),
-                address(redeemHook),
+                address(approveAndDeposit4626Hook),
+                address(redeem4626Hook),
                 investmentVault,
                 _getAsset()
             );
@@ -963,7 +963,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Now use executeHooks to transfer funds from SuperVaultStrategy to investment vault
 
         // Create hook calldata - the hook expects: yieldSourceOracleId + yieldSource + amount + usePrevHookAmount
-        bytes memory approveAndDepositHookCalldata = merkleHelper
+        bytes memory approveAndDeposit4626HookCalldata = merkleHelper
             .encodeApproveAndDepositHookArgs(
                 investmentVault,
                 _getAsset(),
@@ -981,8 +981,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
                 strategyProofs: new bytes32[][](1)
             });
 
-        executeArgs.hooks[0] = address(approveAndDepositHook);
-        executeArgs.hookCalldata[0] = approveAndDepositHookCalldata;
+        executeArgs.hooks[0] = address(approveAndDeposit4626Hook);
+        executeArgs.hookCalldata[0] = approveAndDeposit4626HookCalldata;
         executeArgs.expectedAssetsOrSharesOut[0] = amountToInvest; // Expect to receive shares equal to amount (1:1 ratio)
         executeArgs.globalProofs[0] = testProofs[0]; // Use deposit hook proof
         executeArgs.strategyProofs[0] = new bytes32[](0); // No strategy proof
@@ -1056,7 +1056,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             address(superVaultStrategy)
         );
         uint256 investmentVaultAssetsBefore = MockERC20(_getAsset()).balanceOf(
-            _getVault()
+            _getYieldSource()
         );
 
         console2.log("SuperVaultStrategy assets before:", strategyAssetsBefore);
@@ -1082,7 +1082,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             address(superVaultStrategy)
         );
         uint256 investmentVaultAssetsAfter = MockERC20(_getAsset()).balanceOf(
-            _getVault()
+            _getYieldSource()
         );
 
         console2.log("SuperVaultStrategy assets after:", strategyAssetsAfter);
@@ -1119,5 +1119,220 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             amountToInvest,
             "Investment vault should receive expected assets"
         );
+    }
+
+    /// === ERC4626 Vault Hook Interaction Tests ===
+
+    function test_erc4626_approveAndDepositViaHook() public {
+        _switchYieldSource(0); // Use ERC4626 yield source
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 1000e18;
+        superVault_deposit(depositAmount, user);
+
+        uint256 amountToInvest = 500e18;
+        uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsBefore = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsBefore >= amountToInvest, "Strategy should have enough assets");
+
+        superVaultStrategy_executeHooks_clamped(true, amountToInvest);
+
+        uint256 strategyAssetsAfter = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsAfter = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsAfter < strategyAssetsBefore, "Strategy should have fewer assets");
+        assertTrue(vaultAssetsAfter > vaultAssetsBefore, "Vault should have more assets");
+        assertEq(strategyAssetsBefore - strategyAssetsAfter, amountToInvest, "Correct amount transferred");
+    }
+
+    function test_erc4626_multipleDepositViaHooks() public {
+        _switchYieldSource(0); // Use ERC4626 yield source
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 1000e18;
+        superVault_deposit(depositAmount, user);
+
+        // Test multiple deposits to same vault via hooks
+        uint256 firstInvestment = 300e18;
+        uint256 secondInvestment = 200e18;
+        
+        uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsBefore = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        // First deposit
+        superVaultStrategy_executeHooks_clamped(true, firstInvestment);
+        
+        uint256 strategyAssetsAfter1 = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsAfter1 = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        // Second deposit
+        superVaultStrategy_executeHooks_clamped(true, secondInvestment);
+        
+        uint256 strategyAssetsAfter2 = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsAfter2 = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        // Verify both deposits worked correctly
+        assertEq(strategyAssetsBefore - strategyAssetsAfter1, firstInvestment, "First deposit correct amount");
+        assertEq(strategyAssetsAfter1 - strategyAssetsAfter2, secondInvestment, "Second deposit correct amount");
+        assertEq(vaultAssetsAfter2 - vaultAssetsBefore, firstInvestment + secondInvestment, "Total vault assets correct");
+    }
+
+    /// === Additional Hook Execution Pattern Tests ===
+
+    function test_hookExecutionWithLargeAmount() public {
+        // Test based on the working guide pattern but with larger amount
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 2000e18;
+        superVault_deposit(depositAmount, user);
+
+        uint256 amountToInvest = 1000e18; // Large investment
+        uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 investmentVaultAssetsBefore = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsBefore >= amountToInvest, "Strategy should have enough assets to invest");
+
+        superVaultStrategy_executeHooks_clamped(true, amountToInvest);
+
+        uint256 strategyAssetsAfter = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 investmentVaultAssetsAfter = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsAfter < strategyAssetsBefore, "Strategy should have fewer assets after hook execution");
+        assertTrue(investmentVaultAssetsAfter > investmentVaultAssetsBefore, "Investment vault should have more assets");
+        
+        uint256 assetsTransferred = strategyAssetsBefore - strategyAssetsAfter;
+        assertEq(assetsTransferred, amountToInvest, "Transferred assets should match expected amount");
+    }
+
+    function test_hookExecutionWithSmallAmount() public {
+        // Test with minimal amount to verify precision
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 1000e18;
+        superVault_deposit(depositAmount, user);
+
+        uint256 amountToInvest = 1e18; // Small investment (1 token)
+        uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 investmentVaultAssetsBefore = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        superVaultStrategy_executeHooks_clamped(true, amountToInvest);
+
+        uint256 strategyAssetsAfter = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 investmentVaultAssetsAfter = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertEq(strategyAssetsBefore - strategyAssetsAfter, amountToInvest, "Small amount transferred correctly");
+        assertEq(investmentVaultAssetsAfter - investmentVaultAssetsBefore, amountToInvest, "Vault received small amount correctly");
+    }
+
+    /// === ERC7540 Vault Hook Interaction Tests ===
+
+    function test_erc7540_vaultInteractionViaHooks() public {
+        _switchYieldSource(2); // Use ERC7540 yield source
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 1000e18;
+        superVault_deposit(depositAmount, user);
+
+        uint256 amountToInvest = 500e18;
+        uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsBefore = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsBefore >= amountToInvest, "Strategy should have enough assets");
+
+        // Test hook execution with ERC7540 yield source
+        superVaultStrategy_executeHooks_clamped(true, amountToInvest);
+
+        uint256 strategyAssetsAfter = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsAfter = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsAfter < strategyAssetsBefore, "Strategy should have fewer assets");
+        assertTrue(vaultAssetsAfter > vaultAssetsBefore, "Vault should have more assets");
+        assertEq(strategyAssetsBefore - strategyAssetsAfter, amountToInvest, "Correct amount transferred");
+    }
+
+    function test_erc7540_multipleDepositViaHooks() public {
+        _switchYieldSource(2); // Use ERC7540 yield source
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 1000e18;
+        superVault_deposit(depositAmount, user);
+
+        // Test multiple deposits to ERC7540 vault via hooks
+        uint256 firstInvestment = 300e18;
+        uint256 secondInvestment = 250e18;
+        
+        uint256 strategyAssetsBefore = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsBefore = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        assertTrue(strategyAssetsBefore >= firstInvestment + secondInvestment, "Strategy should have enough assets");
+
+        // First deposit
+        superVaultStrategy_executeHooks_clamped(true, firstInvestment);
+        
+        uint256 strategyAssetsAfter1 = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsAfter1 = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        // Second deposit
+        superVaultStrategy_executeHooks_clamped(true, secondInvestment);
+        
+        uint256 strategyAssetsAfter2 = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 vaultAssetsAfter2 = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+
+        // Verify both deposits worked correctly
+        assertEq(strategyAssetsBefore - strategyAssetsAfter1, firstInvestment, "First deposit correct amount");
+        assertEq(strategyAssetsAfter1 - strategyAssetsAfter2, secondInvestment, "Second deposit correct amount");
+        assertEq(vaultAssetsAfter2 - vaultAssetsBefore, firstInvestment + secondInvestment, "Total vault assets correct");
+    }
+
+    /// === Cross-Standard Hook Interaction Tests ===
+
+
+    function test_hookExecutionStateConsistency() public {
+        // Test that hook execution maintains consistent state across operations
+        superVaultStrategy_manageYieldSource_clamped();
+
+        switchActor(1);
+        address user = _getActor();
+        uint256 depositAmount = 1500e18;
+        superVault_deposit(depositAmount, user);
+
+        // Record initial state
+        uint256 initialStrategyAssets = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 initialVaultAssets = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+        uint256 initialUserShares = superVault.balanceOf(user);
+
+        // Execute multiple hook operations
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = 200e18;
+        amounts[1] = 300e18;  
+        amounts[2] = 100e18;
+
+        uint256 totalInvested = 0;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            superVaultStrategy_executeHooks_clamped(true, amounts[i]);
+            totalInvested += amounts[i];
+        }
+
+        // Verify final state consistency
+        uint256 finalStrategyAssets = MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+        uint256 finalVaultAssets = MockERC20(_getAsset()).balanceOf(_getYieldSource());
+        uint256 finalUserShares = superVault.balanceOf(user);
+
+        assertEq(initialStrategyAssets - finalStrategyAssets, totalInvested, "Total strategy assets transferred correctly");
+        assertEq(finalVaultAssets - initialVaultAssets, totalInvested, "Total vault assets received correctly");
+        assertEq(finalUserShares, initialUserShares, "User shares should remain unchanged during hook executions");
     }
 }

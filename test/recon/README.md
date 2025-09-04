@@ -4,7 +4,7 @@
 This test suite uses the [Chimera Framework](https://book.getrecon.xyz/writing_invariant_tests/chimera_framework.html) to allow testing using multiple fuzzers and formal verification tools. 
 
 ## Setup
-Currently the test setup deploys a single triad of `SuperVault`, `SuperVaultStrategy` and `SuperVaultEscrow`. It also deploys a single ERC4626 vault to use as the strategy yield source using the `VaultManager`. 
+Currently the test setup deploys a single triad of `SuperVault`, `SuperVaultStrategy` and `SuperVaultEscrow`. It also deploys three yield sources using the `YieldManager` which deploys an instance of the `MockERC4626Tester`, `MockERC5115Tester` and `MockERC7540Tester`. This can be switched as the yield source targeted by the fuzzer using the `_switchYieldSource` function. 
 
 The setup also currently defaults to setting the deposit and redeem hooks on the strategy for simplicity. Hook validation is currently bypassed by using the `UnsafeSuperVaultAggregator` which inherits from the `SuperVaultAggregator` to always return true when hooks need to be verified.
 
