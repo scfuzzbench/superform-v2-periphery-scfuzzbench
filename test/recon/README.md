@@ -3,6 +3,11 @@
 ## Usage
 This test suite uses the [Chimera Framework](https://book.getrecon.xyz/writing_invariant_tests/chimera_framework.html) to allow testing using multiple fuzzers and formal verification tools. 
 
+## Setup
+Currently the test setup deploys a single triad of `SuperVault`, `SuperVaultStrategy` and `SuperVaultEscrow`. It also deploys a single ERC4626 vault to use as the strategy yield source using the `VaultManager`. 
+
+The setup also currently defaults to setting the deposit and redeem hooks on the strategy for simplicity. Hook validation is currently bypassed by using the `UnsafeSuperVaultAggregator` which inherits from the `SuperVaultAggregator` to always return true when hooks need to be verified.
+
 ### Property Testing
 This test suite uses assertion property tests defined for the system contracts in the [`Properties`](https://github.com/superform-xyz/v2-periphery/blob/recon-invariants/test/recon/Properties.sol) contract and in the function handlers in the [targets/ directory](https://github.com/superform-xyz/v2-periphery/tree/recon-invariants/test/recon/targets).  
 

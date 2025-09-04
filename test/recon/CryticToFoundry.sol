@@ -1036,9 +1036,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     }
 
     function test_userDepositToInvestmentVaultFlowNoRegistration() public {
-        // Deploy helper
-        merkleHelper = new MerkleTestHelper();
-
         // Add the investment vault as a yield source to the strategy
         superVaultStrategy_manageYieldSource_clamped();
 

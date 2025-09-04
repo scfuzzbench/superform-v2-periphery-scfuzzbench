@@ -112,7 +112,7 @@ abstract contract Setup is
                 name: "SuperVault",
                 symbol: "SV",
                 mainManager: address(this), // CONFIGURABLE: This parameter can be modified via target functions
-                secondaryManagers: new address[](0),
+                secondaryManagers: new address[](0), // CONFIGURABLE: This parameter can be modified via target functions
                 minUpdateInterval: 5, // CONFIGURABLE: This parameter can be modified via target functions
                 maxStaleness: 300, // CONFIGURABLE: This parameter can be modified via target functions
                 feeConfig: ISuperVaultStrategy.FeeConfig({
