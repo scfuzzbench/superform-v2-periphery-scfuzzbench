@@ -2,21 +2,21 @@
 pragma solidity 0.8.30;
 
 // External
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 // Superform
-import { SuperVault } from "./SuperVault.sol";
-import { SuperVaultStrategy } from "./SuperVaultStrategy.sol";
-import { SuperVaultEscrow } from "./SuperVaultEscrow.sol";
-import { ISuperGovernor } from "../interfaces/ISuperGovernor.sol";
-import { ISuperVaultAggregator } from "../interfaces/SuperVault/ISuperVaultAggregator.sol";
+import {SuperVault} from "./SuperVault.sol";
+import {SuperVaultStrategy} from "./SuperVaultStrategy.sol";
+import {SuperVaultEscrow} from "./SuperVaultEscrow.sol";
+import {ISuperGovernor} from "../interfaces/ISuperGovernor.sol";
+import {ISuperVaultAggregator} from "../interfaces/SuperVault/ISuperVaultAggregator.sol";
 // Libraries
-import { AssetMetadataLib } from "../libraries/AssetMetadataLib.sol";
+import {AssetMetadataLib} from "../libraries/AssetMetadataLib.sol";
 
 /// @title SuperVaultAggregator
 /// @author Superform Labs
@@ -59,7 +59,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     // Constant for PPS decimals
     uint256 public constant PPS_DECIMALS = 18;
-    
+
     // Maximum number of secondary managers per strategy to prevent governance DoS on manager replacement
     uint256 public constant MAX_SECONDARY_MANAGERS = 5;
 
@@ -92,7 +92,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @notice Validates that a strategy exists (has been created by this aggregator)
     modifier validStrategy(address strategy) {
-        if (!_superVaultStrategies.contains(strategy)) revert UNKNOWN_STRATEGY();
+        if (!_superVaultStrategies.contains(strategy))
+            revert UNKNOWN_STRATEGY();
         _;
     }
 
@@ -104,7 +105,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @param vaultImpl_ Address of the pre-deployed SuperVault implementation
     /// @param strategyImpl_ Address of the pre-deployed SuperVaultStrategy implementation
     /// @param escrowImpl_ Address of the pre-deployed SuperVaultEscrow implementation
-    constructor(address superGovernor_, address vaultImpl_, address strategyImpl_, address escrowImpl_) {
+    constructor(
+        address superGovernor_,
+        address vaultImpl_,
+        address strategyImpl_,
+        address escrowImpl_
+    ) {
         if (superGovernor_ == address(0)) revert ZERO_ADDRESS();
         if (vaultImpl_ == address(0)) revert ZERO_ADDRESS();
         if (strategyImpl_ == address(0)) revert ZERO_ADDRESS();
@@ -120,13 +126,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                             VAULT CREATION
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
-    function createVault(VaultCreationParams calldata params)
-        external
-        returns (address superVault, address strategy, address escrow)
-    {
+    function createVault(
+        VaultCreationParams calldata params
+    ) external returns (address superVault, address strategy, address escrow) {
         // Input validation
-        if (params.asset == address(0) || params.mainManager == address(0) || params.feeConfig.recipient == address(0))
-        {
+        if (
+            params.asset == address(0) ||
+            params.mainManager == address(0) ||
+            params.feeConfig.recipient == address(0)
+        ) {
             revert ZERO_ADDRESS();
         }
 
@@ -135,7 +143,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // Increment nonce before creating proxies
         vars.currentNonce = _vaultCreationNonce++;
-        vars.salt = keccak256(abi.encode(msg.sender, params.asset, params.name, params.symbol, vars.currentNonce));
+        vars.salt = keccak256(
+            abi.encode(
+                msg.sender,
+                params.asset,
+                params.name,
+                params.symbol,
+                vars.currentNonce
+            )
+        );
 
         // Create minimal proxies
         superVault = VAULT_IMPLEMENTATION.cloneDeterministic(vars.salt);
@@ -143,13 +159,22 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         strategy = STRATEGY_IMPLEMENTATION.cloneDeterministic(vars.salt);
 
         // Initialize superVault
-        SuperVault(superVault).initialize(params.asset, params.name, params.symbol, strategy, escrow);
+        SuperVault(superVault).initialize(
+            params.asset,
+            params.name,
+            params.symbol,
+            strategy,
+            escrow
+        );
 
         // Initialize escrow
         SuperVaultEscrow(escrow).initialize(superVault, strategy);
 
         // Initialize strategy
-        SuperVaultStrategy(payable(strategy)).initialize(superVault, params.feeConfig);
+        SuperVaultStrategy(payable(strategy)).initialize(
+            superVault,
+            params.feeConfig
+        );
 
         // Store vault trio in registry
         _superVaults.add(superVault);
@@ -157,7 +182,9 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _superVaultEscrows.add(escrow);
 
         // Get asset decimals
-        (bool success, uint8 assetDecimals) = params.asset.tryGetAssetDecimals();
+        (bool success, uint8 assetDecimals) = params
+            .asset
+            .tryGetAssetDecimals();
         if (!success) revert INVALID_ASSET();
         vars.initialPPS = 10 ** assetDecimals; // 1.0 as initial PPS
 
@@ -177,7 +204,9 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         uint256 secondaryLen = params.secondaryManagers.length;
         for (uint256 i; i < secondaryLen; ++i) {
-            _strategyData[strategy].secondaryManagers.add(params.secondaryManagers[i]);
+            _strategyData[strategy].secondaryManagers.add(
+                params.secondaryManagers[i]
+            );
         }
         if (
             _strategyData[strategy].secondaryManagers.length() >=
@@ -190,8 +219,23 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategyData[strategy].dispersionThreshold = type(uint256).max; // Default: max (disabled)
         _strategyData[strategy].deviationThreshold = type(uint256).max; // Default: max (disabled)
 
-        emit VaultDeployed(superVault, strategy, escrow, params.asset, params.name, params.symbol, vars.currentNonce);
-        emit PPSUpdated(strategy, vars.initialPPS, 0, 0, 0, _strategyData[strategy].lastUpdateTimestamp);
+        emit VaultDeployed(
+            superVault,
+            strategy,
+            escrow,
+            params.asset,
+            params.name,
+            params.symbol,
+            vars.currentNonce
+        );
+        emit PPSUpdated(
+            strategy,
+            vars.initialPPS,
+            0,
+            0,
+            0,
+            _strategyData[strategy].lastUpdateTimestamp
+        );
 
         return (superVault, strategy, escrow);
     }
@@ -207,9 +251,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         if (strategiesLength == 0) revert ZERO_ARRAY_LENGTH();
         // Validate input array lengths
         if (
-            strategiesLength != args.ppss.length
-                || strategiesLength != args.ppsStdevs.length || strategiesLength != args.validatorSets.length
-                || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
+            strategiesLength != args.ppss.length ||
+            strategiesLength != args.ppsStdevs.length ||
+            strategiesLength != args.validatorSets.length ||
+            strategiesLength != args.timestamps.length ||
+            strategiesLength != args.totalValidators.length
         ) revert ARRAY_LENGTH_MISMATCH();
 
         bool paymentsEnabled = SUPER_GOVERNOR.isUpkeepPaymentsEnabled();
@@ -224,10 +270,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
                 // Skip when invalid timestamp is provided
                 if (args.timestamps[i] > block.timestamp) {
-                    emit ProvidedTimestampExceedsBlockTimestamp(args.strategies[i], args.timestamps[i], block.timestamp);
+                    emit ProvidedTimestampExceedsBlockTimestamp(
+                        args.strategies[i],
+                        args.timestamps[i],
+                        block.timestamp
+                    );
                     continue;
                 }
- 
+
                 // Skip Superform manager
                 address manager = _strategyData[args.strategies[i]].mainManager;
                 if (SUPER_GOVERNOR.isSuperformManager(manager)) {
@@ -239,23 +289,34 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 // These are manager-designated keepers that should be exempt from fees
                 // NOTE: Protected keepers cannot be added to this list (blocked in addAuthorizedCaller)
                 /// @dev: cannot underflow; it's checked above already and it skips the entry if that's the case
-                if (_strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthority)) {
-                    emit AuthorizedCaller(args.strategies[i], args.updateAuthority);
+                if (
+                    _strategyData[args.strategies[i]]
+                        .authorizedCallers
+                        .contains(args.updateAuthority)
+                ) {
+                    emit AuthorizedCaller(
+                        args.strategies[i],
+                        args.updateAuthority
+                    );
                     continue;
                 }
 
                 // Count only non-stale entries as chargeable
                 if (
-                    block.timestamp - args.timestamps[i] <= _strategyData[args.strategies[i]].maxStaleness
+                    block.timestamp - args.timestamps[i] <=
+                    _strategyData[args.strategies[i]].maxStaleness
                 ) {
-                        ++chargeableCount;
+                    ++chargeableCount;
                 }
             }
         }
 
         ///@dev Total upkeep cost is determined by the oracle based on the number of chargeable entries
         uint256 totalCost = paymentsEnabled
-            ? SUPER_GOVERNOR.getUpkeepCostPerBatchUpdate(msg.sender, chargeableCount)
+            ? SUPER_GOVERNOR.getUpkeepCostPerBatchUpdate(
+                msg.sender,
+                chargeableCount
+            )
             : 0;
 
         // Compute per-entry charge
@@ -283,13 +344,24 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             if (paymentsEnabled) {
                 // check exemption due to staleness of a given strategy
                 /// @dev cannot underflow as it's already checked above, in the previous `for` loop
-                if (block.timestamp - args.timestamps[i] > _strategyData[args.strategies[i]].maxStaleness) {
+                if (
+                    block.timestamp - args.timestamps[i] >
+                    _strategyData[args.strategies[i]].maxStaleness
+                ) {
                     upkeepCost = 0;
-                    emit StaleUpdate(args.strategies[i], args.updateAuthority, args.timestamps[i]);
+                    emit StaleUpdate(
+                        args.strategies[i],
+                        args.updateAuthority,
+                        args.timestamps[i]
+                    );
                 } else {
-                    address manager = _strategyData[args.strategies[i]].mainManager;
+                    address manager = _strategyData[args.strategies[i]]
+                        .mainManager;
                     if (
-                        SUPER_GOVERNOR.isSuperformManager(manager) ||  _strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthority)
+                        SUPER_GOVERNOR.isSuperformManager(manager) ||
+                        _strategyData[args.strategies[i]]
+                            .authorizedCallers
+                            .contains(args.updateAuthority)
                     ) {
                         upkeepCost = 0;
                     } else {
@@ -320,7 +392,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
     function depositUpkeep(address manager, uint256 amount) external {
-        if (amount == 0) revert ZERO_AMOUNT(); 
+        if (amount == 0) revert ZERO_AMOUNT();
 
         // Get the UP token address from SUPER_GOVERNOR
         address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
@@ -355,7 +427,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @inheritdoc ISuperVaultAggregator
     function withdrawUpkeep(uint256 amount) external {
-        if (amount == 0) revert ZERO_AMOUNT(); 
+        if (amount == 0) revert ZERO_AMOUNT();
 
         // Check sufficient balance
         if (_managerUpkeepBalance[msg.sender] < amount) {
@@ -458,9 +530,13 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                         AUTHORIZED CALLER MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
-    function addAuthorizedCaller(address strategy, address caller) external validStrategy(strategy) {
+    function addAuthorizedCaller(
+        address strategy,
+        address caller
+    ) external validStrategy(strategy) {
         // Either primary or secondary manager can add authorized callers
-        if (!isAnyManager(msg.sender, strategy)) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        if (!isAnyManager(msg.sender, strategy))
+            revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
         if (caller == address(0)) revert ZERO_ADDRESS();
 
@@ -477,9 +553,13 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function removeAuthorizedCaller(address strategy, address caller) external validStrategy(strategy) {
+    function removeAuthorizedCaller(
+        address strategy,
+        address caller
+    ) external validStrategy(strategy) {
         // Either primary or secondary manager can remove authorized callers
-        if (!isAnyManager(msg.sender, strategy)) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        if (!isAnyManager(msg.sender, strategy))
+            revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
         // Remove the caller
         if (!_strategyData[strategy].authorizedCallers.remove(caller)) {
@@ -492,14 +572,19 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                        MANAGER MANAGEMENT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
-    function addSecondaryManager(address strategy, address manager) external validStrategy(strategy) {
+    function addSecondaryManager(
+        address strategy,
+        address manager
+    ) external validStrategy(strategy) {
         // Only the primary manager can add secondary managers
-        if (msg.sender != _strategyData[strategy].mainManager) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        if (msg.sender != _strategyData[strategy].mainManager)
+            revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
         if (manager == address(0)) revert ZERO_ADDRESS();
 
         // Check if manager is already the primary manager
-        if (_strategyData[strategy].mainManager == manager) revert MANAGER_ALREADY_EXISTS();
+        if (_strategyData[strategy].mainManager == manager)
+            revert MANAGER_ALREADY_EXISTS();
 
         // Enforce a cap on secondary managers to prevent governance DoS on changePrimaryManager
         if (
@@ -510,18 +595,24 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         }
 
         // Add as secondary manager using EnumerableSet
-        if (!_strategyData[strategy].secondaryManagers.add(manager)) revert MANAGER_ALREADY_EXISTS();
+        if (!_strategyData[strategy].secondaryManagers.add(manager))
+            revert MANAGER_ALREADY_EXISTS();
 
         emit SecondaryManagerAdded(strategy, manager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function removeSecondaryManager(address strategy, address manager) external validStrategy(strategy) {
+    function removeSecondaryManager(
+        address strategy,
+        address manager
+    ) external validStrategy(strategy) {
         // Only the primary manager can remove secondary managers
-        if (msg.sender != _strategyData[strategy].mainManager) revert UNAUTHORIZED_UPDATE_AUTHORITY();
+        if (msg.sender != _strategyData[strategy].mainManager)
+            revert UNAUTHORIZED_UPDATE_AUTHORITY();
 
         // Remove the manager using EnumerableSet
-        if (!_strategyData[strategy].secondaryManagers.remove(manager)) revert MANAGER_NOT_FOUND();
+        if (!_strategyData[strategy].secondaryManagers.remove(manager))
+            revert MANAGER_NOT_FOUND();
 
         emit SecondaryManagerRemoved(strategy, manager);
     }
@@ -532,10 +623,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         uint256 dispersionThreshold_,
         uint256 deviationThreshold_,
         uint256 mnThreshold_
-    )
-        external
-        validStrategy(strategy)
-    {
+    ) external validStrategy(strategy) {
         // Since this is a risky call, we only allow main managers as callers
         if (msg.sender != _strategyData[strategy].mainManager) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -547,7 +635,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategyData[strategy].mnThreshold = mnThreshold_;
 
         // Emit the event
-        emit PPSVerificationThresholdsUpdated(strategy, dispersionThreshold_, deviationThreshold_, mnThreshold_);
+        emit PPSVerificationThresholdsUpdated(
+            strategy,
+            dispersionThreshold_,
+            deviationThreshold_,
+            mnThreshold_
+        );
     }
 
     /// @inheritdoc ISuperVaultAggregator
@@ -555,10 +648,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         bytes32[] memory leaves,
         bool[] memory statuses,
         address strategy
-    )
-        external
-        validStrategy(strategy)
-    {
+    ) external validStrategy(strategy) {
         // Only the primary manager can change global leaves status
         if (msg.sender != _strategyData[strategy].mainManager) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -579,7 +669,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function changePrimaryManager(address strategy, address newManager) external validStrategy(strategy) {
+    function changePrimaryManager(
+        address strategy,
+        address newManager
+    ) external validStrategy(strategy) {
         // Only SuperGovernor can call this
         if (msg.sender != address(SUPER_GOVERNOR)) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -601,11 +694,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // SECURITY: Clear all secondary managers as they may be controlled by malicious manager
         // Get all secondary managers first to emit proper events
-        address[] memory clearedSecondaryManagers = _strategyData[strategy].secondaryManagers.values();
+        address[] memory clearedSecondaryManagers = _strategyData[strategy]
+            .secondaryManagers
+            .values();
 
         // Clear the entire secondary managers set
         for (uint256 i = 0; i < clearedSecondaryManagers.length; i++) {
-            _strategyData[strategy].secondaryManagers.remove(clearedSecondaryManagers[i]);
+            _strategyData[strategy].secondaryManagers.remove(
+                clearedSecondaryManagers[i]
+            );
             emit SecondaryManagerRemoved(strategy, clearedSecondaryManagers[i]);
         }
 
@@ -616,7 +713,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function proposeChangePrimaryManager(address strategy, address newManager) external validStrategy(strategy) {
+    function proposeChangePrimaryManager(
+        address strategy,
+        address newManager
+    ) external validStrategy(strategy) {
         // Only secondary managers can propose changes to the primary manager
         if (!_strategyData[strategy].secondaryManagers.contains(msg.sender)) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -631,16 +731,26 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategyData[strategy].proposedManager = newManager;
         _strategyData[strategy].managerChangeEffectiveTime = effectiveTime;
 
-        emit PrimaryManagerChangeProposed(strategy, msg.sender, newManager, effectiveTime);
+        emit PrimaryManagerChangeProposed(
+            strategy,
+            msg.sender,
+            newManager,
+            effectiveTime
+        );
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function executeChangePrimaryManager(address strategy) external validStrategy(strategy) {
+    function executeChangePrimaryManager(
+        address strategy
+    ) external validStrategy(strategy) {
         // Check if there is a pending proposal
-        if (_strategyData[strategy].proposedManager == address(0)) revert NO_PENDING_MANAGER_CHANGE();
+        if (_strategyData[strategy].proposedManager == address(0))
+            revert NO_PENDING_MANAGER_CHANGE();
 
         // Check if the timelock period has passed
-        if (block.timestamp < _strategyData[strategy].managerChangeEffectiveTime) revert TIMELOCK_NOT_EXPIRED();
+        if (
+            block.timestamp < _strategyData[strategy].managerChangeEffectiveTime
+        ) revert TIMELOCK_NOT_EXPIRED();
 
         address newManager = _strategyData[strategy].proposedManager;
         address oldManager = _strategyData[strategy].mainManager;
@@ -737,7 +847,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function proposeStrategyHooksRoot(address strategy, bytes32 newRoot) external validStrategy(strategy) {
+    function proposeStrategyHooksRoot(
+        address strategy,
+        bytes32 newRoot
+    ) external validStrategy(strategy) {
         // Only the main manager can propose strategy-specific hooks root
         if (_strategyData[strategy].mainManager != msg.sender) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -748,11 +861,18 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         uint256 effectiveTime = block.timestamp + _hooksRootUpdateTimelock;
         _strategyData[strategy].hooksRootEffectiveTime = effectiveTime;
 
-        emit StrategyHooksRootUpdateProposed(strategy, msg.sender, newRoot, effectiveTime);
+        emit StrategyHooksRootUpdateProposed(
+            strategy,
+            msg.sender,
+            newRoot,
+            effectiveTime
+        );
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function executeStrategyHooksRootUpdate(address strategy) external validStrategy(strategy) {
+    function executeStrategyHooksRootUpdate(
+        address strategy
+    ) external validStrategy(strategy) {
         bytes32 proposedRoot = _strategyData[strategy].proposedHooksRoot;
         // Ensure there is a pending proposal
         if (proposedRoot == bytes32(0)) {
@@ -776,7 +896,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function setStrategyHooksRootVetoStatus(address strategy, bool vetoed) external validStrategy(strategy) {
+    function setStrategyHooksRootVetoStatus(
+        address strategy,
+        bool vetoed
+    ) external validStrategy(strategy) {
         // Only SuperGovernor can call this
         if (msg.sender != address(SUPER_GOVERNOR)) {
             revert UNAUTHORIZED_UPDATE_AUTHORITY();
@@ -790,7 +913,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         // Update veto status
         _strategyData[strategy].hooksRootVetoed = vetoed;
 
-        emit StrategyHooksRootVetoStatusChanged(strategy, vetoed, _strategyData[strategy].managerHooksRoot);
+        emit StrategyHooksRootVetoStatusChanged(
+            strategy,
+            vetoed,
+            _strategyData[strategy].managerHooksRoot
+        );
     }
     /// @inheritdoc ISuperVaultAggregator
 
@@ -799,7 +926,9 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isStrategyHooksRootVetoed(address strategy) external view returns (bool vetoed) {
+    function isStrategyHooksRootVetoed(
+        address strategy
+    ) external view returns (bool vetoed) {
         return _strategyData[strategy].hooksRootVetoed;
     }
 
@@ -818,12 +947,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getPPS(address strategy) external view validStrategy(strategy) returns (uint256 pps) {
+    function getPPS(
+        address strategy
+    ) external view validStrategy(strategy) returns (uint256 pps) {
         return _strategyData[strategy].pps;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getPPSWithStdDev(address strategy)
+    function getPPSWithStdDev(
+        address strategy
+    )
         external
         view
         validStrategy(strategy)
@@ -833,26 +966,38 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getLastUpdateTimestamp(address strategy) external view returns (uint256 timestamp) {
+    function getLastUpdateTimestamp(
+        address strategy
+    ) external view returns (uint256 timestamp) {
         return _strategyData[strategy].lastUpdateTimestamp;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getMinUpdateInterval(address strategy) external view returns (uint256 interval) {
+    function getMinUpdateInterval(
+        address strategy
+    ) external view returns (uint256 interval) {
         return _strategyData[strategy].minUpdateInterval;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getMaxStaleness(address strategy) external view returns (uint256 staleness) {
+    function getMaxStaleness(
+        address strategy
+    ) external view returns (uint256 staleness) {
         return _strategyData[strategy].maxStaleness;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getPPSVerificationThresholds(address strategy)
+    function getPPSVerificationThresholds(
+        address strategy
+    )
         external
         view
         validStrategy(strategy)
-        returns (uint256 dispersionThreshold, uint256 deviationThreshold, uint256 mnThreshold)
+        returns (
+            uint256 dispersionThreshold,
+            uint256 deviationThreshold,
+            uint256 mnThreshold
+        )
     {
         return (
             _strategyData[strategy].dispersionThreshold,
@@ -862,29 +1007,39 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isStrategyPaused(address strategy) external view returns (bool isPaused) {
+    function isStrategyPaused(
+        address strategy
+    ) external view returns (bool isPaused) {
         return _strategyData[strategy].isPaused;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getUpkeepBalance(address manager) external view returns (uint256 balance) {
+    function getUpkeepBalance(
+        address manager
+    ) external view returns (uint256 balance) {
         return _managerUpkeepBalance[manager];
     }
 
     /// @notice Gets the current stake balance for a manager
     /// @param manager Address of the manager
     /// @return balance Current stake balance in UP tokens
-    function getStakeBalance(address manager) external view returns (uint256 balance) {
+    function getStakeBalance(
+        address manager
+    ) external view returns (uint256 balance) {
         return _managerStakeBalance[manager];
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getAuthorizedCallers(address strategy) external view returns (address[] memory callers) {
+    function getAuthorizedCallers(
+        address strategy
+    ) external view returns (address[] memory callers) {
         return _strategyData[strategy].authorizedCallers.values();
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getMainManager(address strategy) external view returns (address manager) {
+    function getMainManager(
+        address strategy
+    ) external view returns (address manager) {
         manager = _strategyData[strategy].mainManager;
         if (manager == address(0)) revert ZERO_ADDRESS();
 
@@ -892,22 +1047,33 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isMainManager(address manager, address strategy) external view returns (bool) {
+    function isMainManager(
+        address manager,
+        address strategy
+    ) external view returns (bool) {
         return _strategyData[strategy].mainManager == manager;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getSecondaryManagers(address strategy) external view returns (address[] memory) {
+    function getSecondaryManagers(
+        address strategy
+    ) external view returns (address[] memory) {
         return _strategyData[strategy].secondaryManagers.values();
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isSecondaryManager(address manager, address strategy) external view returns (bool) {
+    function isSecondaryManager(
+        address manager,
+        address strategy
+    ) external view returns (bool) {
         return _strategyData[strategy].secondaryManagers.contains(manager);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function isAnyManager(address manager, address strategy) public view returns (bool) {
+    function isAnyManager(
+        address manager,
+        address strategy
+    ) public view returns (bool) {
         // Check if primary manager
         if (_strategyData[strategy].mainManager == manager) {
             return true;
@@ -929,18 +1095,29 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getAllSuperVaultStrategies() external view returns (address[] memory) {
+    function getAllSuperVaultStrategies()
+        external
+        view
+        returns (address[] memory)
+    {
         return _superVaultStrategies.values();
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function superVaultStrategies(uint256 index) external view returns (address) {
-        if (index >= _superVaultStrategies.length()) revert INDEX_OUT_OF_BOUNDS();
+    function superVaultStrategies(
+        uint256 index
+    ) external view returns (address) {
+        if (index >= _superVaultStrategies.length())
+            revert INDEX_OUT_OF_BOUNDS();
         return _superVaultStrategies.at(index);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getAllSuperVaultEscrows() external view returns (address[] memory) {
+    function getAllSuperVaultEscrows()
+        external
+        view
+        returns (address[] memory)
+    {
         return _superVaultEscrows.values();
     }
 
@@ -951,7 +1128,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function validateHook(address strategy, ValidateHookArgs calldata args) external view returns (bool isValid) {
+    function validateHook(
+        address strategy,
+        ValidateHookArgs calldata args
+    ) external view virtual returns (bool isValid) {
         // Cache all state variables in struct
         HookValidationCache memory cache = HookValidationCache({
             globalHooksRootVetoed: _globalHooksRootVetoed,
@@ -966,23 +1146,36 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         }
 
         // Try to validate against global root first
-        if (_validateSingleHook(args.hookAddress, args.hookArgs, args.globalProof, true, cache, strategy)) {
+        if (
+            _validateSingleHook(
+                args.hookAddress,
+                args.hookArgs,
+                args.globalProof,
+                true,
+                cache,
+                strategy
+            )
+        ) {
             return true;
         }
 
         // If global validation fails, try strategy root
-        return _validateSingleHook(args.hookAddress, args.hookArgs, args.strategyProof, false, cache, strategy);
+        return
+            _validateSingleHook(
+                args.hookAddress,
+                args.hookArgs,
+                args.strategyProof,
+                false,
+                cache,
+                strategy
+            );
     }
 
     /// @inheritdoc ISuperVaultAggregator
     function validateHooks(
         address strategy,
         ValidateHookArgs[] calldata argsArray
-    )
-        external
-        view
-        returns (bool[] memory validHooks)
-    {
+    ) external view returns (bool[] memory validHooks) {
         uint256 length = argsArray.length;
 
         // Cache all state variables in struct
@@ -1004,14 +1197,24 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             // Try global root first
             if (
                 _validateSingleHook(
-                    argsArray[i].hookAddress, argsArray[i].hookArgs, argsArray[i].globalProof, true, cache, strategy
+                    argsArray[i].hookAddress,
+                    argsArray[i].hookArgs,
+                    argsArray[i].globalProof,
+                    true,
+                    cache,
+                    strategy
                 )
             ) {
                 validHooks[i] = true;
             } else {
                 // Try strategy root
                 validHooks[i] = _validateSingleHook(
-                    argsArray[i].hookAddress, argsArray[i].hookArgs, argsArray[i].strategyProof, false, cache, strategy
+                    argsArray[i].hookAddress,
+                    argsArray[i].hookArgs,
+                    argsArray[i].strategyProof,
+                    false,
+                    cache,
+                    strategy
                 );
             }
             // If both conditions fail, validHooks[i] remains false (default value)
@@ -1026,28 +1229,37 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getProposedGlobalHooksRoot() external view returns (bytes32 root, uint256 effectiveTime) {
+    function getProposedGlobalHooksRoot()
+        external
+        view
+        returns (bytes32 root, uint256 effectiveTime)
+    {
         return (_proposedGlobalHooksRoot, _globalHooksRootEffectiveTime);
     }
 
     /// @notice Checks if the global hooks root is active (timelock period has passed)
     /// @return isActive True if the global hooks root is active
     function isGlobalHooksRootActive() external view returns (bool) {
-        return block.timestamp >= _globalHooksRootEffectiveTime && _globalHooksRoot != bytes32(0);
+        return
+            block.timestamp >= _globalHooksRootEffectiveTime &&
+            _globalHooksRoot != bytes32(0);
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getStrategyHooksRoot(address strategy) external view returns (bytes32 root) {
+    function getStrategyHooksRoot(
+        address strategy
+    ) external view returns (bytes32 root) {
         return _strategyData[strategy].managerHooksRoot;
     }
 
     /// @inheritdoc ISuperVaultAggregator
-    function getProposedStrategyHooksRoot(address strategy)
-        external
-        view
-        returns (bytes32 root, uint256 effectiveTime)
-    {
-        return (_strategyData[strategy].proposedHooksRoot, _strategyData[strategy].hooksRootEffectiveTime);
+    function getProposedStrategyHooksRoot(
+        address strategy
+    ) external view returns (bytes32 root, uint256 effectiveTime) {
+        return (
+            _strategyData[strategy].proposedHooksRoot,
+            _strategyData[strategy].hooksRootEffectiveTime
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1063,7 +1275,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             emit UpdateTooFrequent();
             return;
         }
-        
+
         // Ensure timestamp is monotonically increasing to prevent out-of-order updates
         if (args.timestamp <= lastUpdate) {
             emit TimestampNotMonotonic();
@@ -1077,7 +1289,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         bool checksFailed = false;
 
         // C2.1) Dispersion Check: Check if the standard deviation is too high relative to mean
-        if (_strategyData[args.strategy].dispersionThreshold != type(uint256).max && args.pps > 0) {
+        if (
+            _strategyData[args.strategy].dispersionThreshold !=
+            type(uint256).max &&
+            args.pps > 0
+        ) {
             // Calculate dispersion as stddev/mean
             uint256 dispersion = (args.ppsStdev * 1e18) / args.pps; // Scaled by 1e18 for precision
             if (dispersion > _strategyData[args.strategy].dispersionThreshold) {
@@ -1088,23 +1304,39 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // C2.2) Deviation Check: Check if new PPS deviates too much from current PPS
         uint256 currentPPS = _strategyData[args.strategy].pps;
-        if (_strategyData[args.strategy].deviationThreshold != type(uint256).max && currentPPS > 0) {
+        if (
+            _strategyData[args.strategy].deviationThreshold !=
+            type(uint256).max &&
+            currentPPS > 0
+        ) {
             // Calculate absolute deviation, scaled by 1e18
-            uint256 absDiff = args.pps > currentPPS ? (args.pps - currentPPS) : (currentPPS - args.pps);
+            uint256 absDiff = args.pps > currentPPS
+                ? (args.pps - currentPPS)
+                : (currentPPS - args.pps);
             uint256 relativeDeviation = (absDiff * 1e18) / currentPPS;
-            if (relativeDeviation > _strategyData[args.strategy].deviationThreshold) {
+            if (
+                relativeDeviation >
+                _strategyData[args.strategy].deviationThreshold
+            ) {
                 checksFailed = true;
                 emit StrategyCheckFailed(args.strategy, "HIGH_PPS_DEVIATION");
             }
         }
 
         // C2.3) M/N Check: Check if enough validators participated
-        if (args.totalValidators > 0 && _strategyData[args.strategy].mnThreshold > 0) {
+        if (
+            args.totalValidators > 0 &&
+            _strategyData[args.strategy].mnThreshold > 0
+        ) {
             // Calculate participation rate, scaled by 1e18
-            uint256 participationRate = (args.validatorSet * 1e18) / args.totalValidators;
+            uint256 participationRate = (args.validatorSet * 1e18) /
+                args.totalValidators;
             if (participationRate < _strategyData[args.strategy].mnThreshold) {
                 checksFailed = true;
-                emit StrategyCheckFailed(args.strategy, "INSUFFICIENT_VALIDATOR_PARTICIPATION");
+                emit StrategyCheckFailed(
+                    args.strategy,
+                    "INSUFFICIENT_VALIDATOR_PARTICIPATION"
+                );
             }
         }
 
@@ -1123,7 +1355,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         if (!args.isExempt) {
             // Check if manager has sufficient upkeep balance
             if (_managerUpkeepBalance[manager] < args.upkeepCost) {
-                emit InsufficientUpkeep(args.strategy, manager, _managerUpkeepBalance[manager], args.upkeepCost);
+                emit InsufficientUpkeep(
+                    args.strategy,
+                    manager,
+                    _managerUpkeepBalance[manager],
+                    args.upkeepCost
+                );
                 return;
             }
 
@@ -1141,7 +1378,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         _strategyData[args.strategy].ppsStdev = args.ppsStdev;
         _strategyData[args.strategy].lastUpdateTimestamp = args.timestamp;
 
-        emit PPSUpdated(args.strategy, args.pps, args.ppsStdev, args.validatorSet, args.totalValidators, args.timestamp);
+        emit PPSUpdated(
+            args.strategy,
+            args.pps,
+            args.ppsStdev,
+            args.validatorSet,
+            args.totalValidators,
+            args.timestamp
+        );
     }
 
     /// @notice Check if an update authority is exempt from paying upkeep costs
@@ -1153,17 +1397,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         address strategy,
         address updateAuthority,
         uint256 timestamp
-    )
-        internal
-        returns (bool)
-    {
+    ) internal returns (bool) {
         // Check if upkeep payments are globally disabled in SuperGovernor
         if (!SUPER_GOVERNOR.isUpkeepPaymentsEnabled()) {
             return true;
         }
 
         // Update is exempt if it is stale
-        if (block.timestamp - timestamp > _strategyData[strategy].maxStaleness) {
+        if (
+            block.timestamp - timestamp > _strategyData[strategy].maxStaleness
+        ) {
             emit StaleUpdate(strategy, updateAuthority, timestamp);
             return true;
         }
@@ -1177,7 +1420,9 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         // Check if the updateAuthority is in the authorized callers list
         // These are manager-designated keepers that should be exempt from fees
         // NOTE: Protected keepers cannot be added to this list (blocked in addAuthorizedCaller)
-        if (_strategyData[strategy].authorizedCallers.contains(updateAuthority)) {
+        if (
+            _strategyData[strategy].authorizedCallers.contains(updateAuthority)
+        ) {
             return true;
         }
 
@@ -1188,13 +1433,19 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @param hookAddress The address of the hook contract
     /// @param hookArgs The packed-encoded hook arguments (from solidityPack in JS)
     /// @return leaf The leaf node hash
-    function _createLeaf(address hookAddress, bytes calldata hookArgs) internal pure returns (bytes32) {
+    function _createLeaf(
+        address hookAddress,
+        bytes calldata hookArgs
+    ) internal pure returns (bytes32) {
         /// @dev The leaf now includes both hook address and args to prevent cross-hook replay attacks
         /// @dev Different hooks with identical encoded args will have different authorization leaves
         /// @dev This matches StandardMerkleTree's standardLeafHash: keccak256(keccak256(abi.encode(hookAddress,
         /// hookArgs)))
         /// @dev but uses bytes.concat for explicit concatenation
-        return keccak256(bytes.concat(keccak256(abi.encode(hookAddress, hookArgs))));
+        return
+            keccak256(
+                bytes.concat(keccak256(abi.encode(hookAddress, hookArgs)))
+            );
     }
 
     /**
@@ -1214,17 +1465,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         bool isGlobalProof,
         HookValidationCache memory cache,
         address strategy
-    )
-        internal
-        view
-        returns (bool)
-    {
+    ) internal view returns (bool) {
         // Create leaf node from the hook address and arguments
         bytes32 leaf = _createLeaf(hookAddress, hookArgs);
 
         if (isGlobalProof) {
             // Validate against global root
-            if (cache.globalHooksRootVetoed || cache.globalHooksRoot == bytes32(0)) {
+            if (
+                cache.globalHooksRootVetoed ||
+                cache.globalHooksRoot == bytes32(0)
+            ) {
                 return false;
             }
 
@@ -1240,7 +1490,10 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             return MerkleProof.verify(proof, cache.globalHooksRoot, leaf);
         } else {
             // Validate against strategy root
-            if (cache.strategyHooksRootVetoed || cache.strategyRoot == bytes32(0)) {
+            if (
+                cache.strategyHooksRootVetoed ||
+                cache.strategyRoot == bytes32(0)
+            ) {
                 return false;
             }
             // For single-leaf trees, empty proof is valid when root equals leaf

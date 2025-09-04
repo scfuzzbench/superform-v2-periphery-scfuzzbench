@@ -22,8 +22,9 @@ import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy
 import {MockYieldSourceOracle} from "test/mocks/MockYieldSourceOracle.sol";
 
 // Test suite dependencies
-import {VaultManager} from "./managers/VaultManager.sol";
+import {VaultManager} from "test/recon/managers/VaultManager.sol";
 import {MerkleTestHelper} from "test/recon/helpers/MerkleTestHelper.sol";
+import {UnsafeSuperVaultAggregator} from "test/recon/helpers/UnsafeSuperVaultAggregator.sol";
 
 abstract contract Setup is
     BaseSetup,
@@ -38,7 +39,7 @@ abstract contract Setup is
     // Core contracts
     SuperGovernor superGovernor;
     SuperVault superVault;
-    SuperVaultAggregator superVaultAggregator;
+    UnsafeSuperVaultAggregator superVaultAggregator;
     SuperVaultEscrow superVaultEscrow;
     SuperVaultStrategy superVaultStrategy;
 
@@ -80,7 +81,7 @@ abstract contract Setup is
         escrowImpl = new SuperVaultEscrow();
 
         // 5. Deploy SuperVaultAggregator with implementation contracts
-        superVaultAggregator = new SuperVaultAggregator(
+        superVaultAggregator = new UnsafeSuperVaultAggregator(
             address(superGovernor),
             address(vaultImpl),
             address(strategyImpl),
