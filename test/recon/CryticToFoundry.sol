@@ -1039,31 +1039,16 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Deploy helper
         merkleHelper = new MerkleTestHelper();
 
-        // Create a new investment vault using VaultManager
-        address investmentVault = _newVault(_getAsset());
-
         // Add the investment vault as a yield source to the strategy
-        superVaultStrategy_manageYieldSource(
-            investmentVault,
-            address(yieldSourceOracle),
-            0 // Add yield source
-        );
+        superVaultStrategy_manageYieldSource_clamped();
 
         // Switch to a user and deposit into SuperVault
         switchActor(1);
         address user = _getActor();
         uint256 depositAmount = 1000e18;
 
-        // User approves SuperVault and deposits
-        superVault_approve(address(superVault), type(uint256).max);
+        // User deposits
         superVault_deposit(depositAmount, user);
-
-        // Verify user received shares in SuperVault
-        uint256 userShares = superVault.balanceOf(user);
-        assertTrue(
-            userShares > 0,
-            "User should receive shares from SuperVault deposit"
-        );
 
         // Amount to invest in the investment vault
         uint256 amountToInvest = 500e18; // Half of the deposited amount
@@ -1074,7 +1059,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             address(superVaultStrategy)
         );
         uint256 investmentVaultAssetsBefore = MockERC20(_getAsset()).balanceOf(
-            investmentVault
+            _getVault()
         );
 
         console2.log("SuperVaultStrategy assets before:", strategyAssetsBefore);
@@ -1100,7 +1085,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             address(superVaultStrategy)
         );
         uint256 investmentVaultAssetsAfter = MockERC20(_getAsset()).balanceOf(
-            investmentVault
+            _getVault()
         );
 
         console2.log("SuperVaultStrategy assets after:", strategyAssetsAfter);

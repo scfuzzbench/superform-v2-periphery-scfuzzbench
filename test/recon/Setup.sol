@@ -66,7 +66,10 @@ abstract contract Setup is
         // 2. Create assets using AssetManager
         _newAsset(DECIMALS); // Deploy token with 18 decimals
 
-        // 3. Deploy SuperGovernor first (required by other contracts)
+        // 3. Create new yield vault using VaultManager
+        _newVault(_getAsset());
+
+        // 4. Deploy SuperGovernor first (required by other contracts)
         superGovernor = new SuperGovernor(
             address(this), // superGovernor role
             address(this), // governor role
@@ -75,12 +78,12 @@ abstract contract Setup is
             address(this) // prover
         );
 
-        // 4. Deploy implementation contracts for the aggregator
+        // 5. Deploy implementation contracts for the aggregator
         vaultImpl = new SuperVault(address(superGovernor));
         strategyImpl = new SuperVaultStrategy(address(superGovernor));
         escrowImpl = new SuperVaultEscrow();
 
-        // 5. Deploy SuperVaultAggregator with implementation contracts
+        // 6. Deploy SuperVaultAggregator with implementation contracts
         superVaultAggregator = new UnsafeSuperVaultAggregator(
             address(superGovernor),
             address(vaultImpl),
@@ -88,13 +91,13 @@ abstract contract Setup is
             address(escrowImpl)
         );
 
-        // 5a. Register the SuperVaultAggregator address with SuperGovernor
+        // 7. Register the SuperVaultAggregator address with SuperGovernor
         superGovernor.setAddress(
             superGovernor.SUPER_VAULT_AGGREGATOR(),
             address(superVaultAggregator)
         );
 
-        // 6. Deploy Mocks
+        // 8. Deploy Mocks
         yieldSourceOracle = new MockYieldSourceOracle(
             1e18,
             1000e18,
@@ -102,7 +105,7 @@ abstract contract Setup is
             true
         );
 
-        // 7. Create a vault trio using the aggregator
+        // 9. Create a vault trio using the aggregator
         ISuperVaultAggregator.VaultCreationParams
             memory params = ISuperVaultAggregator.VaultCreationParams({
                 asset: _getAsset(), // Use the token created by AssetManager
@@ -125,12 +128,12 @@ abstract contract Setup is
             address escrowAddr
         ) = superVaultAggregator.createVault(params);
 
-        // 8. Store the deployed contracts
+        // 10. Store the deployed contracts
         superVault = SuperVault(vaultAddr);
         superVaultStrategy = SuperVaultStrategy(payable(strategyAddr));
         superVaultEscrow = SuperVaultEscrow(escrowAddr);
 
-        /// 9. Deploy hook contracts and helper
+        /// 11. Deploy hook contracts and helper
         approveAndDepositHook = new ApproveAndDeposit4626VaultHook();
         redeemHook = new Redeem4626VaultHook();
         merkleHelper = new MerkleTestHelper();
@@ -138,12 +141,12 @@ abstract contract Setup is
         superGovernor.registerHook(address(approveAndDepositHook), false);
         superGovernor.registerHook(address(redeemHook), true);
 
-        // 10. Set up approval array for contracts that need token access
+        // 12. Set up approval array for contracts that need token access
         address[] memory approvalArray = new address[](2);
         approvalArray[0] = address(superVault);
         approvalArray[1] = address(superVaultStrategy);
 
-        // 11. Finalize asset deployment (mints to actors and sets approvals)
+        // 13. Finalize asset deployment (mints to actors and sets approvals)
         _finalizeAssetDeployment(_getActors(), approvalArray, type(uint88).max);
     }
 
