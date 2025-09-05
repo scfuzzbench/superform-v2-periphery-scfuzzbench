@@ -398,12 +398,6 @@ contract SuperVaultStrategy is ISuperVaultStrategy, Initializable, ReentrancyGua
                         ACCOUNTING MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultStrategy
-    function updateSuperVaultState(address controller, SuperVaultState memory state) external {
-        _requireVault();
-        superVaultState[controller] = state;
-    }
-
-    /// @inheritdoc ISuperVaultStrategy
     function moveAccumulatorOnTransfer(address from, address to, uint256 shares) external {
         _requireVault();
         if (shares == 0) return;
