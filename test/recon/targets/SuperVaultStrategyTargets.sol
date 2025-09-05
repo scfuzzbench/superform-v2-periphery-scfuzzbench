@@ -29,6 +29,72 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         );
     }
 
+    function superVaultStrategy_handleOperations7540_clamped(
+        uint256 operation,
+        uint256 amount
+    ) public {
+        operation %= 6; // clamp by the possible operation types in the enum
+        superVaultStrategy_handleOperations7540(
+            ISuperVaultStrategy.Operation(operation),
+            _getActor(),
+            _getActor(),
+            amount
+        );
+    }
+
+    function superVaultStrategy_fulfillRedeemRequests_clamped(
+        uint256 redeemAmount
+    ) public {
+        // Clamp the redeem amount to a reasonable range (1 to 1000 ether)
+        redeemAmount = (redeemAmount % 1000e18) + 1e18;
+        
+        // Create a realistic controller address
+        address[] memory controllers = new address[](1);
+        controllers[0] = _getActor();
+        
+        // Select redeem hook based on current yield source type
+        address redeemHook = _getRedeemHookForType(_getCurrentYieldSourceType());
+        
+        // Create realistic hook calldata for redeem operation
+        // Layout: bytes32 oracleId, address yieldSource, address owner, uint256 shares, bool usePrevAmount
+        bytes memory redeemHookCalldata = abi.encodePacked(
+            bytes32(0), // yieldSourceOracleId placeholder (ignored with UnsafeSuperVaultAggregator)
+            _getYieldSource(), // Current active yield source
+            address(superVaultStrategy), // Owner (strategy owns the yield source shares)
+            redeemAmount, // Amount to redeem
+            false // Don't use previous hook amount
+        );
+        
+        // Create arrays for FulfillArgs
+        address[] memory hooks = new address[](1);
+        hooks[0] = redeemHook;
+        
+        bytes[] memory hookCalldata = new bytes[](1);
+        hookCalldata[0] = redeemHookCalldata;
+        
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        expectedAssetsOrSharesOut[0] = redeemAmount; // Expect 1:1 redemption for simplicity
+        
+        bytes32[][] memory globalProofs = new bytes32[][](1);
+        globalProofs[0] = new bytes32[](0); // Empty proof for UnsafeSuperVaultAggregator
+        
+        bytes32[][] memory strategyProofs = new bytes32[][](1);
+        strategyProofs[0] = new bytes32[](0); // Empty proof
+        
+        // Create the FulfillArgs struct
+        ISuperVaultStrategy.FulfillArgs memory fulfillArgs = ISuperVaultStrategy.FulfillArgs({
+            controllers: controllers,
+            hooks: hooks,
+            hookCalldata: hookCalldata,
+            expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+            globalProofs: globalProofs,
+            strategyProofs: strategyProofs
+        });
+        
+        // Execute the function
+        superVaultStrategy_fulfillRedeemRequests(fulfillArgs);
+    }
+
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 
     function superVaultStrategy_executeVaultFeeConfigUpdate() public asActor {
