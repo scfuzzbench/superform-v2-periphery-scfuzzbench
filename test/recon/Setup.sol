@@ -130,6 +130,9 @@ abstract contract Setup is
 
         // 2. Create assets using AssetManager
         _newAsset(DECIMALS); // Deploy token with 18 decimals
+        _newAsset(DECIMALS); // UP token
+
+        _switchAsset(0);
 
         // 3. Deploy all three types of yield sources using YieldManager
         // Deploy ERC4626 yield source (default)
@@ -175,11 +178,14 @@ abstract contract Setup is
             address(escrowImpl)
         );
 
-        // 7. Register the SuperVaultAggregator address with SuperGovernor
+        // 7. Register the SuperVaultAggregator and UpToken address with SuperGovernor
         superGovernor.setAddress(
             superGovernor.SUPER_VAULT_AGGREGATOR(),
             address(superVaultAggregator)
         );
+
+        address[] memory assets = _getAssets();
+        superGovernor.setAddress(superGovernor.UP(), assets[1]); // the second deployed token in the AssetManager is the UPToken
 
         // 8. Deploy Mocks and Oracles
 
@@ -344,6 +350,28 @@ abstract contract Setup is
         } else if (sourceType == YieldSourceType.ERC7540) {
             return address(erc7540YieldSourceOracle);
         }
+    }
+
+    /// @dev Helper function to determine yield source type from address
+    function _getYieldSourceTypeFromAddress(
+        address yieldSource
+    ) internal view returns (YieldSourceType) {
+        // Get all available yield sources from YieldManager
+        address[] memory yieldSources = _getYieldSources();
+
+        // Check which index matches the current yield source
+        for (uint256 i = 0; i < yieldSources.length; i++) {
+            if (yieldSources[i] == yieldSource) {
+                // Return the corresponding type based on creation order:
+                // Index 0: ERC4626, Index 1: ERC5115, Index 2: ERC7540
+                if (i == 0) return YieldSourceType.ERC4626;
+                if (i == 1) return YieldSourceType.ERC5115;
+                if (i == 2) return YieldSourceType.ERC7540;
+            }
+        }
+
+        // Default to ERC4626 if not found
+        return YieldSourceType.ERC4626;
     }
 
     function _getERC4626YieldSourceOracle() internal view returns (address) {

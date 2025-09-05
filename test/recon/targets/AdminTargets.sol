@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
 import {vm} from "@chimera/Hevm.sol";
 import {Panic} from "@recon/Panic.sol";
+import {MockERC20} from "@recon/MockERC20.sol";
 
 // System dependencies
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
@@ -19,6 +20,11 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         bool depositHook,
         uint256 amountToInvest
     ) public payable {
+        // Clamp to the strategy's asset balance (not SuperVault's balance)
+        amountToInvest %= MockERC20(_getAsset()).balanceOf(
+            address(superVaultStrategy)
+        );
+
         // Create hook calldata for ApproveAndDeposit4626VaultHook
         bytes memory approveAndDepositCalldata = abi.encodePacked(
             bytes32(0), // yieldSourceOracleId placeholder

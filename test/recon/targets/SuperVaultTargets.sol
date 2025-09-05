@@ -15,10 +15,12 @@ import "src/SuperVault/SuperVault.sol";
 /// @dev All receivers are inherently clamped to actors to make checking properties easier
 abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
-    function superVault_requestRedeem_clamped() public {
-        uint256 shares = superVault.balanceOf(_getActor());
+    function superVault_requestRedeem_clamped(uint256 shares) public {
+        shares %= superVault.balanceOf(_getActor());
+
         superVault_requestRedeem(shares);
     }
+
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
 
     function superVault_approve(address spender, uint256 value) public asActor {

@@ -58,11 +58,12 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.claimUpkeep(amount);
     }
 
-    function superVaultAggregator_createVault(
-        ISuperVaultAggregator.VaultCreationParams memory params
-    ) public asActor {
-        superVaultAggregator.createVault(params);
-    }
+    /// @dev disabled for now since we already deploy the triad in the setup
+    // function superVaultAggregator_createVault(
+    //     ISuperVaultAggregator.VaultCreationParams memory params
+    // ) public asActor {
+    //     superVaultAggregator.createVault(params);
+    // }
 
     function superVaultAggregator_depositStake(
         address manager,
@@ -71,11 +72,8 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.depositStake(manager, amount);
     }
 
-    function superVaultAggregator_depositUpkeep(
-        address manager,
-        uint256 amount
-    ) public asActor {
-        superVaultAggregator.depositUpkeep(manager, amount);
+    function superVaultAggregator_depositUpkeep(uint256 amount) public asActor {
+        superVaultAggregator.depositUpkeep(_getActor(), amount);
     }
 
     function superVaultAggregator_executeChangePrimaryManager(

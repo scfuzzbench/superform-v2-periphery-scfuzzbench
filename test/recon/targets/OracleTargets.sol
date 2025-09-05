@@ -17,10 +17,7 @@ import "../mocks/MockERC7540YieldSourceOracle.sol";
 import {BeforeAfter} from "../BeforeAfter.sol";
 import {Properties} from "../Properties.sol";
 
-abstract contract MockYieldSourceOracleTargets is
-    BaseTargetFunctions,
-    Properties
-{
+abstract contract OracleTargets is BaseTargetFunctions, Properties {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
     function yieldSourceOracle_setValidAsset_clamped() public {
         mockERC4626YieldSourceOracle_setValidAsset(_getAsset(), true);
@@ -72,6 +69,8 @@ abstract contract MockYieldSourceOracleTargets is
         ECDSAPPSOracle.updatePPS(args);
     }
 
+    /// @dev Missing coverage over this for now while there's only one vault triad is okay
+    // since ECDSAPPSOracle_updatePPS_clamped already allows updating price for the deployed strategy
     function ECDSAPPSOracle_batchUpdatePPS(
         IECDSAPPSOracle.BatchUpdatePPSArgs memory args
     ) public asActor {
