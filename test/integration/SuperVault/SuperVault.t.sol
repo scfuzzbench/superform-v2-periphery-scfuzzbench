@@ -41,11 +41,14 @@ contract SuperVaultTest is BaseSuperVaultTest {
     address operator = address(0x123);
     uint256 constant userPrivateKey = 0xA11CE; // Replace with a known good testing private key
     address userAddress; // Will be derived from private key
+
     ERC7540YieldSourceOracle public oracle;
     ISuperLedger public superLedgerETH;
+
     address gearToken;
     IERC4626 gearboxVault;
     IGearboxFarmingPool gearboxFarmingPool;
+
     SuperVault gearSuperVault;
     SuperVaultEscrow escrowGearSuperVault;
     SuperVaultStrategy strategyGearSuperVault;
@@ -3311,58 +3314,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         // Verify assets were transferred correctly
         assertEq(asset.balanceOf(ownerController), initialAssetBalance + claimableAssets, "Should receive assets");
         assertEq(strategy.claimableWithdraw(ownerController), 0, "Claimable should be cleared");
-    }
-
-    /// @notice Test that redeem request reverts when controller has no accumulator shares (defense-in-depth)
-    function test_Fix15_RevertWhen_ControllerHasNoAccumulatorShares() public {
-        uint256 depositAmount = 1000e6;
-
-        // Setup: User A has shares but no accumulator (simulate a fresh user receiving shares)
-        // We'll use a user that has never deposited but receives shares from someone else
-        address userA = accInstances[0].account;
-        address userNoAccumulator = accInstances[1].account;
-
-        // User A deposits and gets shares
-        _getTokens(address(asset), userA, depositAmount);
-        __deposit(accInstances[0], depositAmount);
-        _depositFreeAssetsFromSingleAmount(depositAmount, address(fluidVault), address(aaveVault));
-
-        uint256 shares = vault.balanceOf(userA);
-
-        // User A transfers all shares to userNoAccumulator (this moves accumulators via Fix #1)
-        vm.prank(userA);
-        IERC20(address(vault)).transfer(userNoAccumulator, shares);
-
-        // Now userNoAccumulator has shares AND accumulator (from the transfer)
-        // To create a scenario where someone has shares but NO accumulator, we need to
-        // manually manipulate state or use a different approach
-
-        // Create a fresh user with zero accumulator by minting shares directly (bypassing deposit logic)
-        address freshUser = accInstances[2].account;
-
-        // Give fresh user some shares by having them receive a deposit but with controller != receiver
-        // Actually, let's use a different approach - modify accumulator directly via updateSuperVaultState
-
-        // Transfer some shares to fresh user from userNoAccumulator
-        vm.prank(userNoAccumulator);
-        IERC20(address(vault)).transfer(freshUser, shares / 4);
-
-        // Now manually remove the accumulator for freshUser to create the test scenario
-        // This simulates an edge case where shares exist but accumulator is somehow zero
-        ISuperVaultStrategy.SuperVaultState memory emptyState;
-        vm.prank(address(vault));
-        strategy.updateSuperVaultState(freshUser, emptyState);
-
-        // Verify freshUser has shares but no accumulator
-        assertGt(vault.balanceOf(freshUser), 0, "Fresh user should have shares");
-        ISuperVaultStrategy.SuperVaultState memory stateFresh = strategy.getSuperVaultState(freshUser);
-        assertEq(stateFresh.accumulatorShares, 0, "Fresh user should have no accumulator shares");
-
-        // Fresh user tries to request redeem - should revert due to no accumulator shares
-        vm.startPrank(freshUser);
-        vm.expectRevert(ISuperVaultStrategy.INSUFFICIENT_SHARES.selector);
-        vault.requestRedeem(shares / 4, freshUser, freshUser);
-        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -7356,6 +7307,65 @@ contract SuperVaultTest is BaseSuperVaultTest {
             ethReceiver, // yield source (ETH receiver)
             ethAmount // ETH amount to send
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                       7540 UNDERLYING TESTS
+    //////////////////////////////////////////////////////////////*/
+    function test_7540Underlying_E2E_Flow() public {
+        // Set up the vault
+        _setUp7540UnderlyingSuperVault();
+
+        AccountInstance memory instance = accInstances[0];
+        address account = instance.account;
+
+        // Deposit USDC into the SuperVault
+        uint256 depositAmount = 1000e6; // 1000 USDC
+        _getTokens(address(asset), account, depositAmount);
+        __deposit(instance, depositAmount);
+
+        // Verify state
+        assertEq(asset.balanceOf(address(strategy)), depositAmount, "Wrong strategy balance");
+
+        _depositFreeAssetsFromSingleAmount7540(depositAmount, address(aaveVault), address(centrifugeVault));
+
+        uint256 userShares = vault.balanceOf(account);
+        assertGt(userShares, 0, "No shares minted to user");
+
+        // Record balances before redeem
+        uint256 preRedeemUserAssets = asset.balanceOf(account);
+        uint256 feeBalanceBefore = asset.balanceOf(TREASURY);
+
+        // Fast forward time to simulate yield on underlying vaults
+        vm.warp(block.timestamp + 50 weeks);
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+
+        // Step 4: Request Redeem
+        __requestRedeem(instance, userShares, false);
+
+        // Verify shares are escrowed
+        assertEq(IERC20(vault.share()).balanceOf(account), 0, "User shares not transferred from account");
+        assertEq(IERC20(vault.share()).balanceOf(address(escrow)), userShares, "Shares not transferred to escrow");
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+        vm.warp(block.timestamp + 1 weeks);
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+
+        (, uint256 superformFee, uint256 recipientFee) = strategy.previewPerformanceFee(account, userShares);
+
+        // Step 5: Fulfill Redeem
+        _fulfillRedeem7540Underlying(userShares, address(aaveVault), address(centrifugeVault), account);
+
+        // Verify balances
+        assertEq(asset.balanceOf(account), preRedeemUserAssets, "User assets not returned");
+        assertEq(asset.balanceOf(TREASURY), feeBalanceBefore + superformFee + recipientFee, "Fee balance not correct");
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -1877,7 +1877,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         // Create second strategy with different manager
         address manager2 = _deployAccount(0xBB, "Manager2");
         vm.prank(manager2);
-        (, address strategy2,) = superVaultAggregator.createVault(
+        superVaultAggregator.createVault(
             ISuperVaultAggregator.VaultCreationParams({
                 asset: address(asset),
                 name: "Test Vault 2",
