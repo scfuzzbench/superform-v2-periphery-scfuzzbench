@@ -39,14 +39,15 @@ import "src/SuperGovernor.sol";
 import {ISuperVaultAggregator} from "src/interfaces/SuperVault/ISuperVaultAggregator.sol";
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import {MockYieldSourceOracle} from "test/mocks/MockYieldSourceOracle.sol";
-import {MockERC4626YieldSourceOracle} from "test/recon/mocks/MockERC4626YieldSourceOracle.sol";
-import {MockERC5115YieldSourceOracle} from "test/recon/mocks/MockERC5115YieldSourceOracle.sol";
-import {MockERC7540YieldSourceOracle} from "test/recon/mocks/MockERC7540YieldSourceOracle.sol";
 
 // Test suite dependencies
 import {YieldManager, YieldSourceType} from "test/recon/managers/YieldManager.sol";
 import {MerkleTestHelper} from "test/recon/helpers/MerkleTestHelper.sol";
 import {UnsafeSuperVaultAggregator} from "test/recon/helpers/UnsafeSuperVaultAggregator.sol";
+import {MockERC4626YieldSourceOracle} from "test/recon/mocks/MockERC4626YieldSourceOracle.sol";
+import {MockERC5115YieldSourceOracle} from "test/recon/mocks/MockERC5115YieldSourceOracle.sol";
+import {MockERC7540YieldSourceOracle} from "test/recon/mocks/MockERC7540YieldSourceOracle.sol";
+import {MockECDSAPPSOracle} from "test/recon/mocks/MockECDSAPPSOracle.sol";
 
 abstract contract Setup is
     BaseSetup,
@@ -100,6 +101,7 @@ abstract contract Setup is
     MockERC4626YieldSourceOracle erc4626YieldSourceOracle;
     MockERC5115YieldSourceOracle erc5115YieldSourceOracle;
     MockERC7540YieldSourceOracle erc7540YieldSourceOracle;
+    MockECDSAPPSOracle ECDSAPPSOracle;
 
     // Yield sources for different standards
     address erc4626YieldSource;
@@ -185,6 +187,11 @@ abstract contract Setup is
         erc4626YieldSourceOracle = new MockERC4626YieldSourceOracle();
         erc5115YieldSourceOracle = new MockERC5115YieldSourceOracle();
         erc7540YieldSourceOracle = new MockERC7540YieldSourceOracle();
+        ECDSAPPSOracle = new MockECDSAPPSOracle();
+
+        // ECDSAPPSOracle setup
+        superGovernor.setActivePPSOracle(address(ECDSAPPSOracle));
+        ECDSAPPSOracle.setSUPER_GOVERNORReturn(address(superVaultAggregator));
 
         // Set valid assets for all oracles
         address asset = _getAsset();

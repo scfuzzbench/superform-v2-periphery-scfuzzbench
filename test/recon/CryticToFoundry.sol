@@ -15,6 +15,7 @@ import {ApproveAndDeposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/
 import {Redeem4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Redeem4626VaultHook.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
 import {YieldSourceType} from "./managers/YieldManager.sol";
+import {IECDSAPPSOracle} from "src/interfaces/oracles/IECDSAPPSOracle.sol";
 
 // forge test --match-contract CryticToFoundry -vv
 contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
@@ -921,5 +922,155 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             userAssets > 0,
             "User should have received assets from redemption"
         );
+    }
+
+    // Helper function to update PPS using the mock oracle
+    function _updatePPS(uint256 newPPS) internal {
+        // Advance time to avoid UPDATE_TOO_FREQUENT error (minUpdateInterval is 5 seconds in setup)
+        vm.warp(block.timestamp + 10);
+        
+        IECDSAPPSOracle.UpdatePPSArgs memory args = IECDSAPPSOracle.UpdatePPSArgs({
+            strategy: address(superVaultStrategy),
+            proofs: new bytes[](0),
+            pps: newPPS,
+            ppsStdev: 0,
+            validatorSet: 0,
+            totalValidators: 0,
+            timestamp: block.timestamp
+        });
+        
+        ECDSAPPSOracle.updatePPS(args);
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_basic() public {
+        // Test that the function can update PPS successfully
+        uint256 oldPPS = superVaultStrategy.getStoredPPS();
+        uint256 newPPS = 1.1e18; // 10% increase
+        
+        // Update PPS using helper function
+        _updatePPS(newPPS);
+        
+        // Verify PPS was updated
+        uint256 updatedPPS = superVaultStrategy.getStoredPPS();
+        assertEq(updatedPPS, newPPS, "PPS should be updated to new value");
+        assertTrue(updatedPPS != oldPPS, "PPS should have changed from old value");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_priceDecrease() public {
+        // Test PPS decrease
+        uint256 oldPPS = superVaultStrategy.getStoredPPS();
+        uint256 newPPS = 0.95e18; // 5% decrease
+        
+        _updatePPS(newPPS);
+        
+        uint256 updatedPPS = superVaultStrategy.getStoredPPS();
+        assertEq(updatedPPS, newPPS, "PPS should decrease correctly");
+        assertTrue(updatedPPS < oldPPS, "PPS should be lower than original");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_priceIncrease() public {
+        // Test PPS increase
+        uint256 oldPPS = superVaultStrategy.getStoredPPS();
+        uint256 newPPS = 1.25e18; // 25% increase
+        
+        _updatePPS(newPPS);
+        
+        uint256 updatedPPS = superVaultStrategy.getStoredPPS();
+        assertEq(updatedPPS, newPPS, "PPS should increase correctly");
+        assertTrue(updatedPPS > oldPPS, "PPS should be higher than original");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_convertToShares() public {
+        // Test that PPS changes affect convertToShares correctly
+        uint256 testAmount = 1000e18;
+        
+        // Set a specific PPS
+        uint256 targetPPS = 2e18; // 2:1 ratio (1 share = 2 assets)
+        _updatePPS(targetPPS);
+        
+        // Test convertToShares
+        uint256 expectedShares = testAmount * 1e18 / targetPPS; // 500 shares
+        uint256 actualShares = superVault.convertToShares(testAmount);
+        assertEq(actualShares, expectedShares, "convertToShares should work correctly with new PPS");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_convertToAssets() public {
+        // Test that PPS changes affect convertToAssets correctly
+        uint256 testShares = 500e18;
+        
+        // Set a specific PPS
+        uint256 targetPPS = 1.5e18; // 1.5:1 ratio
+        _updatePPS(targetPPS);
+        
+        // Test convertToAssets
+        uint256 expectedAssets = testShares * targetPPS / 1e18; // 750 assets
+        uint256 actualAssets = superVault.convertToAssets(testShares);
+        assertEq(actualAssets, expectedAssets, "convertToAssets should work correctly with new PPS");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_multipleUpdates() public {
+        // Test multiple consecutive updates
+        uint256[] memory testPrices = new uint256[](5);
+        testPrices[0] = 1.1e18;
+        testPrices[1] = 1.3e18;
+        testPrices[2] = 0.9e18;
+        testPrices[3] = 2.0e18;
+        testPrices[4] = 1.75e18;
+        
+        for (uint256 i = 0; i < testPrices.length; i++) {
+            _updatePPS(testPrices[i]);
+            
+            uint256 updatedPPS = superVaultStrategy.getStoredPPS();
+            assertEq(updatedPPS, testPrices[i], "PPS should match expected value for update");
+        }
+        
+        // Final check
+        uint256 finalPPS = superVaultStrategy.getStoredPPS();
+        assertEq(finalPPS, testPrices[4], "Final PPS should be the last updated value");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_impactOnDeposits() public {
+        // Test how PPS changes affect deposit behavior
+        switchActor(1);
+        address user = _getActor();
+        
+        // Set a high PPS (shares are more expensive)
+        uint256 highPPS = 2e18;
+        _updatePPS(highPPS);
+        
+        superVault_approve(address(superVault), type(uint256).max);
+        uint256 depositAmount = 1000e18;
+        
+        uint256 sharesBefore = superVault.balanceOf(user);
+        superVault_deposit(depositAmount);
+        uint256 sharesAfter = superVault.balanceOf(user);
+        
+        uint256 sharesReceived = sharesAfter - sharesBefore;
+        uint256 expectedShares = depositAmount * 1e18 / highPPS; // Should be 500 shares
+        
+        // Allow for small rounding differences (within 1% tolerance)
+        uint256 tolerance = expectedShares / 100; // 1% tolerance
+        assertTrue(
+            sharesReceived >= expectedShares - tolerance && sharesReceived <= expectedShares + tolerance,
+            "User should receive approximately the expected number of shares when PPS is high"
+        );
+        assertTrue(sharesReceived < depositAmount, "Shares received should be less than deposit amount when PPS > 1");
+    }
+
+    function test_ECDSAPPSOracle_updatePPS_clamped_edgeCases() public {
+        // Test edge case: very small PPS
+        uint256 smallPPS = 0.01e18; // 1 cent per share
+        _updatePPS(smallPPS);
+        assertEq(superVaultStrategy.getStoredPPS(), smallPPS, "Should handle very small PPS");
+        
+        // Test edge case: very large PPS
+        uint256 largePPS = 1000e18; // 1000 assets per share
+        _updatePPS(largePPS);
+        assertEq(superVaultStrategy.getStoredPPS(), largePPS, "Should handle very large PPS");
+        
+        // Test edge case: exact 1:1 ratio
+        uint256 exactPPS = 1e18;
+        _updatePPS(exactPPS);
+        assertEq(superVaultStrategy.getStoredPPS(), exactPPS, "Should handle exact 1:1 PPS");
     }
 }

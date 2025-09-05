@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0
 pragma solidity ^0.8.0;
 
+// External dependencies
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
-import {BeforeAfter} from "../BeforeAfter.sol";
-import {Properties} from "../Properties.sol";
-// Chimera deps
 import {vm} from "@chimera/Hevm.sol";
-
-// Helpers
 import {Panic} from "@recon/Panic.sol";
 
+// Source dependencies
+import {IECDSAPPSOracle} from "src/interfaces/oracles/IECDSAPPSOracle.sol";
 import "test/mocks/MockYieldSourceOracle.sol";
 import "../mocks/MockERC4626YieldSourceOracle.sol";
 import "../mocks/MockERC5115YieldSourceOracle.sol";
 import "../mocks/MockERC7540YieldSourceOracle.sol";
+
+// Test suite dependencies
+import {BeforeAfter} from "../BeforeAfter.sol";
+import {Properties} from "../Properties.sol";
 
 abstract contract MockYieldSourceOracleTargets is
     BaseTargetFunctions,
@@ -48,5 +50,31 @@ abstract contract MockYieldSourceOracleTargets is
             .setValidAsset(asset, isValid);
     }
 
+    function ECDSAPPSOracle_updatePPS_clamped(uint256 pps) public {
+        IECDSAPPSOracle.UpdatePPSArgs memory args = IECDSAPPSOracle
+            .UpdatePPSArgs({
+                strategy: address(superVaultStrategy),
+                proofs: new bytes[](0),
+                pps: pps,
+                ppsStdev: 0,
+                validatorSet: 0,
+                totalValidators: 0,
+                timestamp: block.timestamp
+            });
+
+        ECDSAPPSOracle_updatePPS(args);
+    }
+
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
+    function ECDSAPPSOracle_updatePPS(
+        IECDSAPPSOracle.UpdatePPSArgs memory args
+    ) public asActor {
+        ECDSAPPSOracle.updatePPS(args);
+    }
+
+    function ECDSAPPSOracle_batchUpdatePPS(
+        IECDSAPPSOracle.BatchUpdatePPSArgs memory args
+    ) public asActor {
+        ECDSAPPSOracle.batchUpdatePPS(args);
+    }
 }
