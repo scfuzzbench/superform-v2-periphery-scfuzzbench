@@ -299,12 +299,13 @@ abstract contract Setup is
         superGovernor.registerHook(address(withdraw7540Hook), true);
 
         // 12. Set up approval array for contracts that need token access
-        address[] memory approvalArray = new address[](5);
+        address[] memory approvalArray = new address[](6);
         approvalArray[0] = address(superVault);
         approvalArray[1] = address(superVaultStrategy);
-        approvalArray[2] = erc4626YieldSource;
-        approvalArray[3] = erc5115YieldSource;
-        approvalArray[4] = erc7540YieldSource;
+        approvalArray[2] = address(superVaultAggregator);
+        approvalArray[3] = erc4626YieldSource;
+        approvalArray[4] = erc5115YieldSource;
+        approvalArray[5] = erc7540YieldSource;
 
         // 13. Finalize asset deployment (mints to actors and sets approvals)
         _finalizeAssetDeployment(_getActors(), approvalArray, type(uint88).max);

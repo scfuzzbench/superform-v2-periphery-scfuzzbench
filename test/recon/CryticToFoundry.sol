@@ -1514,11 +1514,11 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         address manager = _getActor();
 
         // Approve the aggregator to spend UP tokens
-        vm.prank(manager);
-        MockERC20(upToken).approve(
-            address(superVaultAggregator),
-            type(uint256).max
-        );
+        // vm.prank(manager);
+        // MockERC20(upToken).approve(
+        //     address(superVaultAggregator),
+        //     type(uint256).max
+        // );
 
         // Check initial upkeep balance
         uint256 initialUpkeepBalance = superVaultAggregator.getUpkeepBalance(
@@ -1870,6 +1870,463 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             balanceAfter,
             depositAmount - withdrawAmount,
             "Balance after withdrawal"
+        );
+    }
+
+    /// === Stake Management Tests ===
+
+    function test_depositStake_basic() public {
+        // Get the UP token (it's the second asset deployed in Setup)
+        _switchAsset(1); // Switch to UP token
+        address upToken = _getAsset();
+
+        // Switch to a user who will be the manager
+        switchActor(1);
+        address manager = _getActor();
+
+        // Check initial stake balance
+        uint256 initialStakeBalance = superVaultAggregator.getStakeBalance(
+            manager
+        );
+        assertEq(initialStakeBalance, 0, "Initial stake balance should be 0");
+
+        // Deposit stake
+        uint256 stakeAmount = 100e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        // Verify stake balance increased
+        uint256 newStakeBalance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            newStakeBalance,
+            stakeAmount,
+            "Stake balance should equal deposit amount"
+        );
+
+        // Verify UP tokens were transferred from user to aggregator
+        uint256 aggregatorBalance = MockERC20(upToken).balanceOf(
+            address(superVaultAggregator)
+        );
+        assertTrue(
+            aggregatorBalance >= stakeAmount,
+            "Aggregator should hold the UP tokens"
+        );
+    }
+
+    function test_depositStake_multipleDeposits() public {
+        _switchAsset(1); // Switch to UP token
+        address upToken = _getAsset();
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Make multiple stake deposits
+        uint256 firstDeposit = 50e18;
+        uint256 secondDeposit = 75e18;
+        uint256 thirdDeposit = 25e18;
+
+        superVaultAggregator_depositStake(manager, firstDeposit);
+        uint256 balance1 = superVaultAggregator.getStakeBalance(manager);
+        assertEq(balance1, firstDeposit, "Balance after first deposit");
+
+        superVaultAggregator_depositStake(manager, secondDeposit);
+        uint256 balance2 = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            balance2,
+            firstDeposit + secondDeposit,
+            "Balance after second deposit"
+        );
+
+        superVaultAggregator_depositStake(manager, thirdDeposit);
+        uint256 balance3 = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            balance3,
+            firstDeposit + secondDeposit + thirdDeposit,
+            "Balance after third deposit"
+        );
+
+        // Verify total amount in aggregator
+        uint256 totalInAggregator = MockERC20(upToken).balanceOf(
+            address(superVaultAggregator)
+        );
+        assertTrue(
+            totalInAggregator >= firstDeposit + secondDeposit + thirdDeposit,
+            "Total UP in aggregator should cover stake deposits"
+        );
+    }
+
+    function test_depositStake_multipleManagers() public {
+        _switchAsset(1); // Switch to UP token
+        address upToken = _getAsset();
+
+        // Test with multiple managers depositing stake
+        uint256[] memory deposits = new uint256[](2);
+        deposits[0] = 100e18;
+        deposits[1] = 200e18;
+
+        address[] memory managers = new address[](2);
+
+        for (uint256 i = 0; i < 2; i++) {
+            switchActor(i); // Switch to different actors (0 and 1)
+            managers[i] = _getActor();
+
+            // Each manager deposits their stake amount
+            superVaultAggregator_depositStake(managers[i], deposits[i]);
+
+            // Verify each manager's balance
+            uint256 balance = superVaultAggregator.getStakeBalance(managers[i]);
+            assertEq(
+                balance,
+                deposits[i],
+                "Manager stake balance should match deposit"
+            );
+        }
+
+        // Verify total UP in aggregator covers all stakes
+        uint256 totalInAggregator = MockERC20(upToken).balanceOf(
+            address(superVaultAggregator)
+        );
+        uint256 expectedTotal = deposits[0] + deposits[1];
+        assertTrue(
+            totalInAggregator >= expectedTotal,
+            "Total UP in aggregator should cover all stake deposits"
+        );
+    }
+
+    function test_withdrawStake_basic() public {
+        _switchAsset(1); // Switch to UP token
+        address upToken = _getAsset();
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // First deposit some stake
+        uint256 stakeAmount = 100e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        uint256 initialBalance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(initialBalance, stakeAmount, "Balance should equal deposit");
+
+        // Record UP token balance before withdrawal
+        uint256 userUPBefore = MockERC20(upToken).balanceOf(manager);
+
+        // Withdraw half
+        uint256 withdrawAmount = 50e18;
+        superVaultAggregator_withdrawStake(withdrawAmount);
+
+        // Verify stake balance decreased
+        uint256 newBalance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            newBalance,
+            stakeAmount - withdrawAmount,
+            "Balance should decrease by withdrawal amount"
+        );
+
+        // Verify UP tokens were transferred back to user
+        uint256 userUPAfter = MockERC20(upToken).balanceOf(manager);
+        assertEq(
+            userUPAfter - userUPBefore,
+            withdrawAmount,
+            "User should receive withdrawn UP tokens"
+        );
+    }
+
+    function test_withdrawStake_fullAmount() public {
+        _switchAsset(1); // Switch to UP token
+        address upToken = _getAsset();
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Deposit stake
+        uint256 stakeAmount = 100e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        // Record UP balance before withdrawal
+        uint256 userUPBefore = MockERC20(upToken).balanceOf(manager);
+
+        // Withdraw full amount
+        superVaultAggregator_withdrawStake(stakeAmount);
+
+        // Verify balance is zero
+        uint256 finalBalance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            finalBalance,
+            0,
+            "Balance should be zero after full withdrawal"
+        );
+
+        // Verify user received all UP tokens back
+        uint256 userUPAfter = MockERC20(upToken).balanceOf(manager);
+        assertEq(
+            userUPAfter - userUPBefore,
+            stakeAmount,
+            "User should receive all UP tokens back"
+        );
+    }
+
+    function test_withdrawStake_insufficientBalance() public {
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Deposit a small amount
+        uint256 stakeAmount = 10e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        // Try to withdraw more than balance (should revert)
+        uint256 excessiveAmount = 20e18;
+        vm.expectRevert(); // Should revert with INSUFFICIENT_STAKE_BALANCE
+        superVaultAggregator_withdrawStake(excessiveAmount);
+
+        // Verify balance unchanged
+        uint256 balance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            balance,
+            stakeAmount,
+            "Balance should remain unchanged after failed withdrawal"
+        );
+    }
+
+    // NOTE: Slash tests require special admin setup as slashStake can only be called by SuperGovernor
+    // In the current test environment, the SuperGovernor contract doesn't expose this functionality directly
+    function test_slashStake_basic() public {
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address managerToSlash = _getActor();
+
+        // First deposit some stake
+        uint256 stakeAmount = 100e18;
+        superVaultAggregator_depositStake(managerToSlash, stakeAmount);
+
+        uint256 initialBalance = superVaultAggregator.getStakeBalance(
+            managerToSlash
+        );
+        assertEq(initialBalance, stakeAmount, "Balance should equal deposit");
+
+        // Admin slashes stake (using SuperGovernor contract to make the call)
+        uint256 slashAmount = 50e18;
+
+        console2.log("actor before switch", _getActor());
+        switchActor(0);
+        console2.log("actor after switch", _getActor());
+        console2.log("address(this)", address(this));
+        superVaultAggregator_slashStake(managerToSlash, 50e18);
+
+        // Verify stake balance decreased
+        uint256 newBalance = superVaultAggregator.getStakeBalance(
+            managerToSlash
+        );
+        assertEq(
+            newBalance,
+            stakeAmount - slashAmount,
+            "Balance should decrease by slash amount"
+        );
+    }
+
+    function test_slashStake_fullAmount() public {
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Deposit stake
+        uint256 stakeAmount = 100e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        // Admin slashes full amount (using SuperGovernor contract to make the call)
+        bytes memory callData = abi.encodeWithSignature(
+            "slashStake(address,uint256)",
+            manager,
+            stakeAmount
+        );
+        vm.prank(address(superGovernor));
+        (bool success, ) = address(superVaultAggregator).call(callData);
+        assertTrue(success, "Slash stake should succeed");
+
+        // Verify balance is zero
+        uint256 finalBalance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(finalBalance, 0, "Balance should be zero after full slash");
+    }
+
+    function test_slashStake_insufficientBalance() public {
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Deposit a small amount
+        uint256 stakeAmount = 10e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        // Try to slash more than balance (should revert)
+        uint256 excessiveAmount = 20e18;
+        bytes memory callData = abi.encodeWithSignature(
+            "slashStake(address,uint256)",
+            manager,
+            excessiveAmount
+        );
+        vm.prank(address(superGovernor));
+        (bool success, ) = address(superVaultAggregator).call(callData);
+        assertFalse(
+            success,
+            "Slash stake should fail with insufficient balance"
+        );
+
+        // Verify balance unchanged
+        uint256 balance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            balance,
+            stakeAmount,
+            "Balance should remain unchanged after failed slash"
+        );
+    }
+
+    function test_slashStake_onlyAdmin() public {
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Deposit stake as regular user
+        uint256 stakeAmount = 100e18;
+        superVaultAggregator_depositStake(manager, stakeAmount);
+
+        // Try to slash as regular user (should fail)
+        uint256 slashAmount = 50e18;
+        bytes memory callData = abi.encodeWithSignature(
+            "slashStake(address,uint256)",
+            manager,
+            slashAmount
+        );
+        vm.prank(_getActor()); // Try as current actor (not SuperGovernor)
+        (bool success, ) = address(superVaultAggregator).call(callData);
+        assertFalse(
+            success,
+            "Slash stake should fail due to unauthorized access"
+        );
+
+        // Balance should remain unchanged
+        uint256 balance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(balance, stakeAmount, "Balance should remain unchanged");
+    }
+
+    function test_stakeFlow_depositWithdrawSlash() public {
+        // Test a complete flow: deposit -> withdraw -> slash
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address manager = _getActor();
+
+        // Step 1: Deposit stake
+        uint256 initialDeposit = 200e18;
+        superVaultAggregator_depositStake(manager, initialDeposit);
+
+        uint256 balance1 = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            balance1,
+            initialDeposit,
+            "Initial deposit should be recorded"
+        );
+
+        // Step 2: Withdraw some stake
+        uint256 withdrawAmount = 50e18;
+        superVaultAggregator_withdrawStake(withdrawAmount);
+
+        uint256 balance2 = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            balance2,
+            initialDeposit - withdrawAmount,
+            "Balance should decrease after withdrawal"
+        );
+
+        // Step 3: Admin slashes remaining stake
+        uint256 slashAmount = 25e18;
+        bytes memory callData = abi.encodeWithSignature(
+            "slashStake(address,uint256)",
+            manager,
+            slashAmount
+        );
+        vm.prank(address(superGovernor));
+        (bool success, ) = address(superVaultAggregator).call(callData);
+        assertTrue(success, "Slash stake should succeed");
+
+        uint256 finalBalance = superVaultAggregator.getStakeBalance(manager);
+        assertEq(
+            finalBalance,
+            initialDeposit - withdrawAmount - slashAmount,
+            "Final balance should account for both withdrawal and slash"
+        );
+
+        // Should be 200 - 50 - 25 = 125
+        assertEq(finalBalance, 125e18, "Final balance should be 125 UP");
+    }
+
+    function test_stakeBalance_multipleManagersIndependent() public {
+        // Test that stake balances are independent between managers
+        _switchAsset(1); // Switch to UP token
+
+        switchActor(1);
+        address manager1 = _getActor();
+        uint256 stake1 = 100e18;
+        superVaultAggregator_depositStake(manager1, stake1);
+
+        switchActor(2);
+        address manager2 = _getActor();
+        uint256 stake2 = 200e18;
+        superVaultAggregator_depositStake(manager2, stake2);
+
+        // Verify independent balances
+        assertEq(
+            superVaultAggregator.getStakeBalance(manager1),
+            stake1,
+            "Manager1 balance should be independent"
+        );
+        assertEq(
+            superVaultAggregator.getStakeBalance(manager2),
+            stake2,
+            "Manager2 balance should be independent"
+        );
+
+        // Withdraw from manager1 only
+        switchActor(1);
+        uint256 withdraw1 = 30e18;
+        superVaultAggregator_withdrawStake(withdraw1);
+
+        // Verify manager1 balance changed but manager2 didn't
+        assertEq(
+            superVaultAggregator.getStakeBalance(manager1),
+            stake1 - withdraw1,
+            "Manager1 balance should decrease"
+        );
+        assertEq(
+            superVaultAggregator.getStakeBalance(manager2),
+            stake2,
+            "Manager2 balance should remain unchanged"
+        );
+
+        // Admin slashes manager2 only
+        uint256 slash2 = 50e18;
+        bytes memory callData = abi.encodeWithSignature(
+            "slashStake(address,uint256)",
+            manager2,
+            slash2
+        );
+        vm.prank(address(superGovernor));
+        (bool success, ) = address(superVaultAggregator).call(callData);
+        assertTrue(success, "Slash stake should succeed");
+
+        // Verify only manager2 was affected
+        assertEq(
+            superVaultAggregator.getStakeBalance(manager1),
+            stake1 - withdraw1,
+            "Manager1 balance should remain unchanged by slash"
+        );
+        assertEq(
+            superVaultAggregator.getStakeBalance(manager2),
+            stake2 - slash2,
+            "Manager2 balance should decrease by slash"
         );
     }
 }
