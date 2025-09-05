@@ -8,6 +8,8 @@ Currently the test setup deploys a single triad of `SuperVault`, `SuperVaultStra
 
 The setup also currently defaults to setting the deposit and redeem hooks on the strategy for simplicity. Hook validation is currently bypassed by using the `UnsafeSuperVaultAggregator` which inherits from the `SuperVaultAggregator` to always return true when hooks need to be verified.
 
+Any functions related to modifying hook roots have been removed from the set of target functions because the hook bypassing of the hook validation step makes testing these waste fuzzing calls.   
+
 ### Property Testing
 This test suite uses assertion property tests defined for the system contracts in the [`Properties`](https://github.com/superform-xyz/v2-periphery/blob/recon-invariants/test/recon/Properties.sol) contract and in the function handlers in the [targets/ directory](https://github.com/superform-xyz/v2-periphery/tree/recon-invariants/test/recon/targets).  
 

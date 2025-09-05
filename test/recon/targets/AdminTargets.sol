@@ -59,37 +59,42 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
     }
 
     // Functions that require SuperGovernor access
-    function superVaultAggregator_setHooksRootUpdateTimelock(
-        uint256 newTimelock
-    ) public asAdmin {
-        superVaultAggregator.setHooksRootUpdateTimelock(newTimelock);
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_setHooksRootUpdateTimelock(
+    //     uint256 newTimelock
+    // ) public asAdmin {
+    //     superVaultAggregator.setHooksRootUpdateTimelock(newTimelock);
+    // }
 
-    function superVaultAggregator_proposeGlobalHooksRoot(
-        bytes32 newRoot
-    ) public asAdmin {
-        superVaultAggregator.proposeGlobalHooksRoot(newRoot);
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_proposeGlobalHooksRoot(
+    //     bytes32 newRoot
+    // ) public asAdmin {
+    //     superVaultAggregator.proposeGlobalHooksRoot(newRoot);
+    // }
 
-    function superVaultAggregator_executeGlobalHooksRootUpdate()
-        public
-        asAdmin
-    {
-        superVaultAggregator.executeGlobalHooksRootUpdate();
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_executeGlobalHooksRootUpdate()
+    //     public
+    //     asAdmin
+    // {
+    //     superVaultAggregator.executeGlobalHooksRootUpdate();
+    // }
 
-    function superVaultAggregator_setGlobalHooksRootVetoStatus(
-        bool vetoed
-    ) public asAdmin {
-        superVaultAggregator.setGlobalHooksRootVetoStatus(vetoed);
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_setGlobalHooksRootVetoStatus(
+    //     bool vetoed
+    // ) public asAdmin {
+    //     superVaultAggregator.setGlobalHooksRootVetoStatus(vetoed);
+    // }
 
-    function superVaultAggregator_setStrategyHooksRootVetoStatus(
-        address strategy,
-        bool vetoed
-    ) public asAdmin {
-        superVaultAggregator.setStrategyHooksRootVetoStatus(strategy, vetoed);
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_setStrategyHooksRootVetoStatus(
+    //     address strategy,
+    //     bool vetoed
+    // ) public asAdmin {
+    //     superVaultAggregator.setStrategyHooksRootVetoStatus(strategy, vetoed);
+    // }
 
     function superVaultAggregator_changePrimaryManager(
         address strategy,

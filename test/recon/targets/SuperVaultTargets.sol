@@ -21,23 +21,24 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         superVault.approve(spender, value);
     }
 
-    function superVault_authorizeOperator(
-        address controller,
-        address operator,
-        bool approved,
-        bytes32 nonce,
-        uint256 deadline,
-        bytes memory signature
-    ) public asActor {
-        superVault.authorizeOperator(
-            controller,
-            operator,
-            approved,
-            nonce,
-            deadline,
-            signature
-        );
-    }
+    /// @dev removed because signature components not fuzzable
+    // function superVault_authorizeOperator(
+    //     address controller,
+    //     address operator,
+    //     bool approved,
+    //     bytes32 nonce,
+    //     uint256 deadline,
+    //     bytes memory signature
+    // ) public asActor {
+    //     superVault.authorizeOperator(
+    //         controller,
+    //         operator,
+    //         approved,
+    //         nonce,
+    //         deadline,
+    //         signature
+    //     );
+    // }
 
     function superVault_burnShares(uint256 amount) public asActor {
         superVault.burnShares(amount);

@@ -34,23 +34,25 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.addSecondaryManager(strategy, manager);
     }
 
-    function superVaultAggregator_batchForwardPPS(
-        ISuperVaultAggregator.BatchForwardPPSArgs memory args
-    ) public asActor {
-        superVaultAggregator.batchForwardPPS(args);
-    }
+    /// @dev removed because only callable by oracle
+    // function superVaultAggregator_batchForwardPPS(
+    //     ISuperVaultAggregator.BatchForwardPPSArgs memory args
+    // ) public asActor {
+    //     superVaultAggregator.batchForwardPPS(args);
+    // }
 
-    function superVaultAggregator_changeGlobalLeavesStatus(
-        bytes32[] memory leaves,
-        bool[] memory statuses,
-        address strategy
-    ) public asActor {
-        superVaultAggregator.changeGlobalLeavesStatus(
-            leaves,
-            statuses,
-            strategy
-        );
-    }
+    /// @dev irrelevant for testing because we're bypassing hook validation
+    // function superVaultAggregator_changeGlobalLeavesStatus(
+    //     bytes32[] memory leaves,
+    //     bool[] memory statuses,
+    //     address strategy
+    // ) public asActor {
+    //     superVaultAggregator.changeGlobalLeavesStatus(
+    //         leaves,
+    //         statuses,
+    //         strategy
+    //     );
+    // }
 
     function superVaultAggregator_claimUpkeep(uint256 amount) public asActor {
         superVaultAggregator.claimUpkeep(amount);
@@ -82,18 +84,20 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.executeChangePrimaryManager(strategy);
     }
 
-    function superVaultAggregator_executeStrategyHooksRootUpdate(
-        address strategy
-    ) public asActor {
-        superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_executeStrategyHooksRootUpdate(
+    //     address strategy
+    // ) public asActor {
+    //     superVaultAggregator.executeStrategyHooksRootUpdate(strategy);
+    // }
 
-    function superVaultAggregator_forwardPPS(
-        address updateAuthority,
-        ISuperVaultAggregator.ForwardPPSArgs memory args
-    ) public asActor {
-        superVaultAggregator.forwardPPS(updateAuthority, args);
-    }
+    /// @dev removed because only callable by oracle
+    // function superVaultAggregator_forwardPPS(
+    //     address updateAuthority,
+    //     ISuperVaultAggregator.ForwardPPSArgs memory args
+    // ) public asActor {
+    //     superVaultAggregator.forwardPPS(updateAuthority, args);
+    // }
 
     function superVaultAggregator_proposeChangePrimaryManager(
         address strategy,
@@ -102,12 +106,13 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.proposeChangePrimaryManager(strategy, newManager);
     }
 
-    function superVaultAggregator_proposeStrategyHooksRoot(
-        address strategy,
-        bytes32 newRoot
-    ) public asActor {
-        superVaultAggregator.proposeStrategyHooksRoot(strategy, newRoot);
-    }
+    /// @dev removed because we're bypassing hook validation
+    // function superVaultAggregator_proposeStrategyHooksRoot(
+    //     address strategy,
+    //     bytes32 newRoot
+    // ) public asActor {
+    //     superVaultAggregator.proposeStrategyHooksRoot(strategy, newRoot);
+    // }
 
     function superVaultAggregator_removeAuthorizedCaller(
         address strategy,
