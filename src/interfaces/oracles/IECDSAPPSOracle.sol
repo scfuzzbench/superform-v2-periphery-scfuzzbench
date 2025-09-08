@@ -61,9 +61,32 @@ interface IECDSAPPSOracle {
         address indexed sender
     );
 
+    /// @notice Emitted when a batch update has an item which nonce was already used
+    /// @param strategy Address of the strategy
+    /// @param nonce The nonce part of the flow
+    event NonceAlreadyUsed(address indexed strategy, uint256 nonce);
+
     /*//////////////////////////////////////////////////////////////
                             STRUCTS
     //////////////////////////////////////////////////////////////*/
+    /// @notice Parameters for validating PPS proofs
+    /// @param strategy Address of the strategy
+    /// @param proofs Array of cryptographic proofs
+    /// @param pps Price-per-share value (mean)
+    /// @param ppsStdev Standard deviation of the price-per-share
+    /// @param validatorSet Number of validators who calculated this PPS
+    /// @param totalValidators Total number of validators in the network
+    /// @param timestamp Timestamp when the value was generated
+    struct ValidationParams {
+        address strategy;
+        bytes[] proofs;
+        uint256 pps;
+        uint256 ppsStdev;
+        uint256 validatorSet;
+        uint256 totalValidators;
+        uint256 timestamp;
+    }
+
     /// @notice Arguments for updating PPS for a single strategy
     /// @param strategy Address of the strategy
     /// @param proofs Array of cryptographic proofs of the PPS value from different validators
@@ -104,8 +127,9 @@ interface IECDSAPPSOracle {
                               VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /// @notice Returns the current nonce
+    /// @param strategy_ Address of the strategy
     /// @return The current nonce
-    function nonce() external view returns (uint256);
+    function noncePerStrategy(address strategy_) external view returns (uint256);
 
     /// @notice Returns the domain separator for the contract
     /// @return The domain separator

@@ -217,7 +217,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 uint256(2),
                 uint256(3),
                 block.timestamp,
-                oracleECDSA.nonce()
+                oracleECDSA.noncePerStrategy(address(svStrategy))
             )
         );
         bytes32 domainSeparator = oracleECDSA.domainSeparator();
@@ -290,7 +290,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 uint256(2),
                 uint256(3),
                 block.timestamp,
-                oracleECDSA.nonce()
+                oracleECDSA.noncePerStrategy(address(strategy))
             )
         );
         bytes32 domainSeparator = oracleECDSA.domainSeparator();
@@ -343,7 +343,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 uint256(2),
                 uint256(3),
                 block.timestamp,
-                oracleECDSA.nonce()
+                oracleECDSA.noncePerStrategy(address(svStrategy))
             )
         );
         bytes32 domainSeparator = oracleECDSA.domainSeparator();
@@ -387,7 +387,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 uint256(1),
                 uint256(3),
                 block.timestamp,
-                oracleECDSA.nonce()
+                oracleECDSA.noncePerStrategy(address(svStrategy))
             )
         );
         bytes32 domainSeparator = oracleECDSA.domainSeparator();
@@ -821,7 +821,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 validatorSet,
                 totalValidators,
                 timestamp,
-                oracleECDSA.nonce()
+                oracleECDSA.noncePerStrategy(address(svStrategy))
             )
         );
         bytes32 domainSeparator = oracleECDSA.domainSeparator();

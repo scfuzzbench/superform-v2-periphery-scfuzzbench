@@ -6852,7 +6852,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 vars.validatorSet,
                 vars.totalValidators,
                 vars.timestamp,
-                ecdsappsOracle.nonce()
+                ecdsappsOracle.noncePerStrategy(strategyAddr)
             )
         );
         vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
@@ -6908,7 +6908,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 vars.validatorSet,
                 vars.totalValidators,
                 vars.timestamp,
-                ecdsappsOracle.nonce()
+                ecdsappsOracle.noncePerStrategy(strategyAddr)
             )
         );
         vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);

@@ -22,12 +22,12 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
     //////////////////////////////////////////////////////////////*/
-    uint256 public nonce;
+    mapping(address _strategy => uint256 _nonce) public noncePerStrategy;
 
     /// @notice The SuperGovernor contract for validator verification
     ISuperGovernor public immutable SUPER_GOVERNOR;
     bytes32 public constant UPDATE_PPS_TYPEHASH = keccak256(
-        "UpdatePPS(address strategy,uint256 pps,uint256 ppsStdev,uint256 validatorSet,uint256 totalValidators,uint256 timestamp, uint256 nonce)"
+        "UpdatePPS(address strategy,uint256 pps,uint256 ppsStdev,uint256 validatorSet,uint256 totalValidators,uint256 timestamp, uint256 strategyNonce)"
     );
 
     bytes32 private constant SUPER_VAULT_AGGREGATOR = keccak256("SUPER_VAULT_AGGREGATOR");
@@ -58,9 +58,17 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     function updatePPS(UpdatePPSArgs calldata args) external {
         // Validate proofs and check quorum requirement
         _validateProofs(
-            args.strategy, args.proofs, args.pps, args.ppsStdev, args.validatorSet, args.totalValidators, args.timestamp
+            IECDSAPPSOracle.ValidationParams({
+                strategy: args.strategy,
+                proofs: args.proofs,
+                pps: args.pps,
+                ppsStdev: args.ppsStdev,
+                validatorSet: args.validatorSet,
+                totalValidators: args.totalValidators,
+                timestamp: args.timestamp
+            })
         );
-        nonce++;
+        noncePerStrategy[args.strategy]++;
 
         // Emit event that PPS has been validated
         emit PPSValidated(
@@ -95,62 +103,163 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                 || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
         ) revert ARRAY_LENGTH_MISMATCH();
 
-        // Process each strategy update
-        for (uint256 i; i < strategiesLength; i++) {
-            _validateProofs(
-                args.strategies[i],
-                args.proofsArray[i],
-                args.ppss[i],
-                args.ppsStdevs[i],
-                args.validatorSets[i],
-                args.totalValidators[i],
-                args.timestamps[i]
-            );
-            emit PPSValidated(
-                args.strategies[i],
-                args.ppss[i],
-                args.ppsStdevs[i],
-                args.validatorSets[i],
-                args.totalValidators[i],
-                args.timestamps[i],
-                msg.sender
-            );
-        }
-        nonce++;
+        // Process strategies and collect valid entries
+        (
+            address[] memory validStrategies,
+            uint256[] memory validPpss,
+            uint256[] memory validPpsStdevs,
+            uint256[] memory validValidatorSets,
+            uint256[] memory validTotalValidators,
+            uint256[] memory validTimestamps
+        ) = _processBatchStrategies(args, strategiesLength);
 
-        ISuperVaultAggregator(SUPER_GOVERNOR.getAddress(SUPER_VAULT_AGGREGATOR)).batchForwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
-                strategies: args.strategies,
-                ppss: args.ppss,
-                ppsStdevs: args.ppsStdevs,
-                validatorSets: args.validatorSets,
-                totalValidators: args.totalValidators,
-                timestamps: args.timestamps
-            })
+        // Forward valid entries if any exist
+        _forwardValidEntries(
+            validStrategies,
+            validPpss,
+            validPpsStdevs,
+            validValidatorSets,
+            validTotalValidators,
+            validTimestamps
         );
     }
 
     /*//////////////////////////////////////////////////////////////
                             INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    /// @notice Validates an array of proofs for a strategy's PPS update
-    /// @param strategy Address of the strategy
-    /// @param proofs Array of cryptographic proofs
-    /// @param pps Price-per-share value (mean)
-    /// @param ppsStdev Standard deviation of the price-per-share
-    /// @param validatorSet Number of validators who calculated this PPS
-    /// @param totalValidators Total number of validators in the network
-    /// @param timestamp Timestamp when the value was generated
-    /// @dev Reverts immediately if duplicate signers are found or quorum is not met
-    function _validateProofs(
-        address strategy,
-        bytes[] calldata proofs,
-        uint256 pps,
-        uint256 ppsStdev,
-        uint256 validatorSet,
-        uint256 totalValidators,
-        uint256 timestamp
+    /// @notice Processes batch strategies and returns valid entries
+    /// @param args Batch update arguments
+    /// @param strategiesLength Length of strategies array
+    /// @return validStrategies Array of valid strategy addresses
+    /// @return validPpss Array of valid PPS values
+    /// @return validPpsStdevs Array of valid PPS standard deviations
+    /// @return validValidatorSets Array of valid validator sets
+    /// @return validTotalValidators Array of valid total validators
+    /// @return validTimestamps Array of valid timestamps
+    function _processBatchStrategies(
+        BatchUpdatePPSArgs calldata args,
+        uint256 strategiesLength
     )
+        internal
+        returns (
+            address[] memory validStrategies,
+            uint256[] memory validPpss,
+            uint256[] memory validPpsStdevs,
+            uint256[] memory validValidatorSets,
+            uint256[] memory validTotalValidators,
+            uint256[] memory validTimestamps
+        )
+    {
+        // Arrays to collect valid entries
+        validStrategies = new address[](strategiesLength);
+        validPpss = new uint256[](strategiesLength);
+        validPpsStdevs = new uint256[](strategiesLength);
+        validValidatorSets = new uint256[](strategiesLength);
+        validTotalValidators = new uint256[](strategiesLength);
+        validTimestamps = new uint256[](strategiesLength);
+        uint256 validCount;
+
+        // Process each strategy update
+        for (uint256 i; i < strategiesLength; i++) {
+            bool isValid = _processIndividualStrategy(args, i);
+            if (isValid) {
+                // Add to valid entries
+                validStrategies[validCount] = args.strategies[i];
+                validPpss[validCount] = args.ppss[i];
+                validPpsStdevs[validCount] = args.ppsStdevs[i];
+                validValidatorSets[validCount] = args.validatorSets[i];
+                validTotalValidators[validCount] = args.totalValidators[i];
+                validTimestamps[validCount] = args.timestamps[i];
+                validCount++;
+            }
+        }
+
+        // Resize arrays to actual valid count
+        assembly {
+            mstore(validStrategies, validCount)
+            mstore(validPpss, validCount)
+            mstore(validPpsStdevs, validCount)
+            mstore(validValidatorSets, validCount)
+            mstore(validTotalValidators, validCount)
+            mstore(validTimestamps, validCount)
+        }
+    }
+
+    /// @notice Processes an individual strategy in the batch
+    /// @param args Batch update arguments
+    /// @param index Index of the strategy to process
+    /// @return isValid True if the strategy was processed successfully
+    function _processIndividualStrategy(
+        BatchUpdatePPSArgs calldata args,
+        uint256 index
+    ) internal returns (bool isValid) {
+        address _strategy = args.strategies[index];
+        if (noncePerStrategy[_strategy] > 0) {
+            emit NonceAlreadyUsed(_strategy, noncePerStrategy[_strategy]);
+            return false;
+        } 
+        
+        _validateProofs(
+            IECDSAPPSOracle.ValidationParams({
+                strategy: _strategy,
+                proofs: args.proofsArray[index],
+                pps: args.ppss[index],
+                ppsStdev: args.ppsStdevs[index],
+                validatorSet: args.validatorSets[index],
+                totalValidators: args.totalValidators[index],
+                timestamp: args.timestamps[index]
+            })
+        );
+        
+        emit PPSValidated(
+            _strategy,
+            args.ppss[index],
+            args.ppsStdevs[index],
+            args.validatorSets[index],
+            args.totalValidators[index],
+            args.timestamps[index],
+            msg.sender
+        );
+        
+        noncePerStrategy[_strategy]++;
+        return true;
+    }
+
+    /// @notice Forwards valid entries to SuperVaultAggregator
+    /// @param validStrategies Array of valid strategy addresses
+    /// @param validPpss Array of valid PPS values
+    /// @param validPpsStdevs Array of valid PPS standard deviations
+    /// @param validValidatorSets Array of valid validator sets
+    /// @param validTotalValidators Array of valid total validators
+    /// @param validTimestamps Array of valid timestamps
+    function _forwardValidEntries(
+        address[] memory validStrategies,
+        uint256[] memory validPpss,
+        uint256[] memory validPpsStdevs,
+        uint256[] memory validValidatorSets,
+        uint256[] memory validTotalValidators,
+        uint256[] memory validTimestamps
+    ) internal {
+        // Only forward if there are valid entries
+        if (validStrategies.length > 0) {
+            ISuperVaultAggregator(SUPER_GOVERNOR.getAddress(SUPER_VAULT_AGGREGATOR)).batchForwardPPS(
+                ISuperVaultAggregator.BatchForwardPPSArgs({
+                    strategies: validStrategies,
+                    ppss: validPpss,
+                    ppsStdevs: validPpsStdevs,
+                    validatorSets: validValidatorSets,
+                    totalValidators: validTotalValidators,
+                    timestamps: validTimestamps
+                })
+            );
+        }
+    }
+
+
+    /// @notice Validates an array of proofs for a strategy's PPS update
+    /// @param params Validation parameters
+    /// @dev Reverts immediately if duplicate signers are found or quorum is not met
+    function _validateProofs(IECDSAPPSOracle.ValidationParams memory params)
         internal
         view
     {
@@ -162,26 +271,24 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
         bytes32 structHash = keccak256(
             abi.encodePacked(
                 UPDATE_PPS_TYPEHASH,
-                strategy,
-                pps,
-                ppsStdev,
-                validatorSet,
-                totalValidators,
-                timestamp,
-                nonce
+                params.strategy,
+                params.pps,
+                params.ppsStdev,
+                params.validatorSet,
+                params.totalValidators,
+                params.timestamp,
+                noncePerStrategy[params.strategy]
             )
         );
-        bytes32 digest = _hashTypedDataV4(structHash);
 
-        uint256 proofsLength = proofs.length;
-        address lastSigner;
-
+        uint256 proofsLength = params.proofs.length;
         if (proofsLength == 0) revert ZERO_LENGTH_ARRAY();
 
+        address lastSigner;
         // Process each proof
         for (uint256 i; i < proofsLength; i++) {
             // Recover the signer from the proof
-            address signer = ECDSA.recover(digest, proofs[i]);
+            address signer = ECDSA.recover(_hashTypedDataV4(structHash), params.proofs[i]);
 
             // Verify the signer is a registered validator
             if (!SUPER_GOVERNOR.isValidator(signer)) revert INVALID_VALIDATOR();
@@ -192,14 +299,12 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
         }
 
         // Validate that validatorSet matches actual number of valid signatures
-        if (validatorSet != proofsLength) revert INVALID_VALIDATOR_SET();
+        if (params.validatorSet != proofsLength) revert INVALID_VALIDATOR_SET();
 
         // Validate that totalValidators matches actual total number of validators
-        uint256 actualTotalValidators = SUPER_GOVERNOR.getValidators().length;
-        if (totalValidators != actualTotalValidators) revert INVALID_TOTAL_VALIDATORS();
+        if (params.totalValidators != SUPER_GOVERNOR.getValidators().length) revert INVALID_TOTAL_VALIDATORS();
 
         // Ensure we have enough valid signatures to meet quorum
-        uint256 quorumRequirement = SUPER_GOVERNOR.getPPSOracleQuorum();
-        if (proofsLength < quorumRequirement) revert QUORUM_NOT_MET();
+        if (proofsLength < SUPER_GOVERNOR.getPPSOracleQuorum()) revert QUORUM_NOT_MET();
     }
 }
