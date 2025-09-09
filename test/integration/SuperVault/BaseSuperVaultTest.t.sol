@@ -2232,9 +2232,10 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         salts[0] = bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY));
 
         vm.prank(MANAGER);
-        configSuperLedger.setYieldSourceOracles(salts, configs);
-        // configSuperLedger.proposeYieldSourceOracleConfig(salts, configs);
+        configSuperLedger.setYieldSourceOracles(salts, configs); // Yields CONFIG_EXISTS() error
 
+        // The below yields CONFIG_NOT_FOUND() error:
+        // configSuperLedger.proposeYieldSourceOracleConfig(salts, configs);
         // vm.warp(block.timestamp + 2 weeks);
         // configSuperLedger.acceptYieldSourceOracleConfigProposal(salts);
     }
