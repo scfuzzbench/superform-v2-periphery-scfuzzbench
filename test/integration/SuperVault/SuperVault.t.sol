@@ -22,8 +22,6 @@ import { IECDSAPPSOracle } from "../../../src/interfaces/oracles/IECDSAPPSOracle
 import { ISuperVaultAggregator } from "../../../src/interfaces/SuperVault/ISuperVaultAggregator.sol";
 import { IERC7540Redeem, IERC7741 } from "../../../src/vendor/standards/ERC7540/IERC7540Vault.sol";
 import { ISuperVaultStrategy } from "../../../src/interfaces/SuperVault/ISuperVaultStrategy.sol";
-import { ERC7540YieldSourceOracle } from "@superform-v2-core/src/accounting/oracles/ERC7540YieldSourceOracle.sol";
-import { ISuperLedger } from "@superform-v2-core/src/interfaces/accounting/ISuperLedger.sol";
 import { ISuperHookInspector } from "@superform-v2-core/src/interfaces/ISuperHook.sol";
 import { IGearboxFarmingPool } from "../../../src/vendor/gearbox/IGearboxFarmingPool.sol";
 import { ISuperExecutor } from "@superform-v2-core/src/interfaces/ISuperExecutor.sol";
@@ -42,9 +40,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
     uint256 constant userPrivateKey = 0xA11CE; // Replace with a known good testing private key
     address userAddress; // Will be derived from private key
 
-    ERC7540YieldSourceOracle public oracle;
-    ISuperLedger public superLedgerETH;
-
     address gearToken;
     IERC4626 gearboxVault;
     IGearboxFarmingPool gearboxFarmingPool;
@@ -61,10 +56,6 @@ contract SuperVaultTest is BaseSuperVaultTest {
         updateTestVaultPredictions();
 
         vm.selectFork(FORKS[ETH]);
-
-        superLedgerETH = ISuperLedger(_getContract(ETH, SUPER_LEDGER_KEY));
-
-        oracle = ERC7540YieldSourceOracle(_getContract(ETH, ERC7540_YIELD_SOURCE_ORACLE_KEY));
 
         gearToken = existingUnderlyingTokens[ETH][GEAR_KEY];
         console2.log("gearToken: ", address(gearToken));
@@ -1929,6 +1920,81 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _claimWithdraw(claimableAssets);
 
         uint256 totalFeesTaken = superformFee + recipientFee + expectedLedgerFee;
+
+        // Final balance assertions
+        assertGt(asset.balanceOf(accountEth), preRedeemUserAssets, "User assets not increased after redeem");
+
+        // Verify fee was taken
+        _assertFeeDerivation(totalFeesTaken, feeBalanceBefore, asset.balanceOf(TREASURY));
+    }
+
+    function test_SuperVault_E2E_Flow_With_0_Ledger_Fees() public {
+        uint256 amount = 1000e6; // 1000 USDC
+
+        vm.selectFork(FORKS[ETH]);
+
+        _overrideSuperLedgerSetUp();
+
+        // Record initial balances
+        uint256 initialUserAssets = asset.balanceOf(accountEth);
+        uint256 initialVaultAssets = asset.balanceOf(address(vault));
+
+        // Step 1: Request Deposit
+        _deposit(amount);
+
+        // Verify assets transferred from user to vault
+        assertEq(
+            asset.balanceOf(accountEth), initialUserAssets - amount, "User assets not reduced after deposit request"
+        );
+        assertEq(
+            asset.balanceOf(address(strategy)),
+            initialVaultAssets + amount,
+            "Vault assets not increased after deposit request"
+        );
+
+        // Need to allocate to yield sources before requesting redemption
+        _depositFreeAssetsFromSingleAmount(amount, address(fluidVault), address(aaveVault));
+
+        // Verify shares minted to user
+        uint256 userShares = IERC20(vault.share()).balanceOf(accountEth);
+
+        // Record balances before redeem
+        uint256 preRedeemUserAssets = asset.balanceOf(accountEth);
+        uint256 feeBalanceBefore = asset.balanceOf(TREASURY);
+
+        // Fast forward time to simulate yield on underlying vaults
+        vm.warp(block.timestamp + 50 weeks);
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+        // Step 4: Request Redeem
+        _requestRedeem(userShares);
+
+        // Verify shares are escrowed
+        assertEq(IERC20(vault.share()).balanceOf(accountEth), 0, "User shares not transferred from account");
+        assertEq(IERC20(vault.share()).balanceOf(address(escrow)), userShares, "Shares not transferred to escrow");
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+        vm.warp(block.timestamp + 6);
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+
+        (, uint256 superformFee, uint256 recipientFee) = strategy.previewPerformanceFee(accountEth, userShares);
+
+        // Step 5: Fulfill Redeem
+        _fulfillRedeem(userShares, address(fluidVault), address(aaveVault));
+
+        // Calculate expected assets based on shares
+        uint256 claimableAssets = vault.maxWithdraw(accountEth);
+
+        // Step 6: Claim Withdraw
+        _claimWithdraw(claimableAssets);
+
+        uint256 totalFeesTaken = superformFee + recipientFee;
 
         // Final balance assertions
         assertGt(asset.balanceOf(accountEth), preRedeemUserAssets, "User assets not increased after redeem");
