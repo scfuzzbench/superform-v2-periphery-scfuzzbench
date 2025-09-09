@@ -2219,6 +2219,10 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         configSuperLedger = ISuperLedgerConfiguration(_getContract(ETH, SUPER_LEDGER_CONFIGURATION_KEY));
         superLedgerETH = ISuperLedger(_getContract(ETH, SUPER_LEDGER_KEY));
 
+        // Get the existing yield source oracle ID that was created with MANAGER address
+        bytes32 yieldSourceOracleId =
+            keccak256(abi.encodePacked(bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY)), MANAGER));
+
         ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[] memory configs =
             new ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[](1);
         configs[0] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
@@ -2228,16 +2232,19 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
             ledger: address(superLedgerETH)
         });
 
-        bytes32[] memory salts = new bytes32[](1);
-        salts[0] = bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY));
+        bytes32[] memory yieldSourceOracleIds = new bytes32[](1);
+        yieldSourceOracleIds[0] = yieldSourceOracleId;
 
+        // Propose the configuration change to set fee to 0
         vm.prank(MANAGER);
-        configSuperLedger.setYieldSourceOracles(salts, configs); // Yields CONFIG_EXISTS() error
+        configSuperLedger.proposeYieldSourceOracleConfig(yieldSourceOracleIds, configs);
 
-        // The below yields CONFIG_NOT_FOUND() error:
-        // configSuperLedger.proposeYieldSourceOracleConfig(salts, configs);
-        // vm.warp(block.timestamp + 2 weeks);
-        // configSuperLedger.acceptYieldSourceOracleConfigProposal(salts);
+        // Wait for the timelock period (1 week)
+        vm.warp(block.timestamp + 1 weeks);
+
+        // Accept the proposal
+        vm.prank(MANAGER);
+        configSuperLedger.acceptYieldSourceOracleConfigProposal(yieldSourceOracleIds);
     }
 
     /**
