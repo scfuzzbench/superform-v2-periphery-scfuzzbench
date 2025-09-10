@@ -1937,6 +1937,99 @@ contract SuperVaultTest is BaseSuperVaultTest {
         _assertFeeDerivation(totalFeesTaken, feeBalanceBefore, asset.balanceOf(TREASURY));
     }
 
+    function test_SuperVault_E2E_Flow_With_PPS_Slippage_Update() public {
+        uint256 amount = 1000e6; // 1000 USDC
+
+        vm.selectFork(FORKS[ETH]);
+
+        // Record initial balances
+        uint256 initialUserAssets = asset.balanceOf(accountEth);
+        uint256 initialVaultAssets = asset.balanceOf(address(vault));
+
+        // Step 1: Request Deposit
+        _deposit(amount);
+
+        // Verify assets transferred from user to vault
+        assertEq(
+            asset.balanceOf(accountEth), initialUserAssets - amount, "User assets not reduced after deposit request"
+        );
+        assertEq(
+            asset.balanceOf(address(strategy)),
+            initialVaultAssets + amount,
+            "Vault assets not increased after deposit request"
+        );
+
+        // Need to allocate to yield sources before requesting redemption
+        _depositFreeAssetsFromSingleAmount(amount, address(fluidVault), address(aaveVault));
+
+        // Verify shares minted to user
+        uint256 userShares = IERC20(vault.share()).balanceOf(accountEth);
+
+        // Record balances before redeem
+        uint256 preRedeemUserAssets = asset.balanceOf(accountEth);
+        uint256 feeBalanceBefore = asset.balanceOf(TREASURY);
+
+        // Fast forward time to simulate yield on underlying vaults
+        vm.warp(block.timestamp + 50 weeks);
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+
+        // MID-FLOW: Update max PPS slippage to BPS_PRECISION (100%)
+        _updateMaxPPSSlippageToMax();
+
+        uint256 BPS_PRECISION = 10_000;
+
+        // MID-FLOW: Update PPS to PPS before + BPS_PRECISION
+        uint256 ppsBefore = aggregator.getPPS(address(strategy));
+        uint256 targetPPS = ppsBefore + BPS_PRECISION;
+        _updatePPSToTarget(address(strategy), address(vault), targetPPS);
+
+        console2.log("--pps after slippage update---", aggregator.getPPS(address(strategy)));
+
+        // Step 4: Request Redeem
+        _requestRedeem(userShares);
+
+        // Verify shares are escrowed
+        assertEq(IERC20(vault.share()).balanceOf(accountEth), 0, "User shares not transferred from account");
+        assertEq(IERC20(vault.share()).balanceOf(address(escrow)), userShares, "Shares not transferred to escrow");
+
+        console2.log("--pps before---", aggregator.getPPS(address(strategy)));
+        vm.warp(block.timestamp + 6);
+        _updateSuperVaultPPS(address(strategy), address(vault));
+
+        console2.log("--pps after---", aggregator.getPPS(address(strategy)));
+
+        (, uint256 superformFee, uint256 recipientFee) = strategy.previewPerformanceFee(accountEth, userShares);
+
+        // Step 5: Fulfill Redeem
+        _fulfillRedeem(userShares, address(fluidVault), address(aaveVault));
+
+        // Calculate expected assets based on shares
+        uint256 claimableAssets = vault.maxWithdraw(accountEth);
+        uint256 claimableShares = vault.maxRedeem(accountEth);
+        console2.log("claimableShares", claimableShares);
+
+        uint256 pps = vault.totalSupply() > 0 ? vault.convertToAssets(1e18) : 1e18;
+        uint256 expectedLedgerFee = superLedgerETH.previewFees(
+            accountEth, address(vault), claimableAssets, claimableShares, 100, pps, vault.decimals()
+        );
+
+        // Step 6: Claim Withdraw
+        _claimWithdraw(claimableAssets);
+
+        uint256 totalFeesTaken = superformFee + recipientFee + expectedLedgerFee;
+
+        // Final balance assertions
+        assertGt(asset.balanceOf(accountEth), preRedeemUserAssets, "User assets not increased after redeem");
+
+        // Verify fee was taken
+        _assertFeeDerivation(totalFeesTaken, feeBalanceBefore, asset.balanceOf(TREASURY));
+    }
+
     function test_SuperVault_MultipleDeposits_PartialRedemptions() public {
         vm.selectFork(FORKS[ETH]);
 
