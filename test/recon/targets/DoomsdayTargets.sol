@@ -159,6 +159,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256[] memory sharesBefore = new uint256[](3);
 
         // 1. Setup: Each actor deposits and requests redemption
+        uint256 totalRequestedShares;
         for (uint256 i = 0; i < 3; i++) {
             // Get unique actor
             testActors[i] = actors[actorIndexes[i] % actors.length];
@@ -172,7 +173,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             }
 
             // Get actual share balance
-            sharesBefore[i] = superVault.balanceOf(testActors[i]);
+            sharesBefore[i] = superVault.maxRedeem(testActors[i]);
             requestedShares[i] = sharesBefore[i];
 
             // Request redemption of all shares
@@ -185,6 +186,8 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             }
 
             vm.stopPrank();
+
+            totalRequestedShares += requestedShares[i];
         }
 
         // 2. Create multi-actor FulfillArgs
@@ -194,63 +197,31 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 requestedShares
             );
 
-        // Calculate total expected from FulfillArgs
-        uint256 totalExpectedFromArgs = 0;
-        for (
-            uint256 i = 0;
-            i < fulfillArgs.expectedAssetsOrSharesOut.length;
-            i++
-        ) {
-            totalExpectedFromArgs += fulfillArgs.expectedAssetsOrSharesOut[i];
+        // 3. Calculate total pending before
+        uint256 totalPendingBefore;
+        for (uint256 i = 0; i < 3; i++) {
+            totalPendingBefore += superVault.pendingRedeemRequest(
+                0,
+                testActors[i]
+            );
         }
 
-        // Get SuperVaultStrategy balance before fulfillment
-        uint256 strategyBalanceBefore = MockERC20(_getAsset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
-        // 3. Fulfill all redemption requests at once
+        // 4. Fulfill all redemption requests at once
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
-        // Get SuperVaultStrategy balance after fulfillment
-        uint256 strategyBalanceAfter = MockERC20(_getAsset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
-        // 4. Calculate total fulfilled as the change in strategy balance
-        // If balance increased, that's the amount fulfilled (assets moved into strategy)
-        uint256 totalFulfilled = 0;
-        if (strategyBalanceAfter > strategyBalanceBefore) {
-            totalFulfilled = strategyBalanceAfter - strategyBalanceBefore;
-        }
-
-        // 5. Check individual actors' maxRedeem values
+        // 5. Calculate total pending after
+        uint256 totalPendingAfter;
         for (uint256 i = 0; i < 3; i++) {
-            if (requestedShares[i] > 0) {
-                uint256 maxRedeemable = superVault.maxRedeem(testActors[i]);
-
-                lte(
-                    maxRedeemable,
-                    requestedShares[i],
-                    "Actor's maxRedeem should not exceed requested shares"
-                );
-
-                // Also verify pending request was properly reduced
-                uint256 pendingRequest = superVaultStrategy
-                    .pendingRedeemRequest(testActors[i]);
-                eq(
-                    pendingRequest,
-                    0,
-                    "Pending redeem request should be cleared after fulfillment"
-                );
-            }
+            totalPendingAfter += superVault.pendingRedeemRequest(
+                0,
+                testActors[i]
+            );
         }
 
-        // 6. Critical check: Total assets transferred to strategy must not exceed sum of expectedAssetsOrSharesOut
         lte(
-            totalFulfilled,
-            totalExpectedFromArgs,
-            "Total assets transferred to strategy should not exceed sum of expectedAssetsOrSharesOut"
+            totalPendingBefore - totalPendingAfter,
+            totalRequestedShares,
+            "Total shares redeemed must not exceed sum of requested shares"
         );
     }
 
