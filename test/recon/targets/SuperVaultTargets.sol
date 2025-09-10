@@ -37,7 +37,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
 
     function superVault_deposit(
         uint256 assets
-    ) public asActor updateGhostsWithOpType(OpType.ADD) {
+    ) public updateGhostsWithOpType(OpType.ADD) asActor {
         superVault.deposit(assets, _getActor());
     }
 
@@ -47,19 +47,19 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
 
     function superVault_mint(
         uint256 shares
-    ) public asActor updateGhostsWithOpType(OpType.ADD) {
+    ) public updateGhostsWithOpType(OpType.ADD) asActor {
         superVault.mint(shares, _getActor());
     }
 
     function superVault_redeem(
         uint256 shares
-    ) public asActor updateGhostsWithOpType(OpType.REMOVE) {
+    ) public updateGhostsWithOpType(OpType.REMOVE) asActor {
         superVault.redeem(shares, _getActor(), _getActor());
     }
 
     function superVault_withdraw(
         uint256 assets
-    ) public asActor updateGhostsWithOpType(OpType.REMOVE) {
+    ) public updateGhostsWithOpType(OpType.REMOVE) asActor {
         superVault.withdraw(assets, _getActor(), _getActor());
     }
 

@@ -2,16 +2,15 @@
 pragma solidity ^0.8.0;
 
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
-import {BeforeAfter} from "../BeforeAfter.sol";
-import {Properties} from "../Properties.sol";
-// Chimera deps
-import {vm} from "@chimera/Hevm.sol";
 
-// Helpers
+import {vm} from "@chimera/Hevm.sol";
 import {Panic} from "@recon/Panic.sol";
 
-import {YieldSourceType} from "test/recon/managers/YieldManager.sol";
 import "src/SuperVault/SuperVaultStrategy.sol";
+
+import {YieldSourceType} from "test/recon/managers/YieldManager.sol";
+import {BeforeAfter, OpType} from "../BeforeAfter.sol";
+import {Properties} from "../Properties.sol";
 
 abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
@@ -198,7 +197,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
 
     function superVaultStrategy_fulfillRedeemRequests(
         ISuperVaultStrategy.FulfillArgs memory args
-    ) public asActor {
+    ) public updateGhostsWithOpType(OpType.FULFILL) asActor {
         superVaultStrategy.fulfillRedeemRequests(args);
     }
 

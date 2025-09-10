@@ -8,7 +8,8 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 enum OpType {
     DEFAULT,
     ADD,
-    REMOVE
+    REMOVE,
+    FULFILL
 }
 
 // ghost variables for tracking state variable values before and after function calls

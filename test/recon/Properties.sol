@@ -28,4 +28,15 @@ abstract contract Properties is BeforeAfter, Asserts {
             );
         }
     }
+
+    /// @dev Property: fulfillRedeemRequest doesn't change naive PPS
+    function property_naivePPSDoesntChangeOnRedeem() public {
+        if (_currentOp == OpType.FULFILL) {
+            eq(
+                _before.naivePPS,
+                _after.naivePPS,
+                "fulfilling redemption changes naive PPS"
+            );
+        }
+    }
 }
