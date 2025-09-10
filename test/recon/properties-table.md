@@ -19,7 +19,7 @@
 ## SuperVaultAggregator 
 | Property | Description | Implemented | Tested |
 | --- | --- | --- | --- |
-| `property_x` | primary manager can always be replaced by governance via `changePrimaryManager` | | |
+| `doomsday_primaryManagerAlwaysChangeable` | primary manager can always be replaced by governance via `changePrimaryManager` | ✅ | |
 
 ## SuperVaultEscrow 
 | Property | Description | Implemented | Tested |

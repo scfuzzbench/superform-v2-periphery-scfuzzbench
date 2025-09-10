@@ -225,6 +225,24 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         );
     }
 
+    /// @dev Property: primary manager can always be replaced by governance via `changePrimaryManager`
+    function doomsday_primaryManagerAlwaysChangeable() public stateless {
+        address strategy = address(superVaultStrategy);
+        address newManager = _getActor();
+
+        // Since address(this) has SUPER_GOVERNOR_ROLE, this should always succeed
+        try superGovernor.changePrimaryManager(strategy, newManager) {
+            // Call succeeded - this is expected behavior
+        } catch (bytes memory err) {
+            bool expectedError;
+            expectedError = checkError(err, "MANAGER_TAKEOVERS_FROZEN()"); // custom error
+            t(
+                !expectedError,
+                "Primary manager should always be changeable if not paused"
+            );
+        }
+    }
+
     // Helpers
 
     /// @dev Helper function to create FulfillArgs for multiple actors
