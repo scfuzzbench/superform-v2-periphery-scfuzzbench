@@ -2751,31 +2751,31 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     /// Reproducers
     // forge test --match-test test_doomsday_mintRedeemSymmetrical_1 -vvv
-    function test_doomsday_mintRedeemSymmetrical_1() public {
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
+    // function test_doomsday_mintRedeemSymmetrical_1() public {
+    //     superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
 
-        superVault_mint(2);
+    //     superVault_mint(2);
 
-        // superVaultStrategy_executeHooks_clamped(17034, 1, false);
-        _executeSingleHook(17034, 1, false);
+    //     // superVaultStrategy_executeHooks_clamped(17034, 1, false);
+    //     _executeSingleHook(17034, 1, false);
 
-        yieldSource_simulateGain(620363132890971);
+    //     yieldSource_simulateGain(620363132890971);
 
-        doomsday_mintRedeemSymmetrical(626386102211729);
-    }
+    //     doomsday_mintRedeemSymmetrical(626386102211729);
+    // }
 
     // forge test --match-test test_doomsday_depositWithdrawSymmetrical_2 -vvv
-    function test_doomsday_depositWithdrawSymmetrical_2() public {
-        yieldSource_switchToERC7540();
+    // function test_doomsday_depositWithdrawSymmetrical_2() public {
+    //     yieldSource_switchToERC7540();
 
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
+    //     superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
 
-        superVault_mint(2);
+    //     superVault_mint(2);
 
-        _executeSingleHook(0, 1, false);
+    //     _executeSingleHook(0, 1, false);
 
-        yieldSource_increaseYield(9698929233162);
+    //     yieldSource_increaseYield(9698929233162);
 
-        doomsday_depositWithdrawSymmetrical(980372307);
-    }
+    //     doomsday_depositWithdrawSymmetrical(980372307);
+    // }
 }

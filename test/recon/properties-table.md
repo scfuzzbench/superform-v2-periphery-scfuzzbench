@@ -13,6 +13,17 @@
 | `property_oraclePPSDoesntChangeOnAddOrRemove` | oracle PPS doesn't change on deposit/mint/redeem/withdraw | ✅ |  |
 | `property_naivePPSDoesntChangeOnAddOrRemove` | naive PPS (assets/shares in system) never changes on deposit/mint/redeem/withdraw  | ✅ |  |
 | `property_maxRedeemMaxWithdrawSymmetry` | `maxRedeem` and `maxWithdraw` should always be equivalent  | ✅ |  |
+| `property_x` | PPS always > 0  |  |  |
+| `property_x` | `requestRedeem` should never reduce `totalSupply` of `SuperVault` shares  |  |  |
+| `property_x` | `pendingRedeemRequest` should be 0 after a user calls `cancelRedeem`  |  |  |
+| `property_x` | `averageRequestPPS` should be 0 after a user calls `cancelRedeem`  |  |  |
+| `property_x` | user shouldn't receive more than `pendingRedeemRequest` after `cancelRedeem`  |  |  |
+| `property_x` | `SuperVault::totalSupply` equals the sum of all user balances (solvency) |  |  |
+| `property_x` | PPS == PRECISION when totalSupply == 0 |  |  |
+| `property_x` | balanceOf(escrow) >= SUM(controllers.pendingRedeemRequest) |  |  |
+| `property_x` | redemptions only burn the requested amount of shares (exact check) |  |  |
+
+
 
 
 ## SuperVaultAggregator 
