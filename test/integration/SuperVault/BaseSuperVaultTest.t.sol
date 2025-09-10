@@ -2227,4 +2227,57 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         }
         return newArray;
     }
+
+    /**
+     * @notice Updates max PPS slippage to BPS_PRECISION (100%)
+     */
+    function _updateMaxPPSSlippageToMax() internal {
+        uint256 BPS_PRECISION = 10_000;
+        strategy.updateMaxPPSSlippage(BPS_PRECISION);
+    }
+
+    /**
+     * @notice Updates PPS to a specific value by manipulating the underlying vaults
+     * @param strategyAddr The strategy address
+     * @param vault_ The vault address
+     * @param targetPPS The target PPS value to achieve
+     * @dev This function simulates yield by dealing additional assets to the underlying vaults
+     */
+    function _updatePPSToTarget(address strategyAddr, address vault_, uint256 targetPPS) internal {
+        uint256 currentPPS = aggregator.getPPS(strategyAddr);
+        uint256 currentTotalSupply = SuperVault(vault_).totalSupply();
+
+        if (currentTotalSupply == 0) {
+            // No shares exist, can't update PPS
+            return;
+        }
+
+        // Calculate how much additional assets we need to reach target PPS
+        uint256 currentTotalAssets = currentPPS * currentTotalSupply / SuperVault(vault_).PRECISION();
+        uint256 targetTotalAssets = targetPPS * currentTotalSupply / SuperVault(vault_).PRECISION();
+
+        if (targetTotalAssets > currentTotalAssets) {
+            uint256 additionalAssets = targetTotalAssets - currentTotalAssets;
+
+            // Deal additional assets to the underlying vaults proportionally
+            uint256 fluidVaultAssets = asset.balanceOf(address(fluidVault));
+            uint256 aaveVaultAssets = asset.balanceOf(address(aaveVault));
+            uint256 totalUnderlyingAssets = fluidVaultAssets + aaveVaultAssets;
+
+            if (totalUnderlyingAssets > 0) {
+                uint256 fluidVaultAdditional = additionalAssets * fluidVaultAssets / totalUnderlyingAssets;
+                uint256 aaveVaultAdditional = additionalAssets - fluidVaultAdditional;
+
+                if (fluidVaultAdditional > 0) {
+                    deal(address(asset), address(fluidVault), fluidVaultAssets + fluidVaultAdditional);
+                }
+                if (aaveVaultAdditional > 0) {
+                    deal(address(asset), address(aaveVault), aaveVaultAssets + aaveVaultAdditional);
+                }
+            }
+        }
+
+        // Update PPS after asset manipulation
+        _updateSuperVaultPPS(strategyAddr, vault_);
+    }
 }
