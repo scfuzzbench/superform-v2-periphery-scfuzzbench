@@ -40,45 +40,67 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
 
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
     function superVaultStrategy_executeHooks_clamped(
-        uint256 hookTypeInt,
-        uint256 amountToInvest,
-        bool usePrevHookAmount
+        uint256[] memory hookTypeInts,
+        uint256[] memory amountsToInvest,
+        bool[] memory usePrevHookAmounts
     ) public payable {
-        // Convert integer to enum (will wrap around if > max enum value)
-        HookType hookType = HookType(hookTypeInt % 17); // 17 is the total number of hooks
+        // Limit the number of hooks to 17 maximum
+        uint256 numHooks = hookTypeInts.length;
+        if (numHooks > 17) {
+            numHooks = 17;
+        }
+        
+        // Ensure all arrays have the same length
+        if (amountsToInvest.length < numHooks) {
+            numHooks = amountsToInvest.length;
+        }
+        if (usePrevHookAmounts.length < numHooks) {
+            numHooks = usePrevHookAmounts.length;
+        }
+        
+        // Return early if no hooks to execute
+        if (numHooks == 0) {
+            return;
+        }
 
-        // Clamp to the strategy's asset balance (not SuperVault's balance)
-        amountToInvest %= MockERC20(_getAsset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
-        // Get the hook address and calldata
-        (
-            address hookAddress,
-            bytes memory hookCalldata
-        ) = _getHookAddressAndCalldata(
-                hookType,
-                amountToInvest,
-                usePrevHookAmount
-            );
-
-        // Create ExecuteArgs for the hook
+        // Create ExecuteArgs for the hooks
         ISuperVaultStrategy.ExecuteArgs memory executeArgs = ISuperVaultStrategy
             .ExecuteArgs({
-                hooks: new address[](1),
-                hookCalldata: new bytes[](1),
-                expectedAssetsOrSharesOut: new uint256[](1),
-                globalProofs: new bytes32[][](1),
-                strategyProofs: new bytes32[][](1)
+                hooks: new address[](numHooks),
+                hookCalldata: new bytes[](numHooks),
+                expectedAssetsOrSharesOut: new uint256[](numHooks),
+                globalProofs: new bytes32[][](numHooks),
+                strategyProofs: new bytes32[][](numHooks)
             });
 
-        executeArgs.hooks[0] = hookAddress;
-        executeArgs.hookCalldata[0] = hookCalldata;
-        executeArgs.expectedAssetsOrSharesOut[0] = amountToInvest;
-        executeArgs.globalProofs[0] = new bytes32[](1);
-        executeArgs.strategyProofs[0] = new bytes32[](1);
+        // Process each hook
+        for (uint256 i = 0; i < numHooks; i++) {
+            // Convert integer to enum (will wrap around if > max enum value)
+            HookType hookType = HookType(hookTypeInts[i] % 17); // 17 is the total number of hooks
+            
+            // Clamp to the strategy's asset balance (not SuperVault's balance)
+            uint256 clampedAmount = amountsToInvest[i] % MockERC20(_getAsset()).balanceOf(
+                address(superVaultStrategy)
+            );
+            
+            // Get the hook address and calldata
+            (
+                address hookAddress,
+                bytes memory hookCalldata
+            ) = _getHookAddressAndCalldata(
+                    hookType,
+                    clampedAmount,
+                    usePrevHookAmounts[i]
+                );
+            
+            executeArgs.hooks[i] = hookAddress;
+            executeArgs.hookCalldata[i] = hookCalldata;
+            executeArgs.expectedAssetsOrSharesOut[i] = clampedAmount;
+            executeArgs.globalProofs[i] = new bytes32[](1);
+            executeArgs.strategyProofs[i] = new bytes32[](1);
+        }
 
-        // Execute the hook
+        // Execute all hooks
         this.superVaultStrategy_executeHooks{value: msg.value}(executeArgs);
     }
 
