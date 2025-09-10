@@ -2233,6 +2233,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
      */
     function _updateMaxPPSSlippageToMax() internal {
         uint256 BPS_PRECISION = 10_000;
+        vm.prank(MANAGER);
         strategy.updateMaxPPSSlippage(BPS_PRECISION);
     }
 

@@ -1981,12 +1981,14 @@ contract SuperVaultTest is BaseSuperVaultTest {
 
         console2.log("--pps after---", aggregator.getPPS(address(strategy)));
 
-        // MID-FLOW: Update max PPS slippage to BPS_PRECISION (100%)
+        // Update max PPS slippage to BPS_PRECISION (100%)
         _updateMaxPPSSlippageToMax();
 
         uint256 BPS_PRECISION = 10_000;
 
-        // MID-FLOW: Update PPS to PPS before + BPS_PRECISION
+        vm.warp(block.timestamp + 2 weeks);
+
+        // Update PPS to PPS before + BPS_PRECISION
         uint256 ppsBefore = aggregator.getPPS(address(strategy));
         uint256 targetPPS = ppsBefore + BPS_PRECISION;
         _updatePPSToTarget(address(strategy), address(vault), targetPPS);
@@ -2022,7 +2024,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
 
         // Step 6: Claim Withdraw
-        _claimWithdraw(claimableAssets);
+        _claimWithdraw(claimableShares);
 
         uint256 totalFeesTaken = superformFee + recipientFee + expectedLedgerFee;
 
