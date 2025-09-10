@@ -113,9 +113,16 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         vm.warp(block.timestamp + 8 days);
         governor.executeUpkeepPaymentsChange();
 
+        governor.setAddress(governor.UP(), upToken);
+        governor.setAddress(governor.SUPER_ORACLE(), address(superOracle));
+        governor.setAddress(governor.GAS_ORACLE(), address(mockFeedWithRealDataGasToEth));
+        governor.setGasInfo(address(oracleECDSA), 30_000, 50_000, 10_000);
+
         vm.stopPrank();
 
         assertEq(governor.isActivePPSOracle(address(oracleECDSA)), true);
+
+       
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -542,6 +549,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         uint256[] totalValidatorsList;
         uint256[] timestamps;
         bytes[][] proofsArray;
+        address[] updateAuthorities;
     }
 
     function test_BatchUpdatePPS_Success() public {
@@ -597,6 +605,10 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
             data.strategy2, data.ppss[1], data.ppsStdevs[1], data.validatorSets[1], data.totalValidatorsList[1], data.timestamps[1], new uint256[](0)
         );
 
+        data.updateAuthorities = new address[](2);
+        data.updateAuthorities[0] = user;
+        data.updateAuthorities[1] = user;
+
         // Call batchUpdatePPS
         vm.prank(user);
         oracleECDSA.batchUpdatePPS(
@@ -607,7 +619,8 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: data.ppsStdevs,
                 validatorSets: data.validatorSets,
                 totalValidators: data.totalValidatorsList,
-                timestamps: data.timestamps
+                timestamps: data.timestamps,
+                updateAuthorities: data.updateAuthorities
             })
         );
 
@@ -623,6 +636,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         uint256[] memory validatorSets = new uint256[](0);
         uint256[] memory totalValidatorsList = new uint256[](0);
         uint256[] memory timestamps = new uint256[](0);
+        address[] memory updateAuthorities = new address[](0);
 
         // Call should revert because arrays are empty
         vm.prank(user);
@@ -635,7 +649,8 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: ppsStdevs,
                 validatorSets: validatorSets,
                 totalValidators: totalValidatorsList,
-                timestamps: timestamps
+                timestamps: timestamps,
+                updateAuthorities: updateAuthorities
             })
         );
     }
@@ -648,6 +663,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         uint256[] validatorSets;
         uint256[] totalValidatorsList;
         uint256[] timestamps;
+        address[] updateAuthorities;
     }
 
     function test_BatchUpdatePPS_ArrayLengthMismatchReverts() public {
@@ -681,6 +697,10 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         data.timestamps[0] = block.timestamp;
         data.timestamps[1] = block.timestamp;
 
+        data.updateAuthorities = new address[](2);
+        data.updateAuthorities[0] = user;
+        data.updateAuthorities[1] = user;
+
         // Call should revert because proofsArray length doesn't match strategies length
         vm.prank(user);
         vm.expectRevert(IECDSAPPSOracle.ARRAY_LENGTH_MISMATCH.selector);
@@ -692,7 +712,8 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: data.ppsStdevs,
                 validatorSets: data.validatorSets,
                 totalValidators: data.totalValidatorsList,
-                timestamps: data.timestamps
+                timestamps: data.timestamps,
+                updateAuthorities: data.updateAuthorities
             })
         );
     }
@@ -707,6 +728,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         uint256[] totalValidatorsList;
         uint256[] timestamps;
         bytes[][] proofsArray;
+        address[] updateAuthorities;
     }
 
     function test_BatchUpdatePPS_ValidationFailureReverts() public {
@@ -740,6 +762,10 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         data.timestamps[0] = block.timestamp;
         data.timestamps[1] = block.timestamp;
 
+        data.updateAuthorities = new address[](2);
+        data.updateAuthorities[0] = user;
+        data.updateAuthorities[1] = user;
+
         // First strategy has valid proofs
         data.proofsArray = new bytes[][](2);
         data.proofsArray[0] = _createValidProofs(
@@ -760,7 +786,8 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: data.ppsStdevs,
                 validatorSets: data.validatorSets,
                 totalValidators: data.totalValidatorsList,
-                timestamps: data.timestamps
+                timestamps: data.timestamps,
+                updateAuthorities: data.updateAuthorities
             })
         );
     }

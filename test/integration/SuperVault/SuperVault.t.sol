@@ -5792,7 +5792,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
-    function test_10_RuggableVault_Withdraw() public {
+    function test_10_RuggableVault_WithdrawX() public {
         RugTestVarsWithdraw memory vars;
         vars.depositAmount = 1000e6;
         vars.rugPercentage = 5000; // 50% rug

@@ -59,6 +59,11 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     // Constant for PPS decimals
     uint256 public constant PPS_DECIMALS = 18;
+    
+    // Maximum number of secondary managers per strategy to prevent governance DoS on manager replacement
+    uint256 public constant MAX_SECONDARY_MANAGERS = 5;
+
+    uint256 public constant MAX_STRATEGIES = 500;
 
     // Timelock for manager changes and Merkle root updates
     uint256 private constant _MANAGER_CHANGE_TIMELOCK = 7 days;
@@ -209,7 +214,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 validatorSet: args.validatorSet,
                 totalValidators: args.totalValidators,
                 timestamp: args.timestamp,
-                upkeepCost: SUPER_GOVERNOR.getUpkeepCostPerUpdate()
+                upkeepCost: SUPER_GOVERNOR.getUpkeepCostPerUpdate(msg.sender)
             })
         );
     }
@@ -217,31 +222,45 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @inheritdoc ISuperVaultAggregator
     function batchForwardPPS(BatchForwardPPSArgs calldata args) external onlyPPSOracle {
         uint256 strategiesLength = args.strategies.length;
+        if (strategiesLength > MAX_STRATEGIES) revert MAX_STRATEGIES_EXCEEDED();
+        
         // Check array lengths
         if (
             strategiesLength != args.ppss.length || strategiesLength != args.ppsStdevs.length
                 || strategiesLength != args.validatorSets.length || strategiesLength != args.timestamps.length
-                || strategiesLength != args.totalValidators.length
+                || strategiesLength != args.totalValidators.length || strategiesLength != args.updateAuthorities.length
         ) {
             revert ARRAY_LENGTH_MISMATCH();
         }
 
         if (strategiesLength == 0) revert ZERO_ARRAY_LENGTH();
 
-        // Determine payments status and compute per-batch cost split across chargeable entries only
         bool paymentsEnabled = SUPER_GOVERNOR.isUpkeepPaymentsEnabled();
-        bool upkeepExempt = !paymentsEnabled;
-        uint256 totalCost = paymentsEnabled
-            ? SUPER_GOVERNOR.getUpkeepCostPerUpdate()
-            : 0;
-
         uint256 chargeableCount;
         if (paymentsEnabled) {
             for (uint256 i; i < strategiesLength; ++i) {
+                // Revert first when invalid timestamp is provided
+                if (args.timestamps[i] > block.timestamp) {
+                    revert INVALID_TIMESTAMP(i);
+                }
+ 
                 // Skip invalid strategies without reverting
                 if (!_superVaultStrategies.contains(args.strategies[i]))
                     continue;
- 
+
+                // Skip Superform manager
+                address manager = _strategyData[args.strategies[i]].mainManager;
+                if (SUPER_GOVERNOR.isSuperformManager(manager)) {
+                    continue;
+                }
+
+                // Check if the updateAuthority is in the authorized callers list
+                // These are manager-designated keepers that should be exempt from fees
+                // NOTE: Protected keepers cannot be added to this list (blocked in addAuthorizedCaller)
+                if (_strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthorities[i])) {
+                    continue;
+                }
+
                 // Count only non-stale entries as chargeable
                 if (
                     block.timestamp - args.timestamps[i] <= _strategyData[args.strategies[i]].maxStaleness
@@ -251,12 +270,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             }
         }
 
-        // Compute per-entry charge and remainder to ensure total charged equals totalCost
+        ///@dev Total upkeep cost is determined by the oracle based on the number of chargeable entries
+        uint256 totalCost = paymentsEnabled
+            ? SUPER_GOVERNOR.getUpkeepCostPerBatchUpdate(msg.sender, chargeableCount)
+            : 0;
+
+        // Compute per-entry charge
         uint256 perEntry = 0;
-        uint256 remainder = 0;
         if (paymentsEnabled && chargeableCount > 0) {
             perEntry = totalCost / chargeableCount;
-            remainder = totalCost % chargeableCount;
         }
 
         // Process all valid strategies
@@ -264,7 +286,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             // Skip invalid strategies without reverting
             if (!_superVaultStrategies.contains(args.strategies[i])) continue;
 
-            uint256 upkeepCost = 0;
+            uint256 upkeepCost;
             if (paymentsEnabled) {
                 // check exemption due to staleness of a given strategy
                 if (block.timestamp - args.timestamps[i] > _strategyData[args.strategies[i]].maxStaleness) {
@@ -273,14 +295,6 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 } else {
                     // Split the total batch cost fairly across chargeable entries
                     upkeepCost = perEntry;
-
-                    if (remainder > 0) {
-                        // Allocate the remainder deterministically to first 'remainder' entries
-                        unchecked {
-                            ++upkeepCost;
-                            --remainder;
-                        }
-                    }
                 }
             }
 
@@ -288,7 +302,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             _forwardPPS(
                 ForwardPPSArgs({
                     strategy: args.strategies[i],
-                    isExempt: upkeepExempt,
+                    isExempt: !paymentsEnabled,
                     pps: args.ppss[i],
                     ppsStdev: args.ppsStdevs[i],
                     validatorSet: args.validatorSets[i],
@@ -485,6 +499,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
         // Check if manager is already the primary manager
         if (_strategyData[strategy].mainManager == manager) revert MANAGER_ALREADY_EXISTS();
+
+        // Enforce a cap on secondary managers to prevent governance DoS on changePrimaryManager
+        if (
+            _strategyData[strategy].secondaryManagers.length() >
+            MAX_SECONDARY_MANAGERS
+        ) {
+            revert TOO_MANY_SECONDARY_MANAGERS();
+        }
 
         // Add as secondary manager using EnumerableSet
         if (!_strategyData[strategy].secondaryManagers.add(manager)) revert MANAGER_ALREADY_EXISTS();
@@ -1032,12 +1054,14 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         uint256 minInterval = _strategyData[args.strategy].minUpdateInterval;
         uint256 lastUpdate = _strategyData[args.strategy].lastUpdateTimestamp;
         if (block.timestamp - lastUpdate < minInterval) {
-            revert UPDATE_TOO_FREQUENT();
+            emit UpdateTooFrequent();
+            return;
         }
-
+        
         // Ensure timestamp is monotonically increasing to prevent out-of-order updates
         if (args.timestamp <= lastUpdate) {
-            revert TIMESTAMP_NOT_MONOTONIC();
+            emit TimestampNotMonotonic();
+            return;
         }
 
         // Get the strategy's manager to deduct upkeep cost from
@@ -1093,7 +1117,12 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
         if (!args.isExempt) {
             // Check if manager has sufficient upkeep balance
             if (_managerUpkeepBalance[manager] < args.upkeepCost) {
-                revert INSUFFICIENT_UPKEEP();
+                emit InsufficientUpkeep(args.strategy, manager, _managerUpkeepBalance[manager], args.upkeepCost);
+
+                // update state timestamp to current block timestamp
+                _strategyData[args.strategy].lastUpdateTimestamp = block.timestamp;
+
+                return;
             }
 
             // Deduct the upkeep cost and emit event

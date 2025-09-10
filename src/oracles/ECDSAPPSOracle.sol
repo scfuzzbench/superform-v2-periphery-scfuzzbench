@@ -93,6 +93,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
             strategiesLength != args.proofsArray.length || strategiesLength != args.ppss.length
                 || strategiesLength != args.ppsStdevs.length || strategiesLength != args.validatorSets.length
                 || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
+                || strategiesLength != args.updateAuthorities.length
         ) revert ARRAY_LENGTH_MISMATCH();
 
         // Process each strategy update
@@ -125,7 +126,8 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                 ppsStdevs: args.ppsStdevs,
                 validatorSets: args.validatorSets,
                 totalValidators: args.totalValidators,
-                timestamps: args.timestamps
+                timestamps: args.timestamps,
+                updateAuthorities: args.updateAuthorities
             })
         );
     }

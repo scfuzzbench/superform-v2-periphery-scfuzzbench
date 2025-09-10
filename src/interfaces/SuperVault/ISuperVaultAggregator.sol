@@ -335,6 +335,15 @@ interface ISuperVaultAggregator {
     /// @param amount Amount of upkeep claimed
     event UpkeepClaimed(address indexed superBank, uint256 amount);
 
+    /// @notice Emitted when PPS update is too frequent (before minUpdateInterval)
+    event UpdateTooFrequent();
+
+    /// @notice Emitted when PPS update timestamp is not monotonically increasing
+    event TimestampNotMonotonic();
+
+    /// @notice Emitted when a manager does not have enough upkeep balance
+    event InsufficientUpkeep(address indexed strategy, address indexed manager, uint256 balance, uint256 cost);
+
     /*///////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -352,8 +361,6 @@ interface ISuperVaultAggregator {
     error VAULT_PAUSED();
     /// @notice Thrown when caller is not an approved PPS oracle
     error UNAUTHORIZED_PPS_ORACLE();
-    /// @notice Thrown when PPS update is too frequent (before minUpdateInterval)
-    error UPDATE_TOO_FREQUENT();
     /// @notice Thrown when PPS update is too stale (after maxStaleness)
     error UPDATE_TOO_STALE();
     /// @notice Thrown when caller is not authorized for update
@@ -398,12 +405,16 @@ interface ISuperVaultAggregator {
     error INVALID_ARRAY_LENGTH();
     /// @notice Thrown when trying to add a protected keeper as an authorized caller
     error CANNOT_ADD_PROTECTED_KEEPER();
-    /// @notice Thrown when update timestamp is not monotonically increasing
-    error TIMESTAMP_NOT_MONOTONIC();
     /// @notice Thrown when the provided maxStaleness is less than the minimum required staleness
     error MAX_STALENESS_TOO_LOW();
     /// @notice Thrown when arrays have mismatched lengths
     error MISMATCHED_ARRAY_LENGTHS();
+    /// @notice Thrown when timestamp is invalid
+    error INVALID_TIMESTAMP(uint256 index);
+    /// @notice Thrown when too many secondary managers are added
+    error TOO_MANY_SECONDARY_MANAGERS();
+    /// @notice Thrown when too many strategies are added
+    error MAX_STRATEGIES_EXCEEDED();
 
     /*//////////////////////////////////////////////////////////////
                             VAULT CREATION
@@ -427,6 +438,7 @@ interface ISuperVaultAggregator {
 
     /// @notice Arguments for batch forwarding PPS updates
     /// @param strategies Array of strategy addresses
+    /// @param updateAuthorities Array of update authorities
     /// @param ppss Array of price-per-share values
     /// @param ppsStdevs Array of standard deviations of price-per-share values
     /// @param validatorSets Array of numbers of validators who calculated each PPS
@@ -434,6 +446,7 @@ interface ISuperVaultAggregator {
     /// @param timestamps Array of timestamps when values were generated
     struct BatchForwardPPSArgs {
         address[] strategies;
+        address[] updateAuthorities;
         uint256[] ppss;
         uint256[] ppsStdevs;
         uint256[] validatorSets;
