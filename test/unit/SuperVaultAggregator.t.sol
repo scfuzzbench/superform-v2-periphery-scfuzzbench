@@ -2405,49 +2405,6 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         assertEq(superVaultAggregator.getLastUpdateTimestamp(vars.strategy3), vars.timestamps[2]);
         assertEq(superVaultAggregator.getLastUpdateTimestamp(vars.strategy4), vars.timestamps[3]);
     }
-
-    /// @notice Tests that batch PPS updates revert when exceeding MAX_STRATEGIES limit
-    function test_BatchForwardPPS_Revert_MaxStrategiesExceeded() public {
-        // Set up as PPS Oracle to be able to call batchForwardPPS
-        vm.prank(sGovernor);
-        superGovernor.setActivePPSOracle(address(this));
-
-        // Create arrays with MAX_STRATEGIES + 1 entries (501 strategies)
-        uint256 strategiesCount = 501; // MAX_STRATEGIES is 500
-        
-        address[] memory strategies = new address[](strategiesCount);
-        uint256[] memory ppss = new uint256[](strategiesCount);
-        uint256[] memory ppsStdevs = new uint256[](strategiesCount);
-        uint256[] memory validatorSets = new uint256[](strategiesCount);
-        uint256[] memory totalValidators = new uint256[](strategiesCount);
-        uint256[] memory timestamps = new uint256[](strategiesCount);
-        address[] memory updateAuthorities = new address[](strategiesCount);
-
-        // Fill arrays with dummy data (we don't need valid strategies since it should revert before validation)
-        for (uint256 i = 0; i < strategiesCount; i++) {
-            strategies[i] = address(uint160(i + 1)); // Dummy addresses
-            ppss[i] = 1e18;
-            ppsStdevs[i] = 0;
-            validatorSets[i] = 1;
-            totalValidators[i] = 1;
-            timestamps[i] = block.timestamp;
-            updateAuthorities[i] = user;
-        }
-
-        // Batch update should revert with MAX_STRATEGIES_EXCEEDED
-        vm.expectRevert(ISuperVaultAggregator.MAX_STRATEGIES_EXCEEDED.selector);
-        superVaultAggregator.batchForwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
-                strategies: strategies,
-                ppss: ppss,
-                ppsStdevs: ppsStdevs,
-                validatorSets: validatorSets,
-                totalValidators: totalValidators,
-                timestamps: timestamps,
-                updateAuthorities: updateAuthorities
-            })
-        );
-    }
 }
 
 struct BatchForwardPPSTestVars {

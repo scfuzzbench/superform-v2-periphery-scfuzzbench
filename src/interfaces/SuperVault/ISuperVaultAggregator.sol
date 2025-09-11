@@ -416,8 +416,6 @@ interface ISuperVaultAggregator {
     error INVALID_TIMESTAMP(uint256 index);
     /// @notice Thrown when too many secondary managers are added
     error TOO_MANY_SECONDARY_MANAGERS();
-    /// @notice Thrown when too many strategies are added
-    error MAX_STRATEGIES_EXCEEDED();
 
     /*//////////////////////////////////////////////////////////////
                             VAULT CREATION

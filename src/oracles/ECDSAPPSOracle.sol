@@ -32,6 +32,8 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
 
     bytes32 private constant SUPER_VAULT_AGGREGATOR = keccak256("SUPER_VAULT_AGGREGATOR");
 
+    uint256 public constant MAX_STRATEGIES = 300;
+
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -97,6 +99,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     /// @inheritdoc IECDSAPPSOracle
     function batchUpdatePPS(BatchUpdatePPSArgs calldata args) external {
         uint256 strategiesLength = args.strategies.length;
+        if (strategiesLength > MAX_STRATEGIES) revert MAX_STRATEGIES_EXCEEDED();
 
         if (strategiesLength == 0) revert ZERO_LENGTH_ARRAY();
         // Validate input array lengths
