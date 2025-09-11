@@ -16,7 +16,7 @@
 | `property_ppsNeverZero` | PPS for a strategy should always be > 0  | ✅ |  |
 | `property_totalSharesDontDecreaseOnRedemptionRequest` | `requestRedeem` should never reduce `SuperVault` shares  | ✅ |  |
 | `superVault_cancelRedeem` | `pendingRedeemRequest` should be 0 after a user calls `cancelRedeem`  | ✅ |  |
-| `property_x` | `averageRequestPPS` should be 0 after a user calls `cancelRedeem`  |  |  |
+| `superVault_cancelRedeem` | `averageRequestPPS` should be 0 after a user calls `cancelRedeem`  | ✅ |  |
 | `property_x` | user shouldn't receive more than `pendingRedeemRequest` after `cancelRedeem`  |  |  |
 | `property_x` | `SuperVault::totalSupply` equals the sum of all user balances (solvency) |  |  |
 | `property_x` | PPS == PRECISION when totalSupply == 0 |  |  |

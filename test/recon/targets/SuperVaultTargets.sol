@@ -31,6 +31,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
+    /// @dev Property: averageRequestPPS should be 0 after a user calls cancelRedeem
     function superVault_cancelRedeem() public asActor {
         superVault.cancelRedeem(_getActor());
 
@@ -38,10 +39,20 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
             0,
             _getActor()
         );
+        uint256 averageRequestPPS = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .averageRequestPPS;
+
+        // Checks
         eq(
             pendingRedeemRequests,
             0,
             "pendingRedeemRequests should be 0 after cancelling a redemption"
+        );
+        eq(
+            averageRequestPPS,
+            0,
+            "averageRequestPPS should be 0 after cancelling a redemption"
         );
     }
 
