@@ -12,8 +12,6 @@ import { ISuperVaultAggregator } from "./interfaces/SuperVault/ISuperVaultAggreg
 import { ISuperAssetFactory } from "./interfaces/SuperAsset/ISuperAssetFactory.sol";
 import { ISuperOracle } from "./interfaces/oracles/ISuperOracle.sol";
 import { ISuperOracleL2 } from "./interfaces/oracles/ISuperOracleL2.sol";
-import { AggregatorV3Interface } from "./vendor/chainlink/AggregatorV3Interface.sol";
-
 
 /// @title SuperGovernor
 /// @author Superform Labs
@@ -102,6 +100,10 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     // Oracle constants
     address private constant NATIVE_TOKEN = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
     address private constant USD_TOKEN = address(840);
+    address private constant GAS_QUOTE =
+        address(uint160(uint256(keccak256("GAS_QUOTE"))));
+    address private constant GWEI_QUOTE =
+        address(uint160(uint256(keccak256("GWEI_QUOTE"))));
 
     // Timelock configuration
     uint256 private constant TIMELOCK = 7 days;
@@ -125,7 +127,6 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     bytes32 public constant BANK_MANAGER = keccak256("BANK_MANAGER");
     bytes32 public constant ECDSAPPSORACLE = keccak256("ECDSAPPSORACLE");
     bytes32 public constant SUPER_VAULT_AGGREGATOR = keccak256("SUPER_VAULT_AGGREGATOR");
-    bytes32 public constant GAS_ORACLE = keccak256("GAS_ORACLE");
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -563,12 +564,12 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                         UPKEEP COST MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function setGasInfo(address oracle, uint256 baseGasSingle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch) external onlyRole(_GAS_MANAGER_ROLE) {
+    function setGasInfo(address oracle, uint256 gasSingle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch) external onlyRole(_GAS_MANAGER_ROLE) {
         if (oracle == address(0)) revert INVALID_ADDRESS();
-        if (baseGasSingle == 0 || baseGasBatch == 0 || gasIncreasePerEntryBatch == 0) revert INVALID_GAS_INFO();
+        if (gasSingle == 0 || baseGasBatch == 0 || gasIncreasePerEntryBatch == 0) revert INVALID_GAS_INFO();
 
-        _oracleGasInfo[oracle] = GasInfo({baseGasSingle: baseGasSingle, baseGasBatch: baseGasBatch, gasIncreasePerEntryBatch: gasIncreasePerEntryBatch});
-        emit GasInfoSet(oracle, baseGasSingle, baseGasBatch, gasIncreasePerEntryBatch);
+        _oracleGasInfo[oracle] = GasInfo({gasSingle: gasSingle, baseGasBatch: baseGasBatch, gasIncreasePerEntryBatch: gasIncreasePerEntryBatch});
+        emit GasInfoSet(oracle, gasSingle, baseGasBatch, gasIncreasePerEntryBatch);
     }
 
     /// @notice Proposes a change to the upkeep payments enabled status
@@ -951,7 +952,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
     /// @inheritdoc ISuperGovernor
     function getUpkeepCostPerUpdate(address oracle_) external view returns (uint256) {
-        return _convertGasToUp(_oracleGasInfo[oracle_].baseGasSingle);
+        return _convertGasToUp(_oracleGasInfo[oracle_].gasSingle);
     }
 
     /// @inheritdoc ISuperGovernor
@@ -961,16 +962,6 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
 
      /// @inheritdoc ISuperGovernor
     function getUpkeepCostPerBatchUpdate(address oracle_, uint256 chargeableEntries_) external view returns (uint256) {
-        // @dev Analysis of gas usage for `SuperVaultAggregator.batchForwardPPS`
-        /**
-          === Gas Scaling Analysis ===
-            Array Size | Gas Used 
-            4 | ~47206 | ~11801 
-            6 | ~63981 | ~10663 
-            8 | ~80771 | ~10096 
-            10 | ~97579 | ~9757 
-        */
-
         // Calculate total gas cost
         uint256 totalGas = _oracleGasInfo[oracle_].baseGasBatch + 
             (_oracleGasInfo[oracle_].gasIncreasePerEntryBatch * chargeableEntries_);
@@ -1128,22 +1119,12 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         if (upToken == address(0)) revert UP_NOT_FOUND();
 
         // Step 1: convert gas to ETH
-        uint256 ethAmount;
-        address gasOracle = _addressRegistry[GAS_ORACLE];
-        if (gasOracle == address(0)) revert CONTRACT_NOT_FOUND();
-        try AggregatorV3Interface(gasOracle).latestRoundData() returns (
-                uint80, int256 value, uint256, uint256 updatedAt, uint80
-            ) {
-                if (value <= 0) revert PRICE_NOT_FOUND();
-                if (updatedAt == 0) revert STALE_ORACLE_PRICE();
-
-                // The oracle returns price in gwei
-                uint256 weiPrice = uint256(value) * 1e9;
-                ethAmount = gasAmount * weiPrice;
-            } catch {
-                ethAmount = gasAmount * tx.gasprice;
-            }
-
+        (uint256 ethAmount,,,) = ISuperOracle(oracle).getQuoteFromProvider(
+            gasAmount,
+            GAS_QUOTE,
+            GWEI_QUOTE,
+            keccak256("AVERAGE_PROVIDER")
+        );
 
         // Step 2: convert ETH to USD
         (uint256 ethToUsd,,,) = ISuperOracle(oracle).getQuoteFromProvider(

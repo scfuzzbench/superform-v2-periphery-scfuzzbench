@@ -204,23 +204,26 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         // address(this) is the super governor; no need to prank
         superGovernor.setAddress(superGovernor.UP(), upToken);
         superGovernor.setAddress(superGovernor.SUPER_ORACLE(), address(superOracle));
-        superGovernor.setAddress(superGovernor.GAS_ORACLE(), address(mockFeedWithRealDataGasToEth));
 
         //configure super oracle
         mockUSD = new MockERC20("Mock USD", "USD", 6); // USD has 6 decimals
         
-        address[] memory bases = new address[](2);
+        address[] memory bases = new address[](3);
         bases[0] = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
         bases[1] = address(upToken);
-        address[] memory quotes = new address[](2);
+        bases[2] = address(uint160(uint256(keccak256("GAS_QUOTE")))); // GAS
+        address[] memory quotes = new address[](3);
         quotes[0] = address(840); // USD
         quotes[1] = address(840); // USD
-        bytes32[] memory providers = new bytes32[](2);
+        quotes[2] = address(uint160(uint256(keccak256("GWEI_QUOTE")))); // GWEI
+        bytes32[] memory providers = new bytes32[](3);
         providers[0] = "CHAINLINK";
         providers[1] = "CHAINLINK";
-        address[] memory feeds = new address[](2);
+        providers[2] = "CHAINLINK";
+        address[] memory feeds = new address[](3);
         feeds[0] = address(mockFeedWithRealDataEthToUsd);
         feeds[1] = oracleUsdToUp;
+        feeds[2] = address(mockFeedWithRealDataGasToEth);
 
         // update authority is address(this); no need to prank
         superOracle.queueOracleUpdate(bases, quotes, providers, feeds);
@@ -228,9 +231,10 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vm.warp(block.timestamp + 2 weeks);
         superOracle.executeOracleUpdate();
 
-        uint256[] memory maxStaleness = new uint256[](2);
+        uint256[] memory maxStaleness = new uint256[](3);
         maxStaleness[0] = 1 days;
         maxStaleness[1] = 1 days;
+        maxStaleness[2] = 1 days;
         superOracle.setFeedMaxStalenessBatch(feeds, maxStaleness);
 
         superGovernor.setGasInfo(address(ecdsappsOracle), 30_000, 50_000, 10_000);

@@ -115,7 +115,6 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
 
         governor.setAddress(governor.UP(), upToken);
         governor.setAddress(governor.SUPER_ORACLE(), address(superOracle));
-        governor.setAddress(governor.GAS_ORACLE(), address(mockFeedWithRealDataGasToEth));
         governor.setGasInfo(address(oracleECDSA), 30_000, 50_000, 10_000);
 
         vm.stopPrank();

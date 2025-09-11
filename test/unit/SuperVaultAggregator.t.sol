@@ -105,7 +105,6 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         superGovernor.setAddress(superGovernor.UP(), upToken);
         superGovernor.setAddress(superGovernor.SUPER_BANK(), superBank);
         superGovernor.setAddress(superGovernor.SUPER_ORACLE(), superOracle);
-        superGovernor.setAddress(superGovernor.GAS_ORACLE(), gasOracle);
         vm.stopPrank();
     }
 
