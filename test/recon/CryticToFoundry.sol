@@ -2763,19 +2763,4 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     //     doomsday_mintRedeemSymmetrical(626386102211729);
     // }
-
-    // forge test --match-test test_doomsday_depositWithdrawSymmetrical_2 -vvv
-    // function test_doomsday_depositWithdrawSymmetrical_2() public {
-    //     yieldSource_switchToERC7540();
-
-    //     superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
-
-    //     superVault_mint(2);
-
-    //     _executeSingleHook(0, 1, false);
-
-    //     yieldSource_increaseYield(9698929233162);
-
-    //     doomsday_depositWithdrawSymmetrical(980372307);
-    // }
 }
