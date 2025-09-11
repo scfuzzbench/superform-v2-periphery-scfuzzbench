@@ -164,11 +164,9 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             // Get unique actor
             testActors[i] = actors[actorIndexes[i] % actors.length];
 
-            // Switch to this actor
-            vm.startPrank(testActors[i]);
-
             // Mint shares for this actor
             if (sharesToMint[i] > 0) {
+                vm.prank(testActors[i]);
                 superVault.mint(sharesToMint[i], testActors[i]);
             }
 
@@ -178,15 +176,13 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
             // Request redemption of all shares
             if (requestedShares[i] > 0) {
+                vm.prank(testActors[i]);
                 superVault.requestRedeem(
                     requestedShares[i],
                     testActors[i],
                     testActors[i]
                 );
             }
-
-            vm.stopPrank();
-
             totalRequestedShares += requestedShares[i];
         }
 
