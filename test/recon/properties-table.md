@@ -13,8 +13,8 @@
 | `property_oraclePPSDoesntChangeOnAddOrRemove` | oracle PPS doesn't change on deposit/mint/redeem/withdraw | ✅ |  |
 | `property_naivePPSDoesntChangeOnAddOrRemove` | naive PPS (assets/shares in system) never changes on deposit/mint/redeem/withdraw  | ✅ |  |
 | `property_maxRedeemMaxWithdrawSymmetry` | `maxRedeem` and `maxWithdraw` should always be equivalent  | ✅ |  |
-| `property_x` | PPS always > 0  |  |  |
-| `property_x` | `requestRedeem` should never reduce `totalSupply` of `SuperVault` shares  |  |  |
+| `property_ppsNeverZero` | PPS for a strategy should always be > 0  | ✅ |  |
+| `property_x` | `requestRedeem` should never reduce `SuperVault` shares  |  |  |
 | `property_x` | `pendingRedeemRequest` should be 0 after a user calls `cancelRedeem`  |  |  |
 | `property_x` | `averageRequestPPS` should be 0 after a user calls `cancelRedeem`  |  |  |
 | `property_x` | user shouldn't receive more than `pendingRedeemRequest` after `cancelRedeem`  |  |  |

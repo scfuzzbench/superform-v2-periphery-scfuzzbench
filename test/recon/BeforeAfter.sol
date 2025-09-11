@@ -9,7 +9,8 @@ enum OpType {
     DEFAULT,
     ADD,
     REMOVE,
-    FULFILL
+    FULFILL,
+    REQUEST
 }
 
 // ghost variables for tracking state variable values before and after function calls
@@ -17,6 +18,7 @@ abstract contract BeforeAfter is Setup {
     struct Vars {
         uint256 oraclePPS;
         uint256 naivePPS;
+        uint256 summedTotalShares;
     }
 
     Vars internal _before;
@@ -42,6 +44,7 @@ abstract contract BeforeAfter is Setup {
             address(superVaultStrategy)
         );
         _before.naivePPS = _calculateNaivePPS();
+        _before.summedTotalShares = _sumTotalShares();
     }
 
     function __after() internal {
@@ -49,6 +52,21 @@ abstract contract BeforeAfter is Setup {
             address(superVaultStrategy)
         );
         _after.naivePPS = _calculateNaivePPS();
+        _after.summedTotalShares = _sumTotalShares();
+    }
+
+    // Helpers
+
+    function _sumTotalShares() internal returns (uint256) {
+        address[] memory actors = _getActors();
+        uint256 totalShares;
+
+        totalShares += superVault.balanceOf(address(superVaultEscrow));
+        for (uint256 i; i < actors.length; i++) {
+            totalShares += superVault.balanceOf(actors[i]);
+        }
+
+        return totalShares;
     }
 
     /// @notice Calculates the naive price per share by summing all assets across strategy and yield sources

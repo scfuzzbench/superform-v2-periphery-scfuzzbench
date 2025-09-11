@@ -8,8 +8,7 @@ import {Panic} from "@recon/Panic.sol";
 
 import "src/SuperVault/SuperVault.sol";
 
-import {OpType} from "test/recon/BeforeAfter.sol";
-import {BeforeAfter} from "../BeforeAfter.sol";
+import {BeforeAfter, OpType} from "test/recon/BeforeAfter.sol";
 import {Properties} from "../Properties.sol";
 
 /// @dev All receivers are inherently clamped to actors to make checking properties easier
@@ -63,7 +62,9 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         superVault.withdraw(assets, _getActor(), _getActor());
     }
 
-    function superVault_requestRedeem(uint256 shares) public asActor {
+    function superVault_requestRedeem(
+        uint256 shares
+    ) public updateGhostsWithOpType(OpType.REQUEST) asActor {
         superVault.requestRedeem(shares, _getActor(), _getActor());
     }
 

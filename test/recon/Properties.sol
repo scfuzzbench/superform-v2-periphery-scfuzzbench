@@ -49,7 +49,7 @@ abstract contract Properties is BeforeAfter, Asserts {
         eq(maxWithdrawAsShares, maxRedeem, "maxWithdrawAsShares != maxRedeem");
     }
 
-    /// @dev Property: PPS for a strategy should never be 0
+    /// @dev Property: PPS for a strategy should always be > 0
     function property_ppsNeverZero() public {
         uint256 currentPPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
@@ -57,6 +57,17 @@ abstract contract Properties is BeforeAfter, Asserts {
 
         if (hasUpdatedPPS) {
             gt(currentPPS, 0, "currentPPS should never be 0");
+        }
+    }
+
+    /// @dev requestRedeem should never reduce SuperVault shares
+    function property_totalSharesDontDecreaseOnRedemptionRequest() public {
+        if (_currentOp == OpType.REQUEST) {
+            eq(
+                _before.summedTotalShares,
+                _after.summedTotalShares,
+                "requestRedeem should never reduce SuperVault shares"
+            );
         }
     }
 }
