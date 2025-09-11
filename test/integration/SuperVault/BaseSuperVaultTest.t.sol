@@ -37,6 +37,9 @@ import { MerkleReader } from "../../utils/merkle/helper/MerkleReader.sol";
 import { ISuperHookInspector } from "@superform-v2-core/src/interfaces/ISuperHook.sol";
 import { SuperVaultExecuteHooksHook } from "../../mocks/SuperVaultExecuteHooksHook.sol";
 import { SuperVaultManageYieldSourceHook } from "../../mocks/SuperVaultManageYieldSourceHook.sol";
+import { ISuperLedgerConfiguration } from "@superform-v2-core/src/interfaces/accounting/ISuperLedgerConfiguration.sol";
+import { ERC7540YieldSourceOracle } from "@superform-v2-core/src/accounting/oracles/ERC7540YieldSourceOracle.sol";
+import { ISuperLedger } from "@superform-v2-core/src/interfaces/accounting/ISuperLedger.sol";
 
 contract BaseSuperVaultTest is MerkleReader, BaseTest {
     using MessageHashUtils for bytes32;
@@ -48,6 +51,11 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     AccountInstance[] accInstances;
 
     ISuperExecutor public superExecutorOnEth;
+
+    // Config contracts
+    ISuperLedger public superLedgerETH;
+    ERC7540YieldSourceOracle public oracle;
+    ISuperLedgerConfiguration public configSuperLedger;
 
     // Core contracts
     SuperVault public vault;
@@ -131,6 +139,10 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
 
         // Set up super executor
         superExecutorOnEth = ISuperExecutor(_getContract(ETH, SUPER_EXECUTOR_KEY));
+
+        // Set up SuperLedger
+        superLedgerETH = ISuperLedger(_getContract(ETH, SUPER_LEDGER_KEY));
+        oracle = ERC7540YieldSourceOracle(_getContract(ETH, ERC7540_YIELD_SOURCE_ORACLE_KEY));
 
         // Get ECDSA Oracle
         ecdsappsOracle = IECDSAPPSOracle(_getContract(ETH, ECDSAPPS_ORACLE_KEY));
@@ -2206,6 +2218,53 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         }
 
         return (vault1SharesOut, vault2SharesOut);
+    }
+
+    /**
+     * @notice Overrides the super ledger setup to have fee = 0
+     */
+    function _overrideSuperLedgerSetUp() internal {
+        configSuperLedger = ISuperLedgerConfiguration(_getContract(ETH, SUPER_LEDGER_CONFIGURATION_KEY));
+        superLedgerETH = ISuperLedger(_getContract(ETH, SUPER_LEDGER_KEY));
+
+        // Get the existing yield source oracle IDs that were created with MANAGER address
+        bytes32 erc4626OracleId = keccak256(abi.encodePacked(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER));
+        bytes32 erc7540OracleId = keccak256(abi.encodePacked(bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY)), MANAGER));
+
+        // Get the oracle addresses
+        address erc4626Oracle = _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY);
+        address erc7540Oracle = _getContract(ETH, ERC7540_YIELD_SOURCE_ORACLE_KEY);
+
+        // Create configs for both ERC4626 and ERC7540 oracles
+        ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[] memory configs =
+            new ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[](2);
+        configs[0] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
+            yieldSourceOracle: erc4626Oracle,
+            feePercent: 0,
+            feeRecipient: address(this),
+            ledger: address(superLedgerETH)
+        });
+        configs[1] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
+            yieldSourceOracle: erc7540Oracle,
+            feePercent: 0,
+            feeRecipient: address(this),
+            ledger: address(superLedgerETH)
+        });
+
+        bytes32[] memory yieldSourceOracleIds = new bytes32[](2);
+        yieldSourceOracleIds[0] = erc4626OracleId;
+        yieldSourceOracleIds[1] = erc7540OracleId;
+
+        // Propose the configuration changes to set fees to 0
+        vm.prank(MANAGER);
+        configSuperLedger.proposeYieldSourceOracleConfig(yieldSourceOracleIds, configs);
+
+        // Wait for the timelock period (1 week)
+        vm.warp(block.timestamp + 1 weeks);
+
+        // Accept the proposals
+        vm.prank(MANAGER);
+        configSuperLedger.acceptYieldSourceOracleConfigProposal(yieldSourceOracleIds);
     }
 
     /**
