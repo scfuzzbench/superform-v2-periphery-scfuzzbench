@@ -30,8 +30,19 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         superVault.burnShares(amount);
     }
 
+    /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
     function superVault_cancelRedeem() public asActor {
         superVault.cancelRedeem(_getActor());
+
+        uint256 pendingRedeemRequests = superVault.pendingRedeemRequest(
+            0,
+            _getActor()
+        );
+        eq(
+            pendingRedeemRequests,
+            0,
+            "pendingRedeemRequests should be 0 after cancelling a redemption"
+        );
     }
 
     function superVault_deposit(
