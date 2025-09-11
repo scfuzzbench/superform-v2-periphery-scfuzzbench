@@ -43,6 +43,8 @@ contract SuperVaultStrategy is ISuperVaultStrategy, Initializable, ReentrancyGua
     //////////////////////////////////////////////////////////////*/
     uint256 private constant ONE_WEEK = 7 days;
     uint256 private constant BPS_PRECISION = 10_000;
+    /// @dev The following is needed because the `processedShares` for some vaults (for example Centrifuge) 
+    ///      can be lower by 1 or 2 wei than the `totalRequestedAmount`in SuperVault shares
     uint256 private constant TOLERANCE_CONSTANT = 10 wei;
 
     // Slippage tolerance in BPS (1%)
@@ -705,24 +707,10 @@ contract SuperVaultStrategy is ISuperVaultStrategy, Initializable, ReentrancyGua
     )
         internal
     {
-        uint256 totalRequestedAmount = 0;
-        uint256[] memory controllerRequestedAmount = new uint256[](controllersLength);
-        for (uint256 i; i < controllersLength; ++i) {
-            controllerRequestedAmount[i] = superVaultState[controllers[i]].pendingRedeemRequest;
-            totalRequestedAmount += controllerRequestedAmount[i];
-        }
-        if (processedShares + TOLERANCE_CONSTANT < totalRequestedAmount) {
-            revert INVALID_REDEEM_FILL();
-        }
-        
-        // Prevent burning more shares than the selected controllers' total pending shares
-        if (processedShares > totalRequestedAmount + TOLERANCE_CONSTANT) {
-            revert INVALID_REDEEM_FILL();
-        }
-
         for (uint256 i; i < controllersLength; ++i) {
             SuperVaultState storage state = superVaultState[controllers[i]];
 
+            uint256 crtControllerRequestedAmount = state.pendingRedeemRequest;
             // Check for PPS slippage if there's a recorded request PPS and max slippage is set
             if (state.averageRequestPPS > 0 && _maxPPSSlippage > 0) {
                 uint256 averageRequestPPS = state.averageRequestPPS;
@@ -736,10 +724,10 @@ contract SuperVaultStrategy is ISuperVaultStrategy, Initializable, ReentrancyGua
             }
 
             uint256 currentAssets =
-                _calculateHistoricalAssetsAndProcessFees(state, controllerRequestedAmount[i], currentPPS);
+                _calculateHistoricalAssetsAndProcessFees(state, crtControllerRequestedAmount, currentPPS);
 
             // Update user state, no partial redeems allowed
-            state.pendingRedeemRequest -= controllerRequestedAmount[i];
+            state.pendingRedeemRequest = 0;
             state.maxWithdraw += currentAssets;
             state.averageRequestPPS = 0; // Reset PPS value after fulfillment
 
@@ -747,7 +735,7 @@ contract SuperVaultStrategy is ISuperVaultStrategy, Initializable, ReentrancyGua
             _onRedeemClaimable(
                 controllers[i],
                 currentAssets,
-                controllerRequestedAmount[i],
+                crtControllerRequestedAmount,
                 state.averageWithdrawPrice,
                 state.accumulatorShares,
                 state.accumulatorCostBasis
