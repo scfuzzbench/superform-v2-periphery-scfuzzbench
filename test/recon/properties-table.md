@@ -22,8 +22,25 @@
 | `property_x` | PPS == PRECISION when totalSupply == 0 |  |  |
 | `property_x` | balanceOf(escrow) >= SUM(controllers.pendingRedeemRequest) |  |  |
 | `property_x` | redemptions only burn the requested amount of shares (exact check) |  |  |
-
-
+| `property_x` | `maxMint` and `maxDeposit` should be 0 when aggregator is paused |  |  |
+| `property_x` | `maxMint` and `maxDeposit` should be 0 when strategy is paused |  |  |
+| `property_x` | If user's maxWithdraw == 0 then getAverageWithdrawPrice for the user is also == 0 |  |  |
+| `property_x` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers |  |  |
+| `property_x` | SUM(accumulatorCostBasis) doesn't change on `SuperVault` share transfers |  |  |
+| `property_x` | accumulatorShares and accumulatorCostBasis decrease by the exact amounts requested when fulfilling redemptions |  |  |
+| `property_x` | user can't claim more assets than requested in redemption |  |  |
+| `property_x` | PPS updates with a difference that exceeds maxPPSSlippage must revert |  |  |
+| `property_x` | `requestRedeem()` should never alters the supply of SuperVault tokens (calculated by summing user share balances) |  |  |
+| `property_x` | `cancelRedeem()` should never alters the supply of SuperVault tokens (calculated by summing user share balances) |  |  |
+| `property_x` | if `totalAssets()` > 0, then `totalSupply()` > 0 |  |  |
+| `property_x` | users shouldn't get a favorable exchange rate on loss on withdrawal in a yield vault |  |  |
+| `property_x` | user shouldn't be able to frontrun an oracle update to get a favorable exchange when there's a loss (TODO: determine how to test this) |  |  |
+| `property_x` | totalSupply * PPS == totalAssets |  |  |
+| `property_x` | user should always be able to redeem the assets they're entitled to |  |  |
+| `property_x` | `accumulatorShares` is always accurately updated (inductive) |  |  |
+| `property_x` | `accumulatorCostBasis` is always accurately updated (inductive) |  |  |
+| `property_x` | `_update` shouldn't change the `accumulatorShares` and `accumulatorCostBasis` |  |  |
+| `property_x` | `_update` should never revert |  |  |
 
 
 ## SuperVaultAggregator 
