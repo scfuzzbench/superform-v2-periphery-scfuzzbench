@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
 import {vm} from "@chimera/Hevm.sol";
 import {Panic} from "@recon/Panic.sol";
+import {MockERC20} from "@recon/MockERC20.sol";
 
 import "src/SuperVault/SuperVault.sol";
 
@@ -32,20 +33,32 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
 
     /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
     /// @dev Property: averageRequestPPS should be 0 after a user calls cancelRedeem
-    function superVault_cancelRedeem() public asActor {
+    /// @dev Property: user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem
+    function superVault_cancelRedeem() public {
+        uint256 pendingRedeemRequestsBefore = superVault.pendingRedeemRequest(
+            0,
+            _getActor()
+        );
+        uint256 pendingRedeemRequestsAsAssets = superVault.convertToAssets(
+            pendingRedeemRequestsBefore
+        );
+        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
+
+        vm.prank(_getActor());
         superVault.cancelRedeem(_getActor());
 
-        uint256 pendingRedeemRequests = superVault.pendingRedeemRequest(
+        uint256 pendingRedeemRequestsAfter = superVault.pendingRedeemRequest(
             0,
             _getActor()
         );
         uint256 averageRequestPPS = superVaultStrategy
             .getSuperVaultState(_getActor())
             .averageRequestPPS;
+        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
 
         // Checks
         eq(
-            pendingRedeemRequests,
+            pendingRedeemRequestsAfter,
             0,
             "pendingRedeemRequests should be 0 after cancelling a redemption"
         );
@@ -53,6 +66,11 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
             averageRequestPPS,
             0,
             "averageRequestPPS should be 0 after cancelling a redemption"
+        );
+        lte(
+            balanceAfter - balanceBefore,
+            pendingRedeemRequestsAsAssets,
+            "user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem"
         );
     }
 
