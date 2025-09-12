@@ -104,6 +104,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
         address(uint160(uint256(keccak256("GAS_QUOTE"))));
     address private constant GWEI_QUOTE =
         address(uint160(uint256(keccak256("GWEI_QUOTE"))));
+    bytes32 private constant AVERAGE_PROVIDER = keccak256("AVERAGE_PROVIDER");
 
     // Timelock configuration
     uint256 private constant TIMELOCK = 7 days;
@@ -1123,7 +1124,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
             gasAmount,
             GAS_QUOTE,
             GWEI_QUOTE,
-            keccak256("AVERAGE_PROVIDER")
+            AVERAGE_PROVIDER
         );
 
         // Step 2: convert ETH to USD
@@ -1131,7 +1132,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
             ethAmount,
             NATIVE_TOKEN,
             USD_TOKEN,
-            keccak256("AVERAGE_PROVIDER")
+            AVERAGE_PROVIDER
         );
 
         // Step 3: convert USD to UP (how much USD per UP token)
@@ -1139,7 +1140,7 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
             1e18, // 1 UP token (18 decimals)
             upToken,
             USD_TOKEN,
-            keccak256("AVERAGE_PROVIDER")
+            AVERAGE_PROVIDER
         );
 
         // Calculate required UP tokens

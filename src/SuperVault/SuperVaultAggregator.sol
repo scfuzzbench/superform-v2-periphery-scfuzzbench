@@ -63,6 +63,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     // Maximum number of secondary managers per strategy to prevent governance DoS on manager replacement
     uint256 public constant MAX_SECONDARY_MANAGERS = 5;
 
+    // Maximum number of strategies to process in `batchForwardPPS`
+    uint256 public constant MAX_STRATEGIES = 300;
 
     // Timelock for manager changes and Merkle root updates
     uint256 private constant _MANAGER_CHANGE_TIMELOCK = 7 days;
@@ -227,6 +229,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     /// @inheritdoc ISuperVaultAggregator
     function batchForwardPPS(BatchForwardPPSArgs calldata args) external onlyPPSOracle {
         uint256 strategiesLength = args.strategies.length;
+        if (strategiesLength > MAX_STRATEGIES) revert MAX_STRATEGIES_EXCEEDED();
+
+        if (strategiesLength == 0) revert ZERO_ARRAY_LENGTH();
+        // Validate input array lengths
+        if (
+            strategiesLength != args.ppss.length
+                || strategiesLength != args.ppsStdevs.length || strategiesLength != args.validatorSets.length
+                || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
+                || strategiesLength != args.updateAuthorities.length
+        ) revert ARRAY_LENGTH_MISMATCH();
 
         bool paymentsEnabled = SUPER_GOVERNOR.isUpkeepPaymentsEnabled();
         uint256 chargeableCount;

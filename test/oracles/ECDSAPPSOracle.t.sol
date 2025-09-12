@@ -794,48 +794,6 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
         );
     }
 
-    /// @notice Tests that batch PPS updates revert when exceeding MAX_STRATEGIES limit
-    function test_BatchUpdatePPS_Revert_MaxStrategiesExceeded() public {
-        // Create arrays with MAX_STRATEGIES + 1 entries (301 strategies)
-        uint256 strategiesCount = 301; // MAX_STRATEGIES is 300
-        
-        address[] memory strategies = new address[](strategiesCount);
-        bytes[][] memory proofsArray = new bytes[][](strategiesCount);
-        uint256[] memory ppss = new uint256[](strategiesCount);
-        uint256[] memory ppsStdevs = new uint256[](strategiesCount);
-        uint256[] memory validatorSets = new uint256[](strategiesCount);
-        uint256[] memory totalValidators = new uint256[](strategiesCount);
-        uint256[] memory timestamps = new uint256[](strategiesCount);
-        address[] memory updateAuthorities = new address[](strategiesCount);
-
-        // Fill arrays with dummy data (we don't need valid proofs since it should revert before validation)
-        for (uint256 i = 0; i < strategiesCount; i++) {
-            strategies[i] = address(uint160(i + 1)); // Dummy addresses
-            proofsArray[i] = new bytes[](0); // Empty proofs array
-            ppss[i] = 1e18;
-            ppsStdevs[i] = 0;
-            validatorSets[i] = 1;
-            totalValidators[i] = 1;
-            timestamps[i] = block.timestamp;
-            updateAuthorities[i] = user;
-        }
-
-        // Batch update should revert with MAX_STRATEGIES_EXCEEDED
-        vm.expectRevert(IECDSAPPSOracle.MAX_STRATEGIES_EXCEEDED.selector);
-        oracleECDSA.batchUpdatePPS(
-            IECDSAPPSOracle.BatchUpdatePPSArgs({
-                strategies: strategies,
-                proofsArray: proofsArray,
-                ppss: ppss,
-                ppsStdevs: ppsStdevs,
-                validatorSets: validatorSets,
-                totalValidators: totalValidators,
-                timestamps: timestamps,
-                updateAuthorities: updateAuthorities
-            })
-        );
-    }
-
     /*//////////////////////////////////////////////////////////////
                         INTEGRATION TESTS
     //////////////////////////////////////////////////////////////*/

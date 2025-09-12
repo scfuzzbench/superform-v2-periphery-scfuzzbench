@@ -32,8 +32,6 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
 
     bytes32 private constant SUPER_VAULT_AGGREGATOR = keccak256("SUPER_VAULT_AGGREGATOR");
 
-    uint256 public constant MAX_STRATEGIES = 300;
-
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -99,16 +97,16 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     /// @inheritdoc IECDSAPPSOracle
     function batchUpdatePPS(BatchUpdatePPSArgs calldata args) external {
         uint256 strategiesLength = args.strategies.length;
-        if (strategiesLength > MAX_STRATEGIES) revert MAX_STRATEGIES_EXCEEDED();
-
+        
         if (strategiesLength == 0) revert ZERO_LENGTH_ARRAY();
         // Validate input array lengths
-        if (
-            strategiesLength != args.proofsArray.length || strategiesLength != args.ppss.length
+        if (    strategiesLength != args.proofsArray.length
+                || strategiesLength != args.ppss.length
                 || strategiesLength != args.ppsStdevs.length || strategiesLength != args.validatorSets.length
                 || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
                 || strategiesLength != args.updateAuthorities.length
         ) revert ARRAY_LENGTH_MISMATCH();
+
 
         // Process strategies and collect valid entries
         (
@@ -321,7 +319,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     ) internal {
         // Only forward if there are valid entries
         if (validStrategies.length > 0) {
-            ISuperVaultAggregator(SUPER_GOVERNOR.getAddress(SUPER_VAULT_AGGREGATOR)).batchForwardPPS(
+            try ISuperVaultAggregator(SUPER_GOVERNOR.getAddress(SUPER_VAULT_AGGREGATOR)).batchForwardPPS(
                 ISuperVaultAggregator.BatchForwardPPSArgs({
                     strategies: validStrategies,
                     ppss: validPpss,
@@ -331,7 +329,12 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                     timestamps: validTimestamps,
                     updateAuthorities: validUpdateAuthorities
                 })
-            );
+            ) {
+            } catch Error(string memory reason) {
+                emit BatchForwardPPSFailed(reason);
+            } catch (bytes memory lowLevelData) {
+                emit BatchForwardPPSFailedLowLevel(lowLevelData);
+            }
         }
     }
 

@@ -39,8 +39,6 @@ interface IECDSAPPSOracle {
     error INVALID_VALIDATOR_SET();
     /// @notice Thrown when the totalValidators doesn't match the actual total number of validators
     error INVALID_TOTAL_VALIDATORS();
-    /// @notice Thrown when the number of strategies exceeds the maximum allowed
-    error MAX_STRATEGIES_EXCEEDED();
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -72,6 +70,14 @@ interface IECDSAPPSOracle {
     /// @param strategy Address of the strategy
     /// @param data Revert encoded data
     event ProofValidationFailedLowLevel(address indexed strategy, bytes data);
+
+    /// @notice Emitted when batch forward PPS failed
+    /// @param reason Revert reason
+    event BatchForwardPPSFailed(string reason);
+
+    /// @notice Emitted when batch forward PPS failed
+    /// @param lowLevelData Revert encoded data
+    event BatchForwardPPSFailedLowLevel(bytes lowLevelData);
 
     /*//////////////////////////////////////////////////////////////
                             STRUCTS
