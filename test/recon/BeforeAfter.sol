@@ -10,7 +10,8 @@ enum OpType {
     ADD,
     REMOVE,
     FULFILL,
-    REQUEST
+    REQUEST,
+    TRANSFER
 }
 
 // ghost variables for tracking state variable values before and after function calls
@@ -19,6 +20,8 @@ abstract contract BeforeAfter is Setup {
         uint256 oraclePPS;
         uint256 naivePPS;
         uint256 summedTotalShares;
+        uint256 summedAccumulatorShares;
+        uint256 summedAccumulatorCostBasis;
     }
 
     Vars internal _before;
@@ -40,6 +43,11 @@ abstract contract BeforeAfter is Setup {
     }
 
     function __before() internal {
+        (
+            _before.summedAccumulatorShares,
+            _before.summedAccumulatorCostBasis
+        ) = _sumSuperVaultValues();
+
         _before.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
         );
@@ -48,6 +56,11 @@ abstract contract BeforeAfter is Setup {
     }
 
     function __after() internal {
+        (
+            _after.summedAccumulatorShares,
+            _after.summedAccumulatorCostBasis
+        ) = _sumSuperVaultValues();
+
         _after.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
         );
@@ -104,5 +117,22 @@ abstract contract BeforeAfter is Setup {
         naivePPS = (totalAssets * superVault.PRECISION()) / totalSupply;
 
         return naivePPS;
+    }
+
+    function _sumSuperVaultValues()
+        internal
+        view
+        returns (uint256 sumAccumulatorShares, uint256 sumAccumulatorCostBasis)
+    {
+        address[] memory actors = _getActors();
+
+        for (uint256 i; i < actors.length; i++) {
+            sumAccumulatorShares += superVaultStrategy
+                .getSuperVaultState(actors[i])
+                .accumulatorShares;
+            sumAccumulatorCostBasis += superVaultStrategy
+                .getSuperVaultState(actors[i])
+                .accumulatorCostBasis;
+        }
     }
 }

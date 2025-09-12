@@ -129,4 +129,26 @@ abstract contract Properties is BeforeAfter, Asserts {
             );
         }
     }
+
+    /// @dev Property: SUM(accumulatorShares) doesn't change on SuperVault share transfers
+    function property_accumulatorSharesSolvency() public {
+        if (_currentOp == OpType.TRANSFER) {
+            eq(
+                _before.summedAccumulatorShares,
+                _after.summedAccumulatorShares,
+                "SUM(accumulatorShares) changed on SuperVault share transfers"
+            );
+        }
+    }
+
+    /// @dev Property: SUM(accumulatorCostBasis) doesn't change on SuperVault share transfers
+    function property_accumulatorCostBasisSolvency() public {
+        if (_currentOp == OpType.TRANSFER) {
+            eq(
+                _before.summedAccumulatorCostBasis,
+                _after.summedAccumulatorCostBasis,
+                "SUM(accumulatorCostBasis) changed on SuperVault share transfers"
+            );
+        }
+    }
 }

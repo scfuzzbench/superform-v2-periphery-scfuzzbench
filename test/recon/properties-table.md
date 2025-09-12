@@ -23,8 +23,8 @@
 | `property_maxMintZeroWhenPaused` | `maxMint` should be 0 when aggregator is paused | ✅ |  |
 | `property_maxDepositZeroWhenPaused` | `maxDeposit` should be 0 when strategy is paused | ✅ |  |
 | `property_avgWithdrawPriceSanity` | If user's maxWithdraw == 0 then getAverageWithdrawPrice for the user is also == 0 | ✅ |  |
-| `property_x` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers |  |  |
-| `property_x` | SUM(accumulatorCostBasis) doesn't change on `SuperVault` share transfers |  |  |
+| `property_accumulatorSharesSolvency` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers | ✅ |  |
+| `property_accumulatorCostBasisSolvency` | SUM(accumulatorCostBasis) doesn't change on `SuperVault` share transfers | ✅ |  |
 | `property_x` | accumulatorShares and accumulatorCostBasis decrease by the exact amounts requested when fulfilling redemptions |  |  |
 | `property_x` | user can't claim more assets than requested in redemption |  |  |
 | `property_x` | PPS updates with a difference that exceeds maxPPSSlippage must revert |  |  |

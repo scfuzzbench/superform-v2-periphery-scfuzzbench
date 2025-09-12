@@ -119,7 +119,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     function superVault_transfer(
         uint256 entropy,
         uint256 value
-    ) public asActor {
+    ) public updateGhostsWithOpType(OpType.TRANSFER) asActor {
         address to = _getRandomActor(entropy);
         superVault.transfer(to, value);
     }
@@ -128,7 +128,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 entropyFrom,
         uint256 entropyTo,
         uint256 value
-    ) public asActor {
+    ) public updateGhostsWithOpType(OpType.TRANSFER) asActor {
         address from = _getRandomActor(entropyFrom);
         address to = _getRandomActor(entropyTo);
         superVault.transferFrom(from, to, value);
