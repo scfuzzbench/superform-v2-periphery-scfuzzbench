@@ -307,8 +307,15 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                     upkeepCost = 0;
                     emit StaleUpdate(args.strategies[i], address(0), args.timestamps[i]);
                 } else {
-                    // Split the total batch cost fairly across chargeable entries
-                    upkeepCost = perEntry;
+                    address manager = _strategyData[args.strategies[i]].mainManager;
+                    if (
+                        SUPER_GOVERNOR.isSuperformManager(manager) ||  _strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthorities[i])
+                    ) {
+                        upkeepCost = 0;
+                    } else {
+                        // Split the total batch cost fairly across chargeable entries
+                        upkeepCost = perEntry;
+                    }
                 }
             }
 
@@ -316,7 +323,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             _forwardPPS(
                 ForwardPPSArgs({
                     strategy: args.strategies[i],
-                    isExempt: !paymentsEnabled, // If payments are disabled, all updates are exempt from UP payments
+                    isExempt: (!paymentsEnabled) || (upkeepCost == 0), // If payments are disabled or the update is exempt from UP payments
                     pps: args.ppss[i],
                     ppsStdev: args.ppsStdevs[i],
                     validatorSet: args.validatorSets[i],
