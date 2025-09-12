@@ -1496,7 +1496,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Manager fulfills the redeem request using the clamped function
         switchActor(0);
 
-        superVaultStrategy_fulfillRedeemRequests_clamped(user, redeemShares);
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemShares);
 
         // Verify withdraw price was set
         assertTrue(
@@ -1663,7 +1663,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
         // Manager fulfills the redeem request - should auto-detect ERC7540 and use correct hook
         switchActor(0);
-        superVaultStrategy_fulfillRedeemRequests_clamped(user, redeemShares);
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemShares);
 
         // Verify withdraw price was set
         assertTrue(
