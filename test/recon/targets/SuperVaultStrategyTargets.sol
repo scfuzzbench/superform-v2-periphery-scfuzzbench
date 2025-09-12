@@ -123,6 +123,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
 
     /// @dev Property: redemptions only burn the requested amount of shares (exact check)
     /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
+    /// @dev Property: accumulatorCostBasis decrease by the exact amounts requested when fulfilling redemptions
     function superVaultStrategy_fulfillRedeemRequests(
         ISuperVaultStrategy.FulfillArgs memory args
     ) public updateGhostsWithOpType(OpType.FULFILL) {

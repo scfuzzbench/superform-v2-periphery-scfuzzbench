@@ -151,4 +151,23 @@ abstract contract Properties is BeforeAfter, Asserts {
             );
         }
     }
+
+    /// @dev Property: user cannot claim more assets than requested in redemption
+    // NOTE: we test on a fulfillment because it's when pending shares are converted to assets
+    function property_cannotClaimMoreThanRequested() public {
+        if (_currentOp == OpType.FULFILL) {
+            // pending decreases
+            uint256 fulfilled = _before.pendingUserAssets[_getActor()] -
+                _after.pendingUserAssets[_getActor()];
+            // claimable increases
+            uint256 claimable = _after.claimableUserAssets[_getActor()] -
+                _before.claimableUserAssets[_getActor()];
+
+            eq(
+                fulfilled,
+                claimable,
+                "user cannot claim more assets than requested in redemption"
+            );
+        }
+    }
 }

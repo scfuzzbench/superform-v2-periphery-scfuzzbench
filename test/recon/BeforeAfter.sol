@@ -17,6 +17,8 @@ enum OpType {
 // ghost variables for tracking state variable values before and after function calls
 abstract contract BeforeAfter is Setup {
     struct Vars {
+        mapping(address user => uint256 pendingAsAssets) pendingUserAssets;
+        mapping(address user => uint256 claimableAsAssets) claimableUserAssets;
         uint256 oraclePPS;
         uint256 naivePPS;
         uint256 summedTotalShares;
@@ -47,12 +49,14 @@ abstract contract BeforeAfter is Setup {
             _before.summedAccumulatorShares,
             _before.summedAccumulatorCostBasis
         ) = _sumSuperVaultValues();
+        _before.naivePPS = _calculateNaivePPS();
+        _before.summedTotalShares = _sumTotalShares();
+        _before.pendingUserAssets[_getActor()] = _getPendingAsAssets();
+        _before.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
 
         _before.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
         );
-        _before.naivePPS = _calculateNaivePPS();
-        _before.summedTotalShares = _sumTotalShares();
     }
 
     function __after() internal {
@@ -60,12 +64,14 @@ abstract contract BeforeAfter is Setup {
             _after.summedAccumulatorShares,
             _after.summedAccumulatorCostBasis
         ) = _sumSuperVaultValues();
+        _after.naivePPS = _calculateNaivePPS();
+        _after.summedTotalShares = _sumTotalShares();
+        _after.pendingUserAssets[_getActor()] = _getPendingAsAssets();
+        _after.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
 
         _after.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
         );
-        _after.naivePPS = _calculateNaivePPS();
-        _after.summedTotalShares = _sumTotalShares();
     }
 
     // Helpers
@@ -134,5 +140,29 @@ abstract contract BeforeAfter is Setup {
                 .getSuperVaultState(actors[i])
                 .accumulatorCostBasis;
         }
+    }
+
+    function _getPendingAsAssets() internal returns (uint256) {
+        uint256 pendingRedemptions = superVault.pendingRedeemRequest(
+            0,
+            _getActor()
+        );
+        uint256 pendingRedemptionsAsAssets = superVault.convertToAssets(
+            pendingRedemptions
+        );
+
+        return pendingRedemptionsAsAssets;
+    }
+
+    function _getClaimableAsAssets() internal returns (uint256) {
+        uint256 claimableRedemptions = superVault.claimableRedeemRequest(
+            0,
+            _getActor()
+        );
+        uint256 claimableRedemptionsAsAssets = superVault.convertToAssets(
+            claimableRedemptions
+        );
+
+        return claimableRedemptionsAsAssets;
     }
 }
