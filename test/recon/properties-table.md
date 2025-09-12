@@ -41,6 +41,10 @@
 | `property_x` | `accumulatorCostBasis` is always accurately updated (inductive) |  |  |
 | `property_x` | `_update` shouldn't change the `accumulatorShares` and `accumulatorCostBasis` |  |  |
 | `property_x` | `_update` should never revert |  |  |
+| `property_x` | `previewDeposit` returns the correct amounts compared to executing a deposit |  |  |
+| `property_x` | `previewRedeem` returns the correct amounts compared to executing a redemption |  |  |
+| `property_x` | `previewMint` and `previewDeposit` equivalence |  |  |
+| `property_x` | When a user requests a redemption and the PPS is >= the user PPS, user `averageRequestPPS` must not decrease |  |  |
 
 
 ## SuperVaultAggregator 
