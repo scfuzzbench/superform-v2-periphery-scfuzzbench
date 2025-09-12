@@ -1131,10 +1131,6 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             // Check if manager has sufficient upkeep balance
             if (_managerUpkeepBalance[manager] < args.upkeepCost) {
                 emit InsufficientUpkeep(args.strategy, manager, _managerUpkeepBalance[manager], args.upkeepCost);
-
-                // update state timestamp to current block timestamp
-                _strategyData[args.strategy].lastUpdateTimestamp = block.timestamp;
-
                 return;
             }
 
