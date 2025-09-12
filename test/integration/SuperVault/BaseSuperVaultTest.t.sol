@@ -37,6 +37,9 @@ import { MerkleReader } from "../../utils/merkle/helper/MerkleReader.sol";
 import { ISuperHookInspector } from "@superform-v2-core/src/interfaces/ISuperHook.sol";
 import { SuperVaultExecuteHooksHook } from "../../mocks/SuperVaultExecuteHooksHook.sol";
 import { SuperVaultManageYieldSourceHook } from "../../mocks/SuperVaultManageYieldSourceHook.sol";
+import { ISuperLedgerConfiguration } from "@superform-v2-core/src/interfaces/accounting/ISuperLedgerConfiguration.sol";
+import { ERC7540YieldSourceOracle } from "@superform-v2-core/src/accounting/oracles/ERC7540YieldSourceOracle.sol";
+import { ISuperLedger } from "@superform-v2-core/src/interfaces/accounting/ISuperLedger.sol";
 
 contract BaseSuperVaultTest is MerkleReader, BaseTest {
     using MessageHashUtils for bytes32;
@@ -48,6 +51,11 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     AccountInstance[] accInstances;
 
     ISuperExecutor public superExecutorOnEth;
+
+    // Config contracts
+    ISuperLedger public superLedgerETH;
+    ERC7540YieldSourceOracle public oracle;
+    ISuperLedgerConfiguration public configSuperLedger;
 
     // Core contracts
     SuperVault public vault;
@@ -131,6 +139,10 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
 
         // Set up super executor
         superExecutorOnEth = ISuperExecutor(_getContract(ETH, SUPER_EXECUTOR_KEY));
+
+        // Set up SuperLedger
+        superLedgerETH = ISuperLedger(_getContract(ETH, SUPER_LEDGER_KEY));
+        oracle = ERC7540YieldSourceOracle(_getContract(ETH, ERC7540_YIELD_SOURCE_ORACLE_KEY));
 
         // Get ECDSA Oracle
         ecdsappsOracle = IECDSAPPSOracle(_getContract(ETH, ECDSAPPS_ORACLE_KEY));
@@ -470,6 +482,8 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
             redeemShares,
             false
         );
+
+        console2.log("__requestRedeem ------ redeemShares", redeemShares);
 
         ISuperExecutor.ExecutorEntry memory redeemEntry =
             ISuperExecutor.ExecutorEntry({ hooksAddresses: redeemHooksAddresses, hooksData: redeemHooksData });
@@ -1243,6 +1257,12 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         bytes[] memory argsForProofs = new bytes[](2);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
+
+        console2.log("----argsForProofsLength", argsForProofs.length);
+        console2.log("----argsForProofs[0]");
+        console2.logBytes(argsForProofs[0]);
+        console2.log("----argsForProofs[1]");
+        console2.logBytes(argsForProofs[1]);
 
         strategy.fulfillRedeemRequests(
             ISuperVaultStrategy.FulfillArgs({
@@ -2201,6 +2221,53 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     }
 
     /**
+     * @notice Overrides the super ledger setup to have fee = 0
+     */
+    function _overrideSuperLedgerSetUp() internal {
+        configSuperLedger = ISuperLedgerConfiguration(_getContract(ETH, SUPER_LEDGER_CONFIGURATION_KEY));
+        superLedgerETH = ISuperLedger(_getContract(ETH, SUPER_LEDGER_KEY));
+
+        // Get the existing yield source oracle IDs that were created with MANAGER address
+        bytes32 erc4626OracleId = keccak256(abi.encodePacked(bytes32(bytes(ERC4626_YIELD_SOURCE_ORACLE_KEY)), MANAGER));
+        bytes32 erc7540OracleId = keccak256(abi.encodePacked(bytes32(bytes(ERC7540_YIELD_SOURCE_ORACLE_KEY)), MANAGER));
+
+        // Get the oracle addresses
+        address erc4626Oracle = _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY);
+        address erc7540Oracle = _getContract(ETH, ERC7540_YIELD_SOURCE_ORACLE_KEY);
+
+        // Create configs for both ERC4626 and ERC7540 oracles
+        ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[] memory configs =
+            new ISuperLedgerConfiguration.YieldSourceOracleConfigArgs[](2);
+        configs[0] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
+            yieldSourceOracle: erc4626Oracle,
+            feePercent: 0,
+            feeRecipient: address(this),
+            ledger: address(superLedgerETH)
+        });
+        configs[1] = ISuperLedgerConfiguration.YieldSourceOracleConfigArgs({
+            yieldSourceOracle: erc7540Oracle,
+            feePercent: 0,
+            feeRecipient: address(this),
+            ledger: address(superLedgerETH)
+        });
+
+        bytes32[] memory yieldSourceOracleIds = new bytes32[](2);
+        yieldSourceOracleIds[0] = erc4626OracleId;
+        yieldSourceOracleIds[1] = erc7540OracleId;
+
+        // Propose the configuration changes to set fees to 0
+        vm.prank(MANAGER);
+        configSuperLedger.proposeYieldSourceOracleConfig(yieldSourceOracleIds, configs);
+
+        // Wait for the timelock period (1 week)
+        vm.warp(block.timestamp + 1 weeks);
+
+        // Accept the proposals
+        vm.prank(MANAGER);
+        configSuperLedger.acceptYieldSourceOracleConfigProposal(yieldSourceOracleIds);
+    }
+
+    /**
      * @notice Resizes an array of addresses to the specified length
      * @param array The original array to resize
      * @param newLength The new length for the array
@@ -2226,5 +2293,59 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
             newArray[i] = array[i];
         }
         return newArray;
+    }
+
+    /**
+     * @notice Updates max PPS slippage to BPS_PRECISION (100%)
+     */
+    function _updateMaxPPSSlippageToMax() internal {
+        uint256 BPS_PRECISION = 10_000;
+        vm.prank(MANAGER);
+        strategy.updateMaxPPSSlippage(BPS_PRECISION);
+    }
+
+    /**
+     * @notice Updates PPS to a specific value by manipulating the underlying vaults
+     * @param strategyAddr The strategy address
+     * @param vault_ The vault address
+     * @param targetPPS The target PPS value to achieve
+     * @dev This function simulates yield by dealing additional assets to the underlying vaults
+     */
+    function _updatePPSToTarget(address strategyAddr, address vault_, uint256 targetPPS) internal {
+        uint256 currentPPS = aggregator.getPPS(strategyAddr);
+        uint256 currentTotalSupply = SuperVault(vault_).totalSupply();
+
+        if (currentTotalSupply == 0) {
+            // No shares exist, can't update PPS
+            return;
+        }
+
+        // Calculate how much additional assets we need to reach target PPS
+        uint256 currentTotalAssets = currentPPS * currentTotalSupply / SuperVault(vault_).PRECISION();
+        uint256 targetTotalAssets = targetPPS * currentTotalSupply / SuperVault(vault_).PRECISION();
+
+        if (targetTotalAssets > currentTotalAssets) {
+            uint256 additionalAssets = targetTotalAssets - currentTotalAssets;
+
+            // Deal additional assets to the underlying vaults proportionally
+            uint256 fluidVaultAssets = asset.balanceOf(address(fluidVault));
+            uint256 aaveVaultAssets = asset.balanceOf(address(aaveVault));
+            uint256 totalUnderlyingAssets = fluidVaultAssets + aaveVaultAssets;
+
+            if (totalUnderlyingAssets > 0) {
+                uint256 fluidVaultAdditional = additionalAssets * fluidVaultAssets / totalUnderlyingAssets;
+                uint256 aaveVaultAdditional = additionalAssets - fluidVaultAdditional;
+
+                if (fluidVaultAdditional > 0) {
+                    deal(address(asset), address(fluidVault), fluidVaultAssets + fluidVaultAdditional);
+                }
+                if (aaveVaultAdditional > 0) {
+                    deal(address(asset), address(aaveVault), aaveVaultAssets + aaveVaultAdditional);
+                }
+            }
+        }
+
+        // Update PPS after asset manipulation
+        _updateSuperVaultPPS(strategyAddr, vault_);
     }
 }
