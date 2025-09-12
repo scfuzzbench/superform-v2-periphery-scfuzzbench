@@ -20,8 +20,8 @@
 | `property_shareSolvency` | `SuperVault::totalSupply` == SUM(user balances) + balanceOf(escrow)  (solvency) | ✅ |  |
 | `property_escrowBalance` | balanceOf(escrow) >= SUM(controllers.pendingRedeemRequest) | ✅ |  |
 | `superVaultStrategy_fulfillRedeemRequests` | redemptions only burn the requested amount of shares (exact check) | ✅ |  |
-| `property_x` | `maxMint` and `maxDeposit` should be 0 when aggregator is paused |  |  |
-| `property_x` | `maxMint` and `maxDeposit` should be 0 when strategy is paused |  |  |
+| `property_maxMintZeroWhenPaused` | `maxMint` should be 0 when aggregator is paused | ✅ |  |
+| `property_maxDepositZeroWhenPaused` | `maxDeposit` should be 0 when strategy is paused | ✅ |  |
 | `property_x` | If user's maxWithdraw == 0 then getAverageWithdrawPrice for the user is also == 0 |  |  |
 | `property_x` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers |  |  |
 | `property_x` | SUM(accumulatorCostBasis) doesn't change on `SuperVault` share transfers |  |  |

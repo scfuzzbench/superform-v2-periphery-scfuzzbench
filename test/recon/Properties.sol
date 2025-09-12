@@ -89,4 +89,28 @@ abstract contract Properties is BeforeAfter, Asserts {
             "balanceOf(escrow) < SUM(controllers.pendingRedeemRequest)"
         );
     }
+
+    /// @dev Property: maxMint should be 0 when aggregator is paused
+    function property_maxMintZeroWhenPaused() public {
+        bool paused = superVaultAggregator.isStrategyPaused(
+            address(superVaultStrategy)
+        );
+        uint256 maxMint = superVault.maxMint(_getActor());
+
+        eq(maxMint, 0, "actor has nonzero maxMint when strategy is paused");
+    }
+
+    /// @dev Property: maxDeposit should be 0 when strategy is paused
+    function property_maxDepositZeroWhenPaused() public {
+        bool paused = superVaultAggregator.isStrategyPaused(
+            address(superVaultStrategy)
+        );
+        uint256 maxDeposit = superVault.maxDeposit(_getActor());
+
+        eq(
+            maxDeposit,
+            0,
+            "actor has nonzero maxDeposit when strategy is paused"
+        );
+    }
 }
