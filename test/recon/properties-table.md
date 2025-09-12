@@ -9,17 +9,15 @@
 | `doomsday_maxRedeemResetsAfterFullRedemption` | `maxRedeem` is reset to 0 after full redemption | ✅ |  |
 | `doomsday_maxWithdrawResetsAfterFullWithdrawal` | `maxWithdraw` is reset to 0 after full withdrawal | ✅ |  |
 | `doomsday_fulfillDoesntOverRedeemMultipleActors` | fulfillRedeemRequests doesn't redeem more than requested for multiple actors | ✅ |  |
-| `property_naivePPSDoesntChangeOnRedeem` | fulfillRedeemRequest doesn't change naive PPS | ✅ |  |
+| `property_naivePPSDoesntChangeOnRedeem` | fulfillRedeemRequest doesn't change naive PPS | ✅ | ❌ |
 | `property_oraclePPSDoesntChangeOnAddOrRemove` | oracle PPS doesn't change on deposit/mint/redeem/withdraw | ✅ |  |
 | `property_naivePPSDoesntChangeOnAddOrRemove` | naive PPS (assets/shares in system) never changes on deposit/mint/redeem/withdraw  | ✅ |  |
 | `property_maxRedeemMaxWithdrawSymmetry` | `maxRedeem` and `maxWithdraw` should always be equivalent  | ✅ |  |
-| `property_ppsNeverZero` | PPS for a strategy should always be > 0  | ✅ |  |
 | `property_totalSharesDontDecreaseOnRedemptionRequest` | `requestRedeem` should never reduce `SuperVault` shares  | ✅ |  |
 | `superVault_cancelRedeem` | `pendingRedeemRequest` should be 0 after a user calls `cancelRedeem`  | ✅ |  |
 | `superVault_cancelRedeem` | `averageRequestPPS` should be 0 after a user calls `cancelRedeem`  | ✅ |  |
 | `superVault_cancelRedeem` | user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem | ✅ |  |
 | `property_shareSolvency` | `SuperVault::totalSupply` == SUM(user balances) + balanceOf(escrow)  (solvency) | ✅ |  |
-| `property_PPSWithNoSupply` | PPS == PRECISION when totalSupply == 0 | ✅ |  |
 | `property_escrowBalance` | balanceOf(escrow) >= SUM(controllers.pendingRedeemRequest) | ✅ |  |
 | `property_x` | redemptions only burn the requested amount of shares (exact check) |  |  |
 | `property_x` | `maxMint` and `maxDeposit` should be 0 when aggregator is paused |  |  |

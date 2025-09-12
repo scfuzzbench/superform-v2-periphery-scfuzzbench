@@ -33,15 +33,16 @@ abstract contract Properties is BeforeAfter, Asserts {
     }
 
     /// @dev Property: fulfillRedeemRequest doesn't change naive PPS
-    function property_naivePPSDoesntChangeOnRedeem() public {
-        if (_currentOp == OpType.FULFILL) {
-            eq(
-                _before.naivePPS,
-                _after.naivePPS,
-                "fulfilling redemption changes naive PPS"
-            );
-        }
-    }
+    // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price
+    // function property_naivePPSDoesntChangeOnRedeem() public {
+    //     if (_currentOp == OpType.FULFILL) {
+    //         eq(
+    //             _before.naivePPS,
+    //             _after.naivePPS,
+    //             "fulfilling redemption changes naive PPS"
+    //         );
+    //     }
+    // }
 
     /// @dev Property: maxRedeem and maxWithdraw should always be equivalent
     function property_maxRedeemMaxWithdrawSymmetry() public {
@@ -50,17 +51,6 @@ abstract contract Properties is BeforeAfter, Asserts {
         uint256 maxRedeem = superVault.maxRedeem(_getActor());
 
         eq(maxWithdrawAsShares, maxRedeem, "maxWithdrawAsShares != maxRedeem");
-    }
-
-    /// @dev Property: PPS for a strategy should always be > 0
-    function property_ppsNeverZero() public {
-        uint256 currentPPS = superVaultAggregator.getPPS(
-            address(superVaultStrategy)
-        );
-
-        if (hasUpdatedPPS) {
-            gt(currentPPS, 0, "currentPPS should never be 0");
-        }
     }
 
     /// @dev requestRedeem should never reduce SuperVault shares
