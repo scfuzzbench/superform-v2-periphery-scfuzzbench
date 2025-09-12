@@ -20,7 +20,10 @@ abstract contract Properties is BeforeAfter, Asserts {
 
     /// @dev Property: naive PPS doesn't change on deposit/mint/redeem/withdraw
     function property_naivePPSDoesntChangeOnAddOrRemove() public {
-        if (_currentOp == OpType.ADD || _currentOp == OpType.REMOVE) {
+        if (
+            (_currentOp == OpType.ADD || _currentOp == OpType.REMOVE) &&
+            _before.summedTotalShares == 0 // if no shares existed before the naively calculated price is 0 so causes a false positive
+        ) {
             eq(
                 _before.naivePPS,
                 _after.naivePPS,

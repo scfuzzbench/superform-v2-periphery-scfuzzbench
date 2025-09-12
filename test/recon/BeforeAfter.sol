@@ -79,7 +79,7 @@ abstract contract BeforeAfter is Setup {
         // Get total supply of SuperVault shares
         uint256 totalSupply = superVault.totalSupply();
 
-        // If no shares exist, PPS is 1e18 (1:1)
+        // If no shares exist, PPS is 0
         if (totalSupply == 0) {
             return 0;
         }
