@@ -21,7 +21,7 @@ interface ISuperVaultAggregator {
     /// @param totalValidators Total number of validators in the network
     /// @param timestamp Timestamp when the value was generated
     /// @param upkeepCost Amount of upkeep tokens to charge if not exempt
-    struct ForwardPPSArgs {
+    struct PPSUpdateData {
         address strategy;
         bool isExempt;
         uint256 pps;
@@ -454,7 +454,7 @@ interface ISuperVaultAggregator {
     /// @param validatorSets Array of numbers of validators who calculated each PPS
     /// @param totalValidators Total number of validators in the network
     /// @param timestamps Array of timestamps when values were generated
-    struct BatchForwardPPSArgs {
+    struct ForwardPPSArgs {
         address[] strategies;
         uint256[] ppss;
         uint256[] ppsStdevs;
@@ -466,7 +466,7 @@ interface ISuperVaultAggregator {
 
     /// @notice Batch forwards validated PPS updates to multiple strategies
     /// @param args Struct containing all batch PPS update parameters
-    function forwardPPS(BatchForwardPPSArgs calldata args) external;
+    function forwardPPS(ForwardPPSArgs calldata args) external;
 
     /*//////////////////////////////////////////////////////////////
                         UPKEEP MANAGEMENT

@@ -200,7 +200,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                           PPS UPDATE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
-    function forwardPPS(BatchForwardPPSArgs calldata args) external onlyPPSOracle {
+    function forwardPPS(ForwardPPSArgs calldata args) external onlyPPSOracle {
         uint256 strategiesLength = args.strategies.length;
         if (strategiesLength > MAX_STRATEGIES) revert MAX_STRATEGIES_EXCEEDED();
 
@@ -269,6 +269,16 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             // Skip invalid strategies without reverting
             if (!_superVaultStrategies.contains(args.strategies[i])) continue;
 
+            // Skip when invalid timestamp is provided (future timestamp)
+            if (args.timestamps[i] > block.timestamp) {
+                emit ProvidedTimestampExceedsBlockTimestamp(
+                    args.strategies[i],
+                    args.timestamps[i],
+                    block.timestamp
+                );
+                continue;
+            }
+
             uint256 upkeepCost;
             if (paymentsEnabled) {
                 // check exemption due to staleness of a given strategy
@@ -291,7 +301,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
             // Forward update
             _forwardPPS(
-                ForwardPPSArgs({
+                PPSUpdateData({
                     strategy: args.strategies[i],
                     isExempt: (!paymentsEnabled) || (upkeepCost == 0), // If payments are disabled or the update is exempt from UP payments
                     pps: args.ppss[i],
@@ -1045,7 +1055,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     //////////////////////////////////////////////////////////////*/
     /// @notice Internal implementation of forwarding PPS updates
     /// @param args Struct containing all parameters for PPS update
-    function _forwardPPS(ForwardPPSArgs memory args) internal {
+    function _forwardPPS(PPSUpdateData memory args) internal {
         // Check rate limiting
         uint256 minInterval = _strategyData[args.strategy].minUpdateInterval;
         uint256 lastUpdate = _strategyData[args.strategy].lastUpdateTimestamp;

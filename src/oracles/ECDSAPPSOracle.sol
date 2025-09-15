@@ -55,7 +55,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                          PPS UPDATE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc IECDSAPPSOracle
-    function updatePPS(BatchUpdatePPSArgs calldata args) external {
+    function updatePPS(UpdatePPSArgs calldata args) external {
         uint256 strategiesLength = args.strategies.length;
         
         if (strategiesLength == 0) revert ZERO_LENGTH_ARRAY();
@@ -163,7 +163,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     /// @return validTotalValidators Array of valid total validators
     /// @return validTimestamps Array of valid timestamps
     function _processBatchStrategies(
-        BatchUpdatePPSArgs calldata args,
+        UpdatePPSArgs calldata args,
         uint256 strategiesLength
     )
         internal
@@ -216,7 +216,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
     /// @param index Index of the strategy to process
     /// @return isValid True if the strategy was processed successfully
     function _processIndividualStrategy(
-        BatchUpdatePPSArgs calldata args,
+        UpdatePPSArgs calldata args,
         uint256 index
     ) internal returns (bool isValid) {
         address _strategy = args.strategies[index];
@@ -272,7 +272,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
         // Only forward if there are valid entries
         if (validStrategies.length > 0) {
             try ISuperVaultAggregator(SUPER_GOVERNOR.getAddress(SUPER_VAULT_AGGREGATOR)).forwardPPS(
-                ISuperVaultAggregator.BatchForwardPPSArgs({
+                ISuperVaultAggregator.ForwardPPSArgs({
                     strategies: validStrategies,
                     ppss: validPpss,
                     ppsStdevs: validPpsStdevs,

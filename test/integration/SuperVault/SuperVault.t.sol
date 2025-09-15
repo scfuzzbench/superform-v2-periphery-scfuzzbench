@@ -7008,7 +7008,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         timestamps[0] = vars.timestamp;
 
         ecdsappsOracle.updatePPS(
-            IECDSAPPSOracle.BatchUpdatePPSArgs({
+            IECDSAPPSOracle.UpdatePPSArgs({
                 strategies: strategies,
                 proofsArray: proofsArray,
                 ppss: ppss,
@@ -7085,7 +7085,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         timestamps[0] = vars.timestamp;
 
         ecdsappsOracle.updatePPS(
-            IECDSAPPSOracle.BatchUpdatePPSArgs({
+            IECDSAPPSOracle.UpdatePPSArgs({
                 strategies: strategies,
                 proofsArray: proofsArray,
                 ppss: ppss,

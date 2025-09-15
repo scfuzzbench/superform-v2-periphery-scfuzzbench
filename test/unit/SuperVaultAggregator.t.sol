@@ -714,7 +714,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         vm.expectEmit(true, true, true, true);
         emit ISuperVaultAggregator.TimestampNotMonotonic();
         superVaultAggregator.forwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+            ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: strategies,
                 ppss: ppss,
                 ppsStdevs: ppsStdevs,
@@ -789,7 +789,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
         // Batch update should succeed
         superVaultAggregator.forwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+            ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: strategies,
                 ppss: ppss,
                 ppsStdevs: ppsStdevs,
@@ -880,7 +880,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
             uint256 gasBefore = gasleft();
             
             superVaultAggregator.forwardPPS(
-                ISuperVaultAggregator.BatchForwardPPSArgs({
+                ISuperVaultAggregator.ForwardPPSArgs({
                     strategies: strategies,
                     ppss: ppss,
                     ppsStdevs: ppsStdevs,
@@ -1005,11 +1005,11 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
         // Expect StaleUpdate event to be emitted for strategy2
         vm.expectEmit(true, true, false, true);
-        emit ISuperVaultAggregator.StaleUpdate(strategy2, address(0), timestamps[1]);
+        emit ISuperVaultAggregator.StaleUpdate(strategy2, address(this), timestamps[1]);
 
         // Batch update should succeed but strategy2 should have upkeepCost = 0 due to staleness
         superVaultAggregator.forwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+            ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: strategies,
                 ppss: ppss,
                 ppsStdevs: ppsStdevs,
@@ -2198,7 +2198,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
 
         // Execute batch update
         superVaultAggregator.forwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+            ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: vars.strategies,
                 ppss: vars.ppss,
                 ppsStdevs: vars.ppsStdevs,
@@ -2275,7 +2275,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         // Batch update should revert with MAX_STRATEGIES_EXCEEDED
         vm.expectRevert(ISuperVaultAggregator.MAX_STRATEGIES_EXCEEDED.selector);
         superVaultAggregator.forwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+            ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: strategies,
                 ppss: ppss,
                 ppsStdevs: ppsStdevs,
@@ -2311,6 +2311,9 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         totalValidatorsArray[0] = 1;
         timestamps[0] = superVaultAggregator.getLastUpdateTimestamp(strategy) + 20;
 
+        address[] memory updateAuthorities = new address[](1);
+        updateAuthorities[0] = user;
+
         // Advance time to ensure update is valid
         vm.warp(block.timestamp + 25);
 
@@ -2318,7 +2321,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         uint256 gasBefore = gasleft();
         
         superVaultAggregator.forwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+            ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: strategies,
                 ppss: ppss,
                 ppsStdevs: ppsStdevs,

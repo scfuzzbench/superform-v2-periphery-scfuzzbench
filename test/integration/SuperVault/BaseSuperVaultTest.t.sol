@@ -2222,7 +2222,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         timestamps[0] = vars.timestamp;
 
         ecdsappsOracle.updatePPS(
-            IECDSAPPSOracle.BatchUpdatePPSArgs({
+            IECDSAPPSOracle.UpdatePPSArgs({
                 strategies: strategies,
                 proofsArray: proofsArray,
                 ppss: ppss,

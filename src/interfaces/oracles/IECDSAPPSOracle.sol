@@ -108,7 +108,7 @@ interface IECDSAPPSOracle {
     /// @param validatorSets Array of numbers of validators who calculated each PPS
     /// @param totalValidators Array of total number of validators in the network for each update
     /// @param timestamps The time and therefore the blockchain(s) state(s) (plural important) this PPS refers to
-    struct BatchUpdatePPSArgs {
+    struct UpdatePPSArgs {
         address[] strategies;
         bytes[][] proofsArray;
         uint256[] ppss;
@@ -144,5 +144,5 @@ interface IECDSAPPSOracle {
     //////////////////////////////////////////////////////////////*/
     /// @notice Updates the PPS for multiple strategies in a batch
     /// @param args Struct containing all parameters for batch PPS update
-    function updatePPS(BatchUpdatePPSArgs calldata args) external;
+    function updatePPS(UpdatePPSArgs calldata args) external;
 }
