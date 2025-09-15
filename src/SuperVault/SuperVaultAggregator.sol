@@ -275,7 +275,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 /// @dev cannot underflow as it's already checked above, in the previous `for` loop
                 if (block.timestamp - args.timestamps[i] > _strategyData[args.strategies[i]].maxStaleness) {
                     upkeepCost = 0;
-                    emit StaleUpdate(args.strategies[i], address(0), args.timestamps[i]);
+                    emit StaleUpdate(args.strategies[i], args.updateAuthority, args.timestamps[i]);
                 } else {
                     address manager = _strategyData[args.strategies[i]].mainManager;
                     if (
