@@ -314,23 +314,40 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
         virtual
         returns (uint256 quoteAmount)
     {
-        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(oracle).latestRoundData();
+        int256 answer;
+        uint256 updatedAt;
 
-        // Validate data
+        // --- Get round data ---
+        try AggregatorV3Interface(oracle).latestRoundData() returns (
+            uint80, int256 _answer, uint256, uint256 _updatedAt, uint80
+        ) {
+            answer = _answer;
+            updatedAt = _updatedAt;
+        } catch {
+            if (revertOnError) revert ORACLE_ROUND_DATA_CALL_FAIL(oracle);
+            return 0;
+        }
+
+        // --- Validate data ---
         if (answer <= 0 || block.timestamp - updatedAt > feedMaxStaleness[oracle]) {
             if (revertOnError) revert ORACLE_UNTRUSTED_DATA();
             return 0;
         }
 
-        // Get decimals
-        uint8 feedDecimals = _getOracleDecimals(AggregatorV3Interface(oracle));
-        uint8 baseDecimals = IERC20(base).safeDecimals();
-        uint8 quoteDecimals = IERC20(quote).safeDecimals();
+        // --- Get decimals and compute scaled amount ---
+        try AggregatorV3Interface(oracle).decimals() returns (uint8 feedDecimals) {
+            uint8 baseDecimals = IERC20(base).safeDecimals();
+            uint8 quoteDecimals = IERC20(quote).safeDecimals();
 
-        // Calculate quote amount with proper decimal scaling
-        quoteAmount =
-            (baseAmount * uint256(answer) * (10 ** quoteDecimals)) / ((10 ** baseDecimals) * (10 ** feedDecimals));
+            quoteAmount =
+                (baseAmount * uint256(answer) * (10 ** quoteDecimals)) /
+                ((10 ** baseDecimals) * (10 ** feedDecimals));
+        } catch {
+            if (revertOnError) revert ORACLE_DECIMALS_CALL_FAIL(oracle);
+            return 0;
+        }
     }
+
 
     function _getAverageQuote(
         address base,
