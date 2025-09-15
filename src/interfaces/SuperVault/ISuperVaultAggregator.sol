@@ -361,6 +361,8 @@ interface ISuperVaultAggregator {
     //////////////////////////////////////////////////////////////*/
     /// @notice Thrown when address provided is zero
     error ZERO_ADDRESS();
+    /// @notice Thrown when amount provided is zero
+    error ZERO_AMOUNT();
     /// @notice Thrown when array length is zero
     error ZERO_ARRAY_LENGTH();
     /// @notice Thrown when array length is zero

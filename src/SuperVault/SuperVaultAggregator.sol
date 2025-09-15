@@ -310,7 +310,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperVaultAggregator
     function depositUpkeep(address manager, uint256 amount) external {
-        if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
+        if (amount == 0) revert ZERO_AMOUNT(); 
 
         // Get the UP token address from SUPER_GOVERNOR
         address upToken = SUPER_GOVERNOR.getAddress(SUPER_GOVERNOR.UP());
@@ -345,7 +345,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
 
     /// @inheritdoc ISuperVaultAggregator
     function withdrawUpkeep(uint256 amount) external {
-        if (amount == 0) revert ZERO_ADDRESS(); // Reusing error code for consistency
+        if (amount == 0) revert ZERO_AMOUNT(); 
 
         // Check sufficient balance
         if (_managerUpkeepBalance[msg.sender] < amount) {
