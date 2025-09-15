@@ -35,7 +35,7 @@
 | `property_x` | user shouldn't be able to frontrun an oracle update to get a favorable exchange when there's a loss (TODO: determine how to test this) |  |  |
 | `property_totalAssets` | SUM(shares) * PPS == totalAssets | ✅ |  |
 | `superVault_mint`, `superVault_deposit` | `accumulatorShares` is always accurately increased | ✅ |  |
-| `property_x` | `accumulatorCostBasis` is always accurately accurately increased |  |  |
+| `superVault_mint`, `superVault_deposit` | `accumulatorCostBasis` is always accurately accurately increased | ✅ |  |
 | `property_x` | `_update` shouldn't change the `accumulatorShares` and `accumulatorCostBasis` |  |  |
 | `property_x` | `_update` should never revert |  |  |
 | `property_x` | `previewDeposit` returns the correct amounts compared to executing a deposit |  |  |

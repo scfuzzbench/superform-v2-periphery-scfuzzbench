@@ -77,7 +77,8 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         );
     }
 
-    /// @dev Property: accumulatorShares is always accurately updated
+    /// @dev Property: accumulatorShares is always accurately increased
+    /// @dev Property: accumulatorCostBasis is always accurately accurately increased
     function superVault_deposit(
         uint256 assets
     ) public updateGhostsWithOpType(OpType.ADD) asActor {
@@ -86,17 +87,28 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 accumulatorSharesBefore = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorShares;
+        uint256 sumAccumulatorCostBasisBefore = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .accumulatorCostBasis;
 
         superVault.deposit(assets, _getActor());
 
         uint256 accumulatorSharesAfter = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorShares;
+        uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .accumulatorCostBasis;
 
         eq(
             accumulatorSharesAfter - accumulatorSharesBefore,
             shares,
             "accumulatorShares is always accurately updated"
+        );
+        eq(
+            sumAccumulatorCostBasisAfter - sumAccumulatorCostBasisBefore,
+            assets,
+            "accumulatorCostBasis is always accurately accurately increased"
         );
     }
 
@@ -105,12 +117,17 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: accumulatorShares is always accurately updated
+    /// @dev Property: accumulatorCostBasis is always accurately accurately increased
     function superVault_mint(
         uint256 shares
     ) public updateGhostsWithOpType(OpType.ADD) {
         uint256 accumulatorSharesBefore = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorShares;
+        uint256 sumAccumulatorCostBasisBefore = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .accumulatorCostBasis;
+        uint256 assetsBefore = MockERC20(_getAsset()).balanceOf(_getActor());
 
         vm.prank(_getActor());
         superVault.mint(shares, _getActor());
@@ -118,11 +135,20 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 accumulatorSharesAfter = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorShares;
+        uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .accumulatorCostBasis;
+        uint256 assetsAfter = MockERC20(_getAsset()).balanceOf(_getActor());
 
         eq(
             accumulatorSharesAfter - accumulatorSharesBefore,
             shares,
             "accumulatorShares is always accurately updated"
+        );
+        eq(
+            assetsAfter - assetsBefore,
+            sumAccumulatorCostBasisAfter - sumAccumulatorCostBasisBefore,
+            "accumulatorCostBasis is always accurately accurately increased"
         );
     }
 
