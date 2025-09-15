@@ -39,6 +39,7 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
 
     /// @notice Timelock period for oracle updates
     uint256 internal constant TIMELOCK_PERIOD = 1 weeks;
+    uint256 internal constant MAX_SAMPLE_PROVIDERS = 10;
     bytes32 internal constant AVERAGE_PROVIDER = keccak256("AVERAGE_PROVIDER");
 
     // SuperGovernor address
@@ -347,6 +348,7 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
         validQuotes = new uint256[](numberOfProviders);
 
         // Loop through all active providers
+        // Iterates only until MAX_SAMPLE_PROVIDERS valid quotes are collected to bound gas usage
         for (uint256 i; i < numberOfProviders; ++i) {
             bytes32 provider = activeProviders[i];
             address providerOracle = oracles[base][quote][provider];
@@ -381,6 +383,9 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
                 // This oracle is available
                 unchecked {
                     ++count;
+                }
+                if (count == MAX_SAMPLE_PROVIDERS) {
+                    break;
                 }
             }
         }
