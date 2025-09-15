@@ -197,6 +197,7 @@ abstract contract Properties is BeforeAfter, Asserts {
         }
     }
 
+    /// @dev Property: SUM(shares) * PPS == totalAssets
     function property_totalAssets() public {
         uint256 totalShares = _sumTotalShares();
         uint256 pps = superVaultAggregator.getPPS(address(superVaultStrategy));
@@ -209,5 +210,19 @@ abstract contract Properties is BeforeAfter, Asserts {
             vaultTotalAssets,
             "totalShares * pps != totalAssets"
         );
+    }
+
+    /// @dev Property: When a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease
+    function property_avgPPSDoesntDecrease() public {
+        uint256 currentPrice = _before.oraclePPS;
+        uint256 avgPPS = _before.avgPPS[_getActor()];
+
+        if (_currentOp == OpType.REQUEST && currentPrice >= avgPPS) {
+            gte(
+                _after.avgPPS[_getActor()],
+                _before.avgPPS[_getActor()],
+                "when a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease"
+            );
+        }
     }
 }

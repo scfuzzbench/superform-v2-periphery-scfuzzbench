@@ -40,7 +40,7 @@
 | `superVault_deposit` | `previewDeposit` returns the correct amounts compared to executing a deposit | ✅ |  |
 | `superVault_mint` | `previewMint` returns the correct amounts compared to executing a redemption | ✅ |  |
 | `doomsday_previewEquivalenceFromShares`, `doomsday_previewEquivalenceFromAssets` | `previewMint` and `previewDeposit` equivalence | ✅ |  |
-| `property_x` | When a user requests a redemption and the PPS is >= the user PPS, user `averageRequestPPS` must not decrease |  |  |
+| `property_avgPPSDoesntDecrease` | When a user requests a redemption and the PPS is >= the user PPS, user `averageRequestPPS` must not decrease | ✅ |  |
 
 
 ## SuperVaultAggregator 

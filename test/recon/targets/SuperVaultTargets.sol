@@ -78,13 +78,11 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: accumulatorShares is always accurately increased
-    /// @dev Property: accumulatorCostBasis is always accurately accurately increased
+    /// @dev Property: accumulatorCostBasis is always accurately increased
     /// @dev Property: previewDeposit returns the correct amounts compared to executing a deposit
     function superVault_deposit(
         uint256 assets
     ) public updateGhostsWithOpType(OpType.ADD) asActor {
-        uint256 shares = superVault.convertToShares(assets);
-
         uint256 accumulatorSharesBefore = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorShares;
@@ -110,7 +108,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             sumAccumulatorCostBasisAfter - sumAccumulatorCostBasisBefore,
             assets,
-            "accumulatorCostBasis is always accurately accurately increased"
+            "accumulatorCostBasis is always accurately increased"
         );
         eq(
             previewShares,

@@ -20,6 +20,7 @@ abstract contract BeforeAfter is Setup {
     struct Vars {
         mapping(address user => uint256 pendingAsAssets) pendingUserAssets;
         mapping(address user => uint256 claimableAsAssets) claimableUserAssets;
+        mapping(address user => uint256 price) avgPPS;
         uint256 oraclePPS;
         uint256 naivePPS;
         uint256 summedTotalShares;
@@ -56,6 +57,9 @@ abstract contract BeforeAfter is Setup {
         _before.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _before.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
         _before.summedTotalAssets = _sumVaultAssets();
+        _before.avgPPS[_getActor()] = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .averageRequestPPS;
 
         _before.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
@@ -72,6 +76,9 @@ abstract contract BeforeAfter is Setup {
         _after.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _after.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
         _after.summedTotalAssets = _sumVaultAssets();
+        _after.avgPPS[_getActor()] = superVaultStrategy
+            .getSuperVaultState(_getActor())
+            .averageRequestPPS;
 
         _after.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
