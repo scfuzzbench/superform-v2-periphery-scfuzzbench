@@ -239,6 +239,46 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
     }
 
+    /// @dev Property: previewMint and previewDeposit equivalence (from shares)
+    function doomsday_previewEquivalenceFromShares(
+        uint256 shares
+    ) public stateless {
+        uint256 sharesAsAssets = superVault.convertToAssets(shares);
+        uint256 previewDepositShares = superVault.previewDeposit(
+            sharesAsAssets
+        );
+
+        uint256 previewMintAssets = superVault.previewMint(shares);
+        uint256 previewMintShares = superVault.convertToShares(
+            previewMintAssets
+        );
+
+        eq(
+            previewDepositShares,
+            previewMintShares,
+            "previewMint and previewDeposit equivalence (from shares)"
+        );
+    }
+
+    /// @dev Property: previewMint and previewDeposit equivalence (from assets)
+    function doomsday_previewEquivalenceFromAssets(
+        uint256 assets
+    ) public stateless {
+        uint256 previewDepositShares = superVault.previewDeposit(assets);
+        uint256 previewDepositAssets = superVault.convertToAssets(
+            previewDepositShares
+        );
+
+        uint256 assetsAsShares = superVault.convertToShares(assets);
+        uint256 previewMintAssets = superVault.previewMint(assetsAsShares);
+
+        eq(
+            previewDepositAssets,
+            previewMintAssets,
+            "previewMint and previewDeposit equivalence (from assets)"
+        );
+    }
+
     // Helpers
 
     /// @dev Helper function to create FulfillArgs for multiple actors

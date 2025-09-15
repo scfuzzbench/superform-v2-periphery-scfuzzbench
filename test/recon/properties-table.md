@@ -37,9 +37,9 @@
 | `superVault_mint`, `superVault_deposit` | `accumulatorShares` is always accurately increased | ✅ |  |
 | `superVault_mint`, `superVault_deposit` | `accumulatorCostBasis` is always accurately accurately increased | ✅ |  |
 | `superVault_transfer`, `superVault_transferFrom` | `_update` should never revert | ✅ |  |
-| `property_x` | `previewDeposit` returns the correct amounts compared to executing a deposit |  |  |
-| `property_x` | `previewRedeem` returns the correct amounts compared to executing a redemption |  |  |
-| `property_x` | `previewMint` and `previewDeposit` equivalence |  |  |
+| `superVault_deposit` | `previewDeposit` returns the correct amounts compared to executing a deposit | ✅ |  |
+| `superVault_mint` | `previewMint` returns the correct amounts compared to executing a redemption | ✅ |  |
+| `doomsday_previewEquivalenceFromShares`, `doomsday_previewEquivalenceFromAssets` | `previewMint` and `previewDeposit` equivalence | ✅ |  |
 | `property_x` | When a user requests a redemption and the PPS is >= the user PPS, user `averageRequestPPS` must not decrease |  |  |
 
 
