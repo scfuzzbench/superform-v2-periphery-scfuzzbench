@@ -5910,7 +5910,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
         );
     }
 
-    function test_10_RuggableVault_Withdraw() public {
+    function test_10_RuggableVault_WithdrawX() public {
         RugTestVarsWithdraw memory vars;
         vars.depositAmount = 1000e6;
         vars.rugPercentage = 5000; // 50% rug
@@ -6953,8 +6953,8 @@ contract SuperVaultTest is BaseSuperVaultTest {
         UpdatePPSVars memory vars;
 
         // Get the current timestamp for the signature
-        vars.timestamp = block.timestamp + 1; // Ensure timestamp is greater than last update
-
+        vars.timestamp = block.timestamp; // // Use current timestamp to avoid TIMESTAMP_EXCEEDS_BLOCK revert
+        
         // Set the additional parameters: ppsStdev=0, validatorSet=1, totalValidators=1
         vars.ppsStdev = 0;
         vars.validatorSet = 1;
@@ -6970,7 +6970,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 vars.validatorSet,
                 vars.totalValidators,
                 vars.timestamp,
-                ecdsappsOracle.nonce()
+                ecdsappsOracle.noncePerStrategy(strategyAddr)
             )
         );
         vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
@@ -6985,16 +6985,37 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.proofs = new bytes[](1);
         vars.proofs[0] = vars.signature;
 
-        // Call updatePPS on the ECDSAPPSOracle with the deviating PPS
+        // Call batchUpdatePPS on the ECDSAPPSOracle with the deviating PPS
+        address[] memory strategies = new address[](1);
+        strategies[0] = strategyAddr;
+        
+        bytes[][] memory proofsArray = new bytes[][](1);
+        proofsArray[0] = vars.proofs;
+        
+        uint256[] memory ppss = new uint256[](1);
+        ppss[0] = newPPS;
+        
+        uint256[] memory ppsStdevs = new uint256[](1);
+        ppsStdevs[0] = vars.ppsStdev;
+        
+        uint256[] memory validatorSets = new uint256[](1);
+        validatorSets[0] = vars.validatorSet;
+        
+        uint256[] memory totalValidators = new uint256[](1);
+        totalValidators[0] = vars.totalValidators;
+        
+        uint256[] memory timestamps = new uint256[](1);
+        timestamps[0] = vars.timestamp;
+
         ecdsappsOracle.updatePPS(
             IECDSAPPSOracle.UpdatePPSArgs({
-                strategy: strategyAddr,
-                proofs: vars.proofs,
-                pps: newPPS,
-                ppsStdev: vars.ppsStdev,
-                validatorSet: vars.validatorSet,
-                totalValidators: vars.totalValidators,
-                timestamp: vars.timestamp
+                strategies: strategies,
+                proofsArray: proofsArray,
+                ppss: ppss,
+                ppsStdevs: ppsStdevs,
+                validatorSets: validatorSets,
+                totalValidators: totalValidators,
+                timestamps: timestamps
             })
         );
     }
@@ -7026,7 +7047,7 @@ contract SuperVaultTest is BaseSuperVaultTest {
                 vars.validatorSet,
                 vars.totalValidators,
                 vars.timestamp,
-                ecdsappsOracle.nonce()
+                ecdsappsOracle.noncePerStrategy(strategyAddr)
             )
         );
         vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
@@ -7041,16 +7062,37 @@ contract SuperVaultTest is BaseSuperVaultTest {
         vars.proofs = new bytes[](1);
         vars.proofs[0] = vars.signature;
 
-        // Call updatePPS on the ECDSAPPSOracle (exactly as in _updateSuperVaultPPS)
+        // Call batchUpdatePPS on the ECDSAPPSOracle (exactly as in _updateSuperVaultPPS)
+        address[] memory strategies = new address[](1);
+        strategies[0] = strategyAddr;
+        
+        bytes[][] memory proofsArray = new bytes[][](1);
+        proofsArray[0] = vars.proofs;
+        
+        uint256[] memory ppss = new uint256[](1);
+        ppss[0] = vars.pps;
+        
+        uint256[] memory ppsStdevs = new uint256[](1);
+        ppsStdevs[0] = vars.ppsStdev;
+        
+        uint256[] memory validatorSets = new uint256[](1);
+        validatorSets[0] = vars.validatorSet;
+        
+        uint256[] memory totalValidators = new uint256[](1);
+        totalValidators[0] = vars.totalValidators;
+        
+        uint256[] memory timestamps = new uint256[](1);
+        timestamps[0] = vars.timestamp;
+
         ecdsappsOracle.updatePPS(
             IECDSAPPSOracle.UpdatePPSArgs({
-                strategy: strategyAddr,
-                proofs: vars.proofs,
-                pps: vars.pps,
-                ppsStdev: vars.ppsStdev,
-                validatorSet: vars.validatorSet,
-                totalValidators: vars.totalValidators,
-                timestamp: vars.timestamp
+                strategies: strategies,
+                proofsArray: proofsArray,
+                ppss: ppss,
+                ppsStdevs: ppsStdevs,
+                validatorSets: validatorSets,
+                totalValidators: totalValidators,
+                timestamps: timestamps
             })
         );
     }

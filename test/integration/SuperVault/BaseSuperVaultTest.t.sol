@@ -37,6 +37,11 @@ import { MerkleReader } from "../../utils/merkle/helper/MerkleReader.sol";
 import { ISuperHookInspector } from "@superform-v2-core/src/interfaces/ISuperHook.sol";
 import { SuperVaultExecuteHooksHook } from "../../mocks/SuperVaultExecuteHooksHook.sol";
 import { SuperVaultManageYieldSourceHook } from "../../mocks/SuperVaultManageYieldSourceHook.sol";
+import { ISuperOracle } from "../../../src/interfaces/oracles/ISuperOracle.sol";
+import { MockChainlinkOracle } from "../../mocks/MockChainlinkOracle.sol";
+import { MockUp } from "../../mocks/MockUp.sol";
+import { MockFeedWithRealData } from "../../mocks/MockFeedWithRealData.sol";
+import { MockERC20 } from "../../mocks/MockERC20.sol";
 import { ISuperLedgerConfiguration } from "@superform-v2-core/src/interfaces/accounting/ISuperLedgerConfiguration.sol";
 import { ERC7540YieldSourceOracle } from "@superform-v2-core/src/accounting/oracles/ERC7540YieldSourceOracle.sol";
 import { ISuperLedger } from "@superform-v2-core/src/interfaces/accounting/ISuperLedger.sol";
@@ -64,6 +69,16 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
     SuperVaultStrategy public strategy;
     SuperGovernor public superGovernor;
     IECDSAPPSOracle public ecdsappsOracle;
+    ISuperOracle public superOracle;
+    MockERC20 public mockUSD;
+
+
+    address internal upToken;
+    address public oracleEthToUsd;
+    address public oracleUsdToUp;
+    address public oracleGasToEth;
+    MockFeedWithRealData public mockFeedWithRealDataEthToUsd;
+    MockFeedWithRealData public mockFeedWithRealDataGasToEth;
 
     // Helper contracts
     TotalAssetHelper public totalAssetHelper;
@@ -119,6 +134,18 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         asset = IERC20Metadata(existingUnderlyingTokens[ETH][USDC_KEY]);
         // Get aggregator
         aggregator = SuperVaultAggregator(_getContract(ETH, SUPER_VAULT_AGGREGATOR_KEY));
+
+        // Deploy MockUp
+        upToken = address(new MockUp(address(this)));
+
+        // Get oracle addresses
+        oracleEthToUsd = ORACLE_ETH_TO_USD;
+        oracleUsdToUp = address(new MockChainlinkOracle());
+        oracleGasToEth = ORACLE_GAS_TO_ETH;
+        mockFeedWithRealDataEthToUsd = new MockFeedWithRealData(oracleEthToUsd);
+        mockFeedWithRealDataGasToEth = new MockFeedWithRealData(oracleGasToEth);
+
+        superOracle = ISuperOracle(_getContract(ETH, SUPER_ORACLE_KEY));
 
         // Deploy vault using the new _deployVault function
         (address vaultAddr, address strategyAddr, address escrowAddr) = _deployVault("SV_USDC");
@@ -180,12 +207,49 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
             _getContract(ETH, ERC4626_YIELD_SOURCE_ORACLE_KEY),
             0 // addYieldSource
         );
-
         vm.stopPrank();
 
         validator1PrivateKey = 0x20;
         validator2PrivateKey = 0x30;
         validator3PrivateKey = 0x40;
+
+        // address(this) is the super governor; no need to prank
+        superGovernor.setAddress(superGovernor.UP(), upToken);
+        superGovernor.setAddress(superGovernor.SUPER_ORACLE(), address(superOracle));
+
+        //configure super oracle
+        mockUSD = new MockERC20("Mock USD", "USD", 6); // USD has 6 decimals
+        
+        address[] memory bases = new address[](3);
+        bases[0] = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+        bases[1] = address(upToken);
+        bases[2] = address(uint160(uint256(keccak256("GAS_QUOTE")))); // GAS
+        address[] memory quotes = new address[](3);
+        quotes[0] = address(840); // USD
+        quotes[1] = address(840); // USD
+        quotes[2] = address(uint160(uint256(keccak256("GWEI_QUOTE")))); // GWEI
+        bytes32[] memory providers = new bytes32[](3);
+        providers[0] = "CHAINLINK";
+        providers[1] = "CHAINLINK";
+        providers[2] = "CHAINLINK";
+        address[] memory feeds = new address[](3);
+        feeds[0] = address(mockFeedWithRealDataEthToUsd);
+        feeds[1] = oracleUsdToUp;
+        feeds[2] = address(mockFeedWithRealDataGasToEth);
+
+        // update authority is address(this); no need to prank
+        superOracle.queueOracleUpdate(bases, quotes, providers, feeds);
+
+        vm.warp(block.timestamp + 2 weeks);
+        superOracle.executeOracleUpdate();
+
+        uint256[] memory maxStaleness = new uint256[](3);
+        maxStaleness[0] = 1 days;
+        maxStaleness[1] = 1 days;
+        maxStaleness[2] = 1 days;
+        superOracle.setFeedMaxStalenessBatch(feeds, maxStaleness);
+
+        superGovernor.setGasInfo(address(ecdsappsOracle), 50_000, 10_000);
 
         // Centrifuge setup
         rootManager = 0x0C1fDfd6a1331a875EA013F3897fc8a76ada5DfC;
@@ -1313,6 +1377,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         bytes[] memory argsForProofs = new bytes[](2);
         argsForProofs[0] = ISuperHookInspector(fulfillHooksAddresses[0]).inspect(fulfillHooksData[0]);
         argsForProofs[1] = ISuperHookInspector(fulfillHooksAddresses[1]).inspect(fulfillHooksData[1]);
+
         bytes32[][] memory proofs = _getMerkleProofsForHooks(fulfillHooksAddresses, argsForProofs);
         vm.startPrank(MANAGER);
         if (revertSelector != bytes4(0)) {
@@ -1435,6 +1500,8 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
             redeemShares,
             false
         );
+
+        console2.log("__requestRedeemFrom7540Underlying ------ redeemShares", redeemShares);
 
         uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
         expectedAssetsOrSharesOut[0] = 0;
@@ -2117,7 +2184,7 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
                 vars.validatorSet,
                 vars.totalValidators,
                 vars.timestamp,
-                ecdsappsOracle.nonce()
+                ecdsappsOracle.noncePerStrategy(strategyAddr)
             )
         );
         vars.ethSignedMessageHash = MessageHashUtils.toTypedDataHash(ecdsappsOracle.domainSeparator(), structHash);
@@ -2132,16 +2199,37 @@ contract BaseSuperVaultTest is MerkleReader, BaseTest {
         vars.proofs = new bytes[](1);
         vars.proofs[0] = vars.signature;
 
-        // Call updatePPS on the ECDSAPPSOracle with the new parameters
+        // Call batchUpdatePPS on the ECDSAPPSOracle with a single entry
+        address[] memory strategies = new address[](1);
+        strategies[0] = strategyAddr;
+        
+        bytes[][] memory proofsArray = new bytes[][](1);
+        proofsArray[0] = vars.proofs;
+        
+        uint256[] memory ppss = new uint256[](1);
+        ppss[0] = vars.pps;
+        
+        uint256[] memory ppsStdevs = new uint256[](1);
+        ppsStdevs[0] = vars.ppsStdev;
+        
+        uint256[] memory validatorSets = new uint256[](1);
+        validatorSets[0] = vars.validatorSet;
+        
+        uint256[] memory totalValidators = new uint256[](1);
+        totalValidators[0] = vars.totalValidators;
+        
+        uint256[] memory timestamps = new uint256[](1);
+        timestamps[0] = vars.timestamp;
+
         ecdsappsOracle.updatePPS(
             IECDSAPPSOracle.UpdatePPSArgs({
-                strategy: strategyAddr,
-                proofs: vars.proofs,
-                pps: vars.pps,
-                ppsStdev: vars.ppsStdev,
-                validatorSet: vars.validatorSet,
-                totalValidators: vars.totalValidators,
-                timestamp: vars.timestamp
+                strategies: strategies,
+                proofsArray: proofsArray,
+                ppss: ppss,
+                ppsStdevs: ppsStdevs,
+                validatorSets: validatorSets,
+                totalValidators: totalValidators,
+                timestamps: timestamps
             })
         );
 

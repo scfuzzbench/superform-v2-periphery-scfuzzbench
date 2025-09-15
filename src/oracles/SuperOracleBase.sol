@@ -6,6 +6,7 @@ import { IOracle } from "../vendor/awesome-oracles/IOracle.sol";
 import { AggregatorV3Interface } from "../vendor/chainlink/AggregatorV3Interface.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { BoringERC20 } from "../vendor/BoringSolidity/BoringERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // Superform
 import { ISuperOracle } from "../interfaces/oracles/ISuperOracle.sol";
@@ -316,7 +317,6 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
         returns (uint256 quoteAmount)
     {
         (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(oracle).latestRoundData();
-
         // Validate data
         if (answer <= 0 || block.timestamp - updatedAt > feedMaxStaleness[oracle]) {
             if (revertOnError) revert ORACLE_UNTRUSTED_DATA();
@@ -325,12 +325,13 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
 
         // Get decimals
         uint8 feedDecimals = _getOracleDecimals(AggregatorV3Interface(oracle));
+    
         uint8 baseDecimals = IERC20(base).safeDecimals();
         uint8 quoteDecimals = IERC20(quote).safeDecimals();
 
         // Calculate quote amount with proper decimal scaling
-        quoteAmount =
-            (baseAmount * uint256(answer) * (10 ** quoteDecimals)) / ((10 ** baseDecimals) * (10 ** feedDecimals));
+        quoteAmount = Math.mulDiv(baseAmount, uint256(answer), 10 ** feedDecimals);
+        quoteAmount = Math.mulDiv(quoteAmount, 10 ** quoteDecimals, 10 ** baseDecimals);
     }
 
     function _getAverageQuote(
@@ -376,6 +377,7 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
             }
 
             uint256 quote_ = _getQuoteFromOracle(providerOracle, baseAmount, base, quote, false);
+
             /// @dev we don't revert on error, we just skip the oracle value
             if (quote_ > 0) {
                 total += quote_;
@@ -417,7 +419,7 @@ abstract contract SuperOracleBase is ISuperOracle, IOracle {
                 diff = mean - values[i];
             }
 
-            uint256 squaredDiff = diff * diff;
+            uint256 squaredDiff = Math.mulDiv(diff, diff, 1);
             sumSquaredDiff += squaredDiff;
         }
 
