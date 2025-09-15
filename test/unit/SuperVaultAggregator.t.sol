@@ -804,7 +804,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -879,7 +879,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -970,7 +970,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                     validatorSets: validatorSets,
                     totalValidators: totalValidators,
                     timestamps: timestamps,
-                    updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
                 })
             );
             
@@ -1099,7 +1099,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -2367,7 +2367,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: vars.validatorSets,
                 totalValidators: vars.totalValidators,
                 timestamps: vars.timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -2444,7 +2444,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
     }

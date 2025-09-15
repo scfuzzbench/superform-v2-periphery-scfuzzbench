@@ -441,7 +441,6 @@ interface ISuperVaultAggregator {
 
     /// @notice Arguments for batch forwarding PPS updates
     /// @param strategies Array of strategy addresses
-    /// @param updateAuthorities Array of update authorities
     /// @param ppss Array of price-per-share values
     /// @param ppsStdevs Array of standard deviations of price-per-share values
     /// @param validatorSets Array of numbers of validators who calculated each PPS
@@ -449,12 +448,12 @@ interface ISuperVaultAggregator {
     /// @param timestamps Array of timestamps when values were generated
     struct BatchForwardPPSArgs {
         address[] strategies;
-        address[] updateAuthorities;
         uint256[] ppss;
         uint256[] ppsStdevs;
         uint256[] validatorSets;
         uint256[] totalValidators;
         uint256[] timestamps;
+        address updateAuthority;
     }
 
     /// @notice Batch forwards validated PPS updates to multiple strategies

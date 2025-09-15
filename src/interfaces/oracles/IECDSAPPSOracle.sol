@@ -120,7 +120,6 @@ interface IECDSAPPSOracle {
 
     /// @notice Arguments for batch updating PPS for multiple strategies
     /// @param strategies Array of strategy addresses
-    /// @param updateAuthorities Array of update authorities
     /// @param proofsArray Array of arrays of cryptographic proofs (one array of proofs per strategy)
     /// @param ppss Array of price-per-share values (means)
     /// @param ppsStdevs Array of standard deviations of price-per-share values
@@ -129,7 +128,6 @@ interface IECDSAPPSOracle {
     /// @param timestamps The time and therefore the blockchain(s) state(s) (plural important) this PPS refers to
     struct BatchUpdatePPSArgs {
         address[] strategies;
-        address[] updateAuthorities;
         bytes[][] proofsArray;
         uint256[] ppss;
         uint256[] ppsStdevs;
