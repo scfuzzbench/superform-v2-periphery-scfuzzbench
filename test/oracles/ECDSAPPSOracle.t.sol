@@ -618,8 +618,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: data.ppsStdevs,
                 validatorSets: data.validatorSets,
                 totalValidators: data.totalValidatorsList,
-                timestamps: data.timestamps,
-                updateAuthorities: data.updateAuthorities
+                timestamps: data.timestamps
             })
         );
 
@@ -648,8 +647,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: ppsStdevs,
                 validatorSets: validatorSets,
                 totalValidators: totalValidatorsList,
-                timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                timestamps: timestamps
             })
         );
     }
@@ -711,8 +709,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: data.ppsStdevs,
                 validatorSets: data.validatorSets,
                 totalValidators: data.totalValidatorsList,
-                timestamps: data.timestamps,
-                updateAuthorities: data.updateAuthorities
+                timestamps: data.timestamps
             })
         );
     }
@@ -788,8 +785,7 @@ contract ECDSAPPSOracleTest is BaseSuperVaultTest {
                 ppsStdevs: data.ppsStdevs,
                 validatorSets: data.validatorSets,
                 totalValidators: data.totalValidatorsList,
-                timestamps: data.timestamps,
-                updateAuthorities: data.updateAuthorities
+                timestamps: data.timestamps
             })
         );
     }

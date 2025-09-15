@@ -104,7 +104,6 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                 || strategiesLength != args.ppss.length
                 || strategiesLength != args.ppsStdevs.length || strategiesLength != args.validatorSets.length
                 || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
-                || strategiesLength != args.updateAuthorities.length
         ) revert ARRAY_LENGTH_MISMATCH();
 
 
@@ -115,8 +114,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
             uint256[] memory validPpsStdevs,
             uint256[] memory validValidatorSets,
             uint256[] memory validTotalValidators,
-            uint256[] memory validTimestamps,
-            address[] memory validUpdateAuthorities
+            uint256[] memory validTimestamps
         ) = _processBatchStrategies(args, strategiesLength);
 
         // Forward valid entries if any exist
@@ -126,8 +124,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
             validPpsStdevs,
             validValidatorSets,
             validTotalValidators,
-            validTimestamps,
-            validUpdateAuthorities
+            validTimestamps
         );
     }
 
@@ -216,8 +213,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
             uint256[] memory validPpsStdevs,
             uint256[] memory validValidatorSets,
             uint256[] memory validTotalValidators,
-            uint256[] memory validTimestamps,
-            address[] memory validUpdateAuthorities
+            uint256[] memory validTimestamps
         )
     {
         // Arrays to collect valid entries
@@ -227,7 +223,6 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
         validValidatorSets = new uint256[](strategiesLength);
         validTotalValidators = new uint256[](strategiesLength);
         validTimestamps = new uint256[](strategiesLength);
-        validUpdateAuthorities = new address[](strategiesLength);
         uint256 validCount;
 
         // Process each strategy update
@@ -241,7 +236,6 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                 validValidatorSets[validCount] = args.validatorSets[i];
                 validTotalValidators[validCount] = args.totalValidators[i];
                 validTimestamps[validCount] = args.timestamps[i];
-                validUpdateAuthorities[validCount] = args.updateAuthorities[i];
                 validCount++;
             }
         }
@@ -254,7 +248,6 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
             mstore(validValidatorSets, validCount)
             mstore(validTotalValidators, validCount)
             mstore(validTimestamps, validCount)
-            mstore(validUpdateAuthorities, validCount)
         }
     }
 
@@ -314,8 +307,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
         uint256[] memory validPpsStdevs,
         uint256[] memory validValidatorSets,
         uint256[] memory validTotalValidators,
-        uint256[] memory validTimestamps,
-        address[] memory validUpdateAuthorities
+        uint256[] memory validTimestamps
     ) internal {
         // Only forward if there are valid entries
         if (validStrategies.length > 0) {
@@ -327,7 +319,7 @@ contract ECDSAPPSOracle is IECDSAPPSOracle, EIP712 {
                     validatorSets: validValidatorSets,
                     totalValidators: validTotalValidators,
                     timestamps: validTimestamps,
-                    updateAuthorities: validUpdateAuthorities
+                    updateAuthority: msg.sender
                 })
             ) {
             } catch Error(string memory reason) {

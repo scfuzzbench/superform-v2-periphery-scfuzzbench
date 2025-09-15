@@ -247,7 +247,6 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
             strategiesLength != args.ppss.length
                 || strategiesLength != args.ppsStdevs.length || strategiesLength != args.validatorSets.length
                 || strategiesLength != args.timestamps.length || strategiesLength != args.totalValidators.length
-                || strategiesLength != args.updateAuthorities.length
         ) revert ARRAY_LENGTH_MISMATCH();
 
         bool paymentsEnabled = SUPER_GOVERNOR.isUpkeepPaymentsEnabled();
@@ -277,8 +276,8 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 // These are manager-designated keepers that should be exempt from fees
                 // NOTE: Protected keepers cannot be added to this list (blocked in addAuthorizedCaller)
                 /// @dev: cannot underflow; it's checked above already and it skips the entry if that's the case
-                if (_strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthorities[i])) {
-                    emit AuthorizedCaller(args.strategies[i], args.updateAuthorities[i]);
+                if (_strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthority)) {
+                    emit AuthorizedCaller(args.strategies[i], args.updateAuthority);
                     continue;
                 }
 
@@ -317,7 +316,7 @@ contract SuperVaultAggregator is ISuperVaultAggregator {
                 } else {
                     address manager = _strategyData[args.strategies[i]].mainManager;
                     if (
-                        SUPER_GOVERNOR.isSuperformManager(manager) ||  _strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthorities[i])
+                        SUPER_GOVERNOR.isSuperformManager(manager) ||  _strategyData[args.strategies[i]].authorizedCallers.contains(args.updateAuthority)
                     ) {
                         upkeepCost = 0;
                     } else {

@@ -812,7 +812,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -887,7 +887,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -978,7 +978,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                     validatorSets: validatorSets,
                     totalValidators: totalValidators,
                     timestamps: timestamps,
-                    updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
                 })
             );
             
@@ -1107,7 +1107,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -2375,7 +2375,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: vars.validatorSets,
                 totalValidators: vars.totalValidators,
                 timestamps: vars.timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
 
@@ -2452,7 +2452,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidators,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: address(this)
             })
         );
     }
@@ -2473,7 +2473,6 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         uint256[] memory validatorSets = new uint256[](1);
         uint256[] memory totalValidatorsArray = new uint256[](1);
         uint256[] memory timestamps = new uint256[](1);
-        address[] memory updateAuthorities = new address[](1);
 
         strategies[0] = strategy;
         ppss[0] = 1e18 + 1e15;
@@ -2481,7 +2480,6 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
         validatorSets[0] = 1;
         totalValidatorsArray[0] = 1;
         timestamps[0] = superVaultAggregator.getLastUpdateTimestamp(strategy) + 20;
-        updateAuthorities[0] = user;
 
         // Advance time to ensure update is valid
         vm.warp(block.timestamp + 25);
@@ -2497,7 +2495,7 @@ contract SuperVaultAggregatorTest is PeripheryHelpers {
                 validatorSets: validatorSets,
                 totalValidators: totalValidatorsArray,
                 timestamps: timestamps,
-                updateAuthorities: updateAuthorities
+                updateAuthority: user
             })
         );
         
