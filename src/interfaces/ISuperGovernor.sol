@@ -30,8 +30,6 @@ interface ISuperGovernor is IAccessControl {
     }
 
     struct GasInfo {
-        // `forwardPPS` base gas
-        uint256 gasSingle;
         // `batchForwardPPS` base gas
         uint256 baseGasBatch;
         // `batchForwardPPS` gas increase per entry
@@ -290,10 +288,9 @@ interface ISuperGovernor is IAccessControl {
 
     /// @notice Emitted when gas info is set
     /// @param oracle The address of the oracle
-    /// @param gasSingle The base gas for the oracle
     /// @param baseGasBatch The base gas for the oracle
     /// @param gasIncreasePerEntryBatch The gas increase per entry for the oracle
-    event GasInfoSet(address indexed oracle, uint256 gasSingle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch);
+    event GasInfoSet(address indexed oracle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch);
 
     /*//////////////////////////////////////////////////////////////
                        CONTRACT REGISTRY FUNCTIONS
@@ -492,10 +489,9 @@ interface ISuperGovernor is IAccessControl {
     //////////////////////////////////////////////////////////////*/
     /// @notice Sets gas info for an oracle
     /// @param oracle The address of the oracle
-    /// @param gasSingle The base gas for the oracle
     /// @param baseGasBatch The base gas for the oracle
     /// @param gasIncreasePerEntryBatch The gas increase per entry for the oracle
-    function setGasInfo(address oracle, uint256 gasSingle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch) external;
+    function setGasInfo(address oracle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch) external;
 
     /// @notice Proposes a change to upkeep payments enabled status
     /// @param enabled The proposed enabled status
@@ -682,11 +678,6 @@ interface ISuperGovernor is IAccessControl {
     /// @param feeType The type of fee to get
     /// @return The current fee value (in basis points)
     function getFee(FeeType feeType) external view returns (uint256);
-
-    /// @notice Gets the current upkeep cost per update for PPS updates
-    /// @param oracle The address of the PPS oracle
-    /// @return The current upkeep cost per update in UP tokens
-    function getUpkeepCostPerUpdate(address oracle) external view returns (uint256);
 
     /// @notice Gets the current upkeep cost per batch update for PPS updates
     /// @param oracle The address of the PPS oracle

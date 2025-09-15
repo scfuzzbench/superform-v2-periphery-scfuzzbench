@@ -565,12 +565,12 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
                         UPKEEP COST MANAGEMENT
     //////////////////////////////////////////////////////////////*/
     /// @inheritdoc ISuperGovernor
-    function setGasInfo(address oracle, uint256 gasSingle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch) external onlyRole(_GAS_MANAGER_ROLE) {
+    function setGasInfo(address oracle, uint256 baseGasBatch, uint256 gasIncreasePerEntryBatch) external onlyRole(_GAS_MANAGER_ROLE) {
         if (oracle == address(0)) revert INVALID_ADDRESS();
-        if (gasSingle == 0 || baseGasBatch == 0 || gasIncreasePerEntryBatch == 0) revert INVALID_GAS_INFO();
+        if (baseGasBatch == 0 || gasIncreasePerEntryBatch == 0) revert INVALID_GAS_INFO();
 
-        _oracleGasInfo[oracle] = GasInfo({gasSingle: gasSingle, baseGasBatch: baseGasBatch, gasIncreasePerEntryBatch: gasIncreasePerEntryBatch});
-        emit GasInfoSet(oracle, gasSingle, baseGasBatch, gasIncreasePerEntryBatch);
+        _oracleGasInfo[oracle] = GasInfo({baseGasBatch: baseGasBatch, gasIncreasePerEntryBatch: gasIncreasePerEntryBatch});
+        emit GasInfoSet(oracle, baseGasBatch, gasIncreasePerEntryBatch);
     }
 
     /// @notice Proposes a change to the upkeep payments enabled status
@@ -949,11 +949,6 @@ contract SuperGovernor is ISuperGovernor, AccessControl {
     /// @inheritdoc ISuperGovernor
     function getFee(FeeType feeType) external view returns (uint256) {
         return _feeValues[feeType];
-    }
-
-    /// @inheritdoc ISuperGovernor
-    function getUpkeepCostPerUpdate(address oracle_) external view returns (uint256) {
-        return _convertGasToUp(_oracleGasInfo[oracle_].gasSingle);
     }
 
     /// @inheritdoc ISuperGovernor
