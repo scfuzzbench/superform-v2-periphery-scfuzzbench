@@ -30,12 +30,14 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         RequestDeposit7540,
         RequestRedeem7540,
         ApproveAndRequestDeposit7540,
-        ApproveAndRequestRedeem7540,
         CancelDepositRequest7540,
         CancelRedeemRequest7540,
         ClaimCancelDepositRequest7540,
         ClaimCancelRedeemRequest7540,
-        Withdraw7540
+        Withdraw7540,
+        // Super Vault Hooks
+        CancelRedeem,
+        SuperVaultWithdraw7540
     }
 
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
@@ -211,15 +213,6 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
                 address(superVaultStrategy), // Owner
                 address(superVaultStrategy) // Controller
             );
-        } else if (hookType == HookType.ApproveAndRequestRedeem7540) {
-            hookAddress = address(approveAndRequestRedeem7540Hook);
-            hookCalldata = abi.encodePacked(
-                bytes32(0), // yieldSourceOracleId placeholder
-                _getYieldSource(), // Address of the yield source
-                amountToInvest, // Amount to request redeem
-                address(superVaultStrategy), // Owner
-                address(superVaultStrategy) // Controller
-            );
         } else if (hookType == HookType.CancelDepositRequest7540) {
             hookAddress = address(cancelDepositRequest7540Hook);
             hookCalldata = abi.encodePacked(
@@ -252,6 +245,23 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             );
         } else if (hookType == HookType.Withdraw7540) {
             hookAddress = address(withdraw7540Hook);
+            hookCalldata = abi.encodePacked(
+                bytes32(0), // yieldSourceOracleId placeholder
+                _getYieldSource(), // Address of the yield source
+                amountToInvest, // Amount to withdraw
+                address(superVaultStrategy), // Receiver
+                address(superVaultStrategy), // Owner
+                address(superVaultStrategy) // Controller
+            );
+        } else if (hookType == HookType.CancelRedeem) {
+            hookAddress = address(cancelRedeemHook);
+            hookCalldata = abi.encodePacked(
+                bytes32(0), // yieldSourceOracleId placeholder
+                _getYieldSource(), // Address of the yield source
+                address(superVaultStrategy) // Controller
+            );
+        } else if (hookType == HookType.SuperVaultWithdraw7540) {
+            hookAddress = address(superVaultWithdraw7540Hook);
             hookCalldata = abi.encodePacked(
                 bytes32(0), // yieldSourceOracleId placeholder
                 _getYieldSource(), // Address of the yield source

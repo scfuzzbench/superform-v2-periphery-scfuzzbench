@@ -258,13 +258,6 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         superVaultStrategy.updateMaxPPSSlippage(maxSlippageBps);
     }
 
-    function superVaultStrategy_updateSuperVaultState(
-        address controller,
-        ISuperVaultStrategy.SuperVaultState memory state
-    ) public asActor {
-        superVaultStrategy.updateSuperVaultState(controller, state);
-    }
-
     /// Helpers
 
     function _requestedSharesForControllers(

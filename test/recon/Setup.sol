@@ -23,12 +23,15 @@ import {Redeem7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/Redeem7540V
 import {RequestDeposit7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/RequestDeposit7540VaultHook.sol";
 import {RequestRedeem7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/RequestRedeem7540VaultHook.sol";
 import {ApproveAndRequestDeposit7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/ApproveAndRequestDeposit7540VaultHook.sol";
-import {ApproveAndRequestRedeem7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/ApproveAndRequestRedeem7540VaultHook.sol";
 import {CancelDepositRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/CancelDepositRequest7540Hook.sol";
 import {CancelRedeemRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/CancelRedeemRequest7540Hook.sol";
 import {ClaimCancelDepositRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/ClaimCancelDepositRequest7540Hook.sol";
 import {ClaimCancelRedeemRequest7540Hook} from "lib/v2-core/src/hooks/vaults/7540/ClaimCancelRedeemRequest7540Hook.sol";
 import {Withdraw7540VaultHook} from "lib/v2-core/src/hooks/vaults/7540/Withdraw7540VaultHook.sol";
+
+// Super Vault Hooks
+import {CancelRedeemHook} from "lib/v2-core/src/hooks/vaults/super-vault/CancelRedeemHook.sol";
+import {Withdraw7540VaultHook as SuperVaultWithdraw7540VaultHook} from "lib/v2-core/src/hooks/vaults/super-vault/Withdraw7540VaultHook.sol";
 
 // Source dependencies
 import "src/SuperVault/SuperVault.sol";
@@ -90,12 +93,15 @@ abstract contract Setup is
     RequestDeposit7540VaultHook requestDeposit7540Hook;
     RequestRedeem7540VaultHook requestRedeem7540Hook;
     ApproveAndRequestDeposit7540VaultHook approveAndRequestDeposit7540Hook;
-    ApproveAndRequestRedeem7540VaultHook approveAndRequestRedeem7540Hook;
     CancelDepositRequest7540Hook cancelDepositRequest7540Hook;
     CancelRedeemRequest7540Hook cancelRedeemRequest7540Hook;
     ClaimCancelDepositRequest7540Hook claimCancelDepositRequest7540Hook;
     ClaimCancelRedeemRequest7540Hook claimCancelRedeemRequest7540Hook;
     Withdraw7540VaultHook withdraw7540Hook;
+
+    // Super Vault Hooks
+    CancelRedeemHook cancelRedeemHook;
+    SuperVaultWithdraw7540VaultHook superVaultWithdraw7540Hook;
 
     // Mocks
     MockERC4626YieldSourceOracle erc4626YieldSourceOracle;
@@ -164,6 +170,7 @@ abstract contract Setup is
             address(this), // superGovernor role
             address(this), // governor role
             address(this), // bankManager role
+            address(this), // gasManager role
             address(this), // treasury
             address(this) // prover
         );
@@ -255,12 +262,15 @@ abstract contract Setup is
         requestDeposit7540Hook = new RequestDeposit7540VaultHook();
         requestRedeem7540Hook = new RequestRedeem7540VaultHook();
         approveAndRequestDeposit7540Hook = new ApproveAndRequestDeposit7540VaultHook();
-        approveAndRequestRedeem7540Hook = new ApproveAndRequestRedeem7540VaultHook();
         cancelDepositRequest7540Hook = new CancelDepositRequest7540Hook();
         cancelRedeemRequest7540Hook = new CancelRedeemRequest7540Hook();
         claimCancelDepositRequest7540Hook = new ClaimCancelDepositRequest7540Hook();
         claimCancelRedeemRequest7540Hook = new ClaimCancelRedeemRequest7540Hook();
         withdraw7540Hook = new Withdraw7540VaultHook();
+
+        // Deploy Super Vault Hooks
+        cancelRedeemHook = new CancelRedeemHook();
+        superVaultWithdraw7540Hook = new SuperVaultWithdraw7540VaultHook();
 
         // Register all hooks with SuperGovernor
         // ERC4626 Hooks (deposit hooks are regular hooks, redeem hooks are fulfill request hooks)
@@ -283,10 +293,6 @@ abstract contract Setup is
             false
         );
         superGovernor.registerHook(
-            address(approveAndRequestRedeem7540Hook),
-            false
-        );
-        superGovernor.registerHook(
             address(cancelDepositRequest7540Hook),
             false
         );
@@ -300,6 +306,10 @@ abstract contract Setup is
             false
         );
         superGovernor.registerHook(address(withdraw7540Hook), true); // fulfill request hook
+
+        // Super Vault Hooks
+        superGovernor.registerHook(address(cancelRedeemHook), false);
+        superGovernor.registerHook(address(superVaultWithdraw7540Hook), true); // fulfill request hook
 
         // 12. Set up approval array for contracts that need token access
         address[] memory approvalArray = new address[](6);

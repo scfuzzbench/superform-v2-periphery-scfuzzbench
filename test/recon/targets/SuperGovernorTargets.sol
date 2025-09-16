@@ -78,16 +78,6 @@ abstract contract SuperGovernorTargets is BaseTargetFunctions, Properties {
         superGovernor.executeUpkeepClaim(amount);
     }
 
-    function superGovernor_proposeUpkeepCostPerUpdate(
-        uint256 newCost
-    ) public asAdmin {
-        superGovernor.proposeUpkeepCostPerUpdate(newCost);
-    }
-
-    function superGovernor_executeUpkeepCostPerUpdateChange() public asAdmin {
-        superGovernor.executeUpkeepCostPerUpdateChange();
-    }
-
     function superGovernor_proposeUpkeepPaymentsChange(
         bool enabled
     ) public asAdmin {

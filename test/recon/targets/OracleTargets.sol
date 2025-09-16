@@ -48,15 +48,36 @@ abstract contract OracleTargets is BaseTargetFunctions, Properties {
     }
 
     function ECDSAPPSOracle_updatePPS_clamped(uint256 pps) public {
+        address[] memory strategies = new address[](1);
+        strategies[0] = address(superVaultStrategy);
+        
+        bytes[][] memory proofsArray = new bytes[][](1);
+        proofsArray[0] = new bytes[](0);
+        
+        uint256[] memory ppss = new uint256[](1);
+        ppss[0] = pps;
+        
+        uint256[] memory ppsStdevs = new uint256[](1);
+        ppsStdevs[0] = 0;
+        
+        uint256[] memory validatorSets = new uint256[](1);
+        validatorSets[0] = 0;
+        
+        uint256[] memory totalValidators = new uint256[](1);
+        totalValidators[0] = 0;
+        
+        uint256[] memory timestamps = new uint256[](1);
+        timestamps[0] = block.timestamp;
+        
         IECDSAPPSOracle.UpdatePPSArgs memory args = IECDSAPPSOracle
             .UpdatePPSArgs({
-                strategy: address(superVaultStrategy),
-                proofs: new bytes[](0),
-                pps: pps,
-                ppsStdev: 0,
-                validatorSet: 0,
-                totalValidators: 0,
-                timestamp: block.timestamp
+                strategies: strategies,
+                proofsArray: proofsArray,
+                ppss: ppss,
+                ppsStdevs: ppsStdevs,
+                validatorSets: validatorSets,
+                totalValidators: totalValidators,
+                timestamps: timestamps
             });
 
         ECDSAPPSOracle_updatePPS(args);
@@ -67,16 +88,6 @@ abstract contract OracleTargets is BaseTargetFunctions, Properties {
         IECDSAPPSOracle.UpdatePPSArgs memory args
     ) public asActor {
         ECDSAPPSOracle.updatePPS(args);
-
-        hasUpdatedPPS = true;
-    }
-
-    /// @dev Missing coverage over this for now while there's only one vault triad is okay
-    // since ECDSAPPSOracle_updatePPS_clamped already allows updating price for the deployed strategy
-    function ECDSAPPSOracle_batchUpdatePPS(
-        IECDSAPPSOracle.BatchUpdatePPSArgs memory args
-    ) public asActor {
-        ECDSAPPSOracle.batchUpdatePPS(args);
 
         hasUpdatedPPS = true;
     }

@@ -10,40 +10,20 @@ contract MockECDSAPPSOracle {
     //||                    NON-VIEW FUNCTIONS                       ||
     //||                                                             ||
     //<>=============================================================<>
-    // Mock implementation of batchUpdatePPS
-    function batchUpdatePPS(
-        IECDSAPPSOracle.BatchUpdatePPSArgs memory args
-    ) public {
-        ISuperVaultAggregator(_SUPER_GOVERNORReturn_0).batchForwardPPS(
-            ISuperVaultAggregator.BatchForwardPPSArgs({
+    // Mock implementation of updatePPS
+    function updatePPS(IECDSAPPSOracle.UpdatePPSArgs memory args) public {
+        ISuperVaultAggregator.ForwardPPSArgs
+            memory forwardArgs = ISuperVaultAggregator.ForwardPPSArgs({
                 strategies: args.strategies,
                 ppss: args.ppss,
                 ppsStdevs: args.ppsStdevs,
                 validatorSets: args.validatorSets,
                 totalValidators: args.totalValidators,
-                timestamps: args.timestamps
-            })
-        );
-    }
-
-    // Mock implementation of updatePPS
-    function updatePPS(IECDSAPPSOracle.UpdatePPSArgs memory args) public {
-        ISuperVaultAggregator.ForwardPPSArgs
-            memory forwardArgs = ISuperVaultAggregator.ForwardPPSArgs({
-                strategy: args.strategy,
-                isExempt: false, // This will be determined by SuperVaultAggregator
-                pps: args.pps,
-                ppsStdev: args.ppsStdev,
-                validatorSet: args.validatorSet,
-                totalValidators: args.totalValidators,
-                timestamp: args.timestamp,
-                upkeepCost: 0 // This will be set by SuperVaultAggregator
+                timestamps: args.timestamps,
+                updateAuthority: msg.sender
             });
 
-        ISuperVaultAggregator(_SUPER_GOVERNORReturn_0).forwardPPS(
-            msg.sender,
-            forwardArgs
-        );
+        ISuperVaultAggregator(_SUPER_GOVERNORReturn_0).forwardPPS(forwardArgs);
     }
 
     //<>=============================================================<>
@@ -78,27 +58,7 @@ contract MockECDSAPPSOracle {
     //||        ⚠️  STRUCT DEFINITIONS - DO NOT MODIFY  ⚠️          ||
     //||                                                             ||
     //<>=============================================================<>
-    // Struct definition for IECDSAPPSOracle_BatchUpdatePPSArgs
-    struct IECDSAPPSOracle_BatchUpdatePPSArgs {
-        address[] strategies;
-        bytes[][] proofsArray;
-        uint256[] ppss;
-        uint256[] ppsStdevs;
-        uint256[] validatorSets;
-        uint256[] totalValidators;
-        uint256[] timestamps;
-    }
-
-    // Struct definition for IECDSAPPSOracle_UpdatePPSArgs
-    struct IECDSAPPSOracle_UpdatePPSArgs {
-        address strategy;
-        bytes[] proofs;
-        uint256 pps;
-        uint256 ppsStdev;
-        uint256 validatorSet;
-        uint256 totalValidators;
-        uint256 timestamp;
-    }
+    // Struct definition removed - using IECDSAPPSOracle.UpdatePPSArgs from interface
 
     //<>=============================================================<>
     //||                                                             ||
