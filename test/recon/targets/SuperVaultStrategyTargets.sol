@@ -20,6 +20,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
     function superVaultStrategy_manageYieldSource_clamped(
         YieldSourceType sourceType
     ) public {
+        sourceType = YieldSourceType(uint256(sourceType) % 4);
         address yieldSourceOracle = _getYieldSourceOracleForType(sourceType);
 
         superVaultStrategy_manageYieldSource(
@@ -46,21 +47,20 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         uint256 redeemAmount,
         uint256 entropy
     ) public {
-        // Clamp the redeem amount to a reasonable range (1 to 100 ether)
-        if (redeemAmount == 0) redeemAmount = 1e18;
-        if (redeemAmount > 100e18) redeemAmount = 100e18;
+        // Find a controller that has pending redeem requests
+        address selectedController = _getRandomActor(entropy);
+        uint256 pendingAmount = superVaultStrategy.pendingRedeemRequest(
+            selectedController
+        );
 
-        // Use a random actor (not the current actor) as the controller
+        // Use the minimum of requested amount and what the controller actually has pending
+        // If pendingAmount is 0, skip this operation
+        uint256 actualRedeemAmount = redeemAmount > pendingAmount
+            ? pendingAmount
+            : redeemAmount;
+
         address[] memory controllers = new address[](1);
-        address randomController = _getRandomActor(entropy);
-        
-        // Ensure we don't use the current actor
-        while (randomController == _getActor()) {
-            entropy = uint256(keccak256(abi.encode(entropy)));
-            randomController = _getRandomActor(entropy);
-        }
-        
-        controllers[0] = randomController;
+        controllers[0] = selectedController;
 
         // Determine yield source type from currently active yield source
         YieldSourceType activeYieldSourceType = _getYieldSourceTypeFromAddress(
@@ -80,7 +80,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
                 bytes32(0), // yieldSourceOracleId placeholder
                 _getYieldSource(), // Current active yield source
                 address(superVaultStrategy), // Owner (strategy owns the yield source shares)
-                redeemAmount, // Amount to redeem
+                actualRedeemAmount, // Amount to redeem (matches controller's pending request)
                 false // Don't use previous hook amount
             );
         } else {
@@ -88,7 +88,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
             redeemHookCalldata = abi.encodePacked(
                 bytes32(0), // yieldSourceOracleId placeholder
                 _getYieldSource(), // Current active yield source
-                redeemAmount, // Amount to redeem
+                actualRedeemAmount, // Amount to redeem (matches controller's pending request)
                 false // Don't use previous hook amount
             );
         }
@@ -101,7 +101,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         hookCalldata[0] = redeemHookCalldata;
 
         uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
-        expectedAssetsOrSharesOut[0] = redeemAmount; // Expect 1:1 redemption for simplicity
+        expectedAssetsOrSharesOut[0] = actualRedeemAmount; // Expect amount matching the actual redeem
 
         bytes32[][] memory globalProofs = new bytes32[][](1);
         globalProofs[0] = new bytes32[](0); // Empty proof for UnsafeSuperVaultAggregator

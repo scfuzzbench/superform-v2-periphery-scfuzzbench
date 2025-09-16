@@ -1430,9 +1430,25 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         address user1 = _getActor();
         superVault_deposit(1000e18);
 
-        // Manager invests funds into yield source
+        // Manager invests funds into yield source using executeHooks
         switchActor(0);
-        _setupYieldSourceInvestment();
+        
+        // First, invest deposits into the yield source
+        // Use the clamped function to execute hooks
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626 is the first enum value (index 0)
+        
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 500e18; // Amount to deposit
+        
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+        
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
 
         // Multiple users request redemptions with the same amount
         switchActor(1);
@@ -1448,8 +1464,12 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Manager fulfills using the clamped function
         switchActor(0);
         
-        // Call the clamped function - it will pick one of the users randomly
-        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt, 42);
+        // The clamped function uses random controller selection
+        // With entropy=42, it will select actor 0 (test contract) which has no pending requests
+        // So we need to use an entropy that will select one of our users
+        // entropy=1 % 3 = 1 (selects user1 at address 0x100)
+        // entropy=2 % 3 = 2 (selects user2 at address 0x200)
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt, 1); // Will select user1
 
         // Check that at least one user has their withdraw price set
         _verifyRedemptionFulfillment(user1, user2, redeemAmt);
@@ -1474,6 +1494,47 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         MockERC4626Tester(yieldSrc).deposit(invAmt, address(superVaultStrategy));
     }
     
+    function _fulfillRedeemRequestsForUser(address user, uint256 amount) private {
+        // Set up controllers - pick one user to fulfill
+        address[] memory controllers = new address[](1);
+        controllers[0] = user;
+        
+        // Set up hooks
+        address[] memory hooks = new address[](1);
+        hooks[0] = address(redeem4626Hook);
+        
+        bytes[] memory hookCalldata = new bytes[](1);
+        hookCalldata[0] = abi.encodePacked(
+            bytes32(0), // yieldSourceOracleId placeholder
+            _getYieldSource(), // Current active yield source
+            address(superVaultStrategy), // Owner (strategy owns the yield source shares)  
+            amount, // Amount to redeem (matching user's pending request)
+            false // Don't use previous hook amount
+        );
+        
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        expectedAssetsOrSharesOut[0] = amount; // Expected amount out matches the redeem amount
+        
+        bytes32[][] memory fulfillGlobalProofs = new bytes32[][](1);
+        fulfillGlobalProofs[0] = new bytes32[](0); // Empty proof
+        
+        bytes32[][] memory fulfillStrategyProofs = new bytes32[][](1); 
+        fulfillStrategyProofs[0] = new bytes32[](0); // Empty proof
+        
+        // Create FulfillArgs struct
+        ISuperVaultStrategy.FulfillArgs memory fulfillArgs = ISuperVaultStrategy.FulfillArgs({
+            controllers: controllers,
+            hooks: hooks,
+            hookCalldata: hookCalldata,
+            expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+            globalProofs: fulfillGlobalProofs,
+            strategyProofs: fulfillStrategyProofs
+        });
+        
+        // Call fulfillRedeemRequests directly
+        superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
+    }
+
     function _verifyRedemptionFulfillment(address u1, address u2, uint256 amt) private {
         bool hasPrice = (superVaultStrategy.getAverageWithdrawPrice(u1) > 0) || 
                        (superVaultStrategy.getAverageWithdrawPrice(u2) > 0);
