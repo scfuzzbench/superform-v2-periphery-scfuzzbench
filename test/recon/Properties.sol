@@ -139,7 +139,7 @@ abstract contract Properties is BeforeAfter, Asserts {
         if (_currentOp == OpType.TRANSFER) {
             eq(
                 _before.summedAccumulatorShares,
-                _after.summedAccumulatorShares,
+                _after.summedAccumulatorShares, // TODO: think about way to handle transfer on recipient
                 "SUM(accumulatorShares) changed on SuperVault share transfers"
             );
         }

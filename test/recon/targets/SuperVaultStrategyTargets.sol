@@ -18,10 +18,10 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
 
     /// @dev Clamps the action type to 0 to add a vault as a yield source
     function superVaultStrategy_manageYieldSource_clamped(
-        YieldSourceType sourceType
+        uint256 sourceType
     ) public {
-        sourceType = YieldSourceType(uint256(sourceType) % 4);
-        address yieldSourceOracle = _getYieldSourceOracleForType(sourceType);
+        YieldSourceType clampedType = YieldSourceType(sourceType % 3); // 0=ERC4626, 1=ERC5115, 2=ERC7540
+        address yieldSourceOracle = _getYieldSourceOracleForType(clampedType);
 
         superVaultStrategy_manageYieldSource(
             _getYieldSource(),

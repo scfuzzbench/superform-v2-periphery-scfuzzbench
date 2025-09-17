@@ -276,11 +276,10 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
     }
 
     function superVaultStrategy_fulfillRedeemRequests_clamped(
-        uint256 redeemAmount,
-        uint256 entropy
+        uint256 redeemAmount
     ) public {
         // Find a controller that has pending redeem requests
-        address selectedController = _getRandomActor(entropy);
+        address selectedController = _getActor();
         uint256 pendingAmount = superVaultStrategy.pendingRedeemRequest(
             selectedController
         );

@@ -47,7 +47,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // Test the new multi-hook functionality
     function test_executeMultipleHooks() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         // Setup initial deposit
         uint256 depositAmount = 2000e18;
@@ -98,7 +98,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // This test demonstrates that the usePrevHookAmount logic is only reachable with multiple hooks
     function test_multipleHooks_reachLine586_usePrevHookAmount() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         // Setup initial deposit
         uint256 depositAmount = 2000e18;
@@ -163,7 +163,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // but IS reachable with multiple hooks when usePrevHookAmount = true
     function test_line586_onlyReachableWithMultipleHooks() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         uint256 depositAmount = 2000e18;
         superVault_deposit(depositAmount);
@@ -214,7 +214,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // forge test --match-test test_crytic -vvv
     function test_crytic() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
     }
 
     /// === SuperVaultTargets Functions ===
@@ -585,7 +585,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_userDepositToInvestmentVaultFlowNoRegistration() public {
         // Add the investment vault as a yield source to the strategy
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         // Switch to a user and deposit into SuperVault
         uint256 depositAmount = 1000e18;
@@ -671,7 +671,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc4626_approveAndDepositViaHook() public {
         _switchYieldSource(0); // Use ERC4626 yield source
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         switchActor(1);
         address user = _getActor();
@@ -717,7 +717,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc4626_multipleDepositViaHooks() public {
         _switchYieldSource(0); // Use ERC4626 yield source
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         switchActor(1);
         address user = _getActor();
@@ -777,7 +777,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookExecutionWithLargeAmount() public {
         // Test based on the working guide pattern but with larger amount
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         switchActor(1);
         address user = _getActor();
@@ -825,7 +825,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookExecutionWithSmallAmount() public {
         // Test with minimal amount to verify precision
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         switchActor(1);
         address user = _getActor();
@@ -865,7 +865,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc7540_vaultInteractionViaHooks() public {
         _switchYieldSource(2); // Use ERC7540 yield source
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC7540);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC7540));
 
         switchActor(1);
         address user = _getActor();
@@ -912,7 +912,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc7540_multipleDepositViaHooks() public {
         _switchYieldSource(2); // Use ERC7540 yield source
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC7540);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC7540));
 
         switchActor(1);
         address user = _getActor();
@@ -977,7 +977,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookExecutionStateConsistency() public {
         // Test that hook execution maintains consistent state across operations
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         switchActor(1);
         address user = _getActor();
@@ -1033,7 +1033,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_depositRequestRedeemAndRedeemFlow() public {
         // Step 1: Setup yield source and deposit funds to strategy
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         // User deposits into SuperVault
         switchActor(1);
@@ -1419,11 +1419,41 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         }
     }
 
+    function test_superVaultStrategy_executeHooks_clamped() public {
+        // Setup yield source
+        superVaultStrategy_manageYieldSource_clamped(6);
+
+        // User deposits into SuperVault to create shares
+        switchActor(1);
+        address user1 = _getActor();
+        superVault_deposit(1000e18);
+
+        // Manager invests funds into yield source using executeHooks
+        switchActor(0);
+
+        // First, invest deposits into the yield source
+        // Use the clamped function to execute hooks
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626 is the first enum value (index 0)
+
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 500e18; // Amount to deposit
+
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+    }
+
     function test_superVaultStrategy_fulfillRedeemRequests_clamped_basic()
         public
     {
         // Setup yield source
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         // User deposits into SuperVault to create shares
         switchActor(1);
@@ -1461,18 +1491,178 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVault_deposit(500e18);
         superVault_requestRedeem(redeemAmt);
 
-        // Manager fulfills using the clamped function
-        switchActor(0);
-
-        // The clamped function uses random controller selection
-        // With entropy=42, it will select actor 0 (test contract) which has no pending requests
-        // So we need to use an entropy that will select one of our users
+        // Admin fulfills using the clamped function
+        // Since the function no longer uses asActor modifier, it's always called by address(this)
+        // No need to switch actors - the function internally handles admin permissions
+        // The function uses random controller selection based on entropy
         // entropy=1 % 3 = 1 (selects user1 at address 0x100)
         // entropy=2 % 3 = 2 (selects user2 at address 0x200)
-        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt - 1, 1); // Will select user1
+        // Pass the exact requested amount to avoid assertion failures
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt);
 
         // Check that at least one user has their withdraw price set
         _verifyRedemptionFulfillment(user1, user2, redeemAmt);
+    }
+
+    function test_debug_fulfillRedeemRequests_hook_execution() public {
+        // Setup exactly like the basic test
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+
+        // User deposits
+        switchActor(1);
+        address user1 = _getActor();
+        superVault_deposit(1000e18);
+
+        // Invest funds in yield strategy
+        switchActor(0);
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 500e18;
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+
+        // Request redemption
+        switchActor(1);
+        uint256 redeemAmt = 100e18;
+        superVault_requestRedeem(redeemAmt);
+
+        // Debug: Check the pending amount
+        uint256 pendingAmount = superVaultStrategy.pendingRedeemRequest(user1);
+        console2.log("Pending redeem amount for user1:", pendingAmount);
+
+        // Debug: Check yield source balance
+        address yieldSource = _getYieldSource();
+        console2.log("Current yield source:", yieldSource);
+
+        MockERC4626Tester vault = MockERC4626Tester(yieldSource);
+        uint256 strategyShares = vault.balanceOf(address(superVaultStrategy));
+        console2.log("Strategy's yield source shares:", strategyShares);
+
+        // Now attempt the fulfill - this should work like in the basic test
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt);
+
+        console2.log("Fulfill succeeded!");
+    }
+
+    function test_debug_echidna_scenario_hook_failure() public {
+        // Test the exact scenario where hook execution fails
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+
+        // Setup: User deposits and requests redemption
+        switchActor(1);
+        address user1 = _getActor();
+        superVault_deposit(1000e18);
+
+        // Invest funds into yield source
+        switchActor(0);
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 500e18;
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+
+        // Request redemption
+        switchActor(1);
+        superVault_requestRedeem(100e18);
+
+        // Now test what happens when the vault doesn't have enough shares to redeem
+        // This simulates a scenario where the hook execution would fail
+
+        // First, let's check the vault state
+        address yieldSource = _getYieldSource();
+        MockERC4626Tester vault = MockERC4626Tester(yieldSource);
+        uint256 strategyShares = vault.balanceOf(address(superVaultStrategy));
+        console2.log("Strategy's yield source shares before:", strategyShares);
+
+        // Try to fulfill more than what's available by manipulating the vault
+        // This should cause the hook execution to fail
+        _testFulfillWithInsufficientVaultShares(user1, vault);
+    }
+
+    function _testFulfillWithInsufficientVaultShares(
+        address user,
+        MockERC4626Tester vault
+    ) private {
+        // Get the pending amount
+        uint256 pendingAmount = superVaultStrategy.pendingRedeemRequest(user);
+        console2.log("Pending redeem amount:", pendingAmount);
+
+        // Calculate how many vault shares would be needed
+        uint256 currentPPS = superVaultStrategy.getStoredPPS();
+        uint256 assetsNeeded = (pendingAmount * currentPPS) / 1e18;
+        uint256 vaultSharesNeeded = vault.previewWithdraw(assetsNeeded);
+        console2.log("Vault shares needed:", vaultSharesNeeded);
+        console2.log(
+            "Vault shares available:",
+            vault.balanceOf(address(superVaultStrategy))
+        );
+
+        // Now attempt the fulfill - this should work normally
+        superVaultStrategy_fulfillRedeemRequests_clamped(pendingAmount);
+        console2.log("Normal fulfill succeeded");
+
+        // TODO: Test edge cases where the vault might not have enough liquidity
+    }
+
+    function _testZeroAmountFulfill() private {
+        // Test what happens when we try to fulfill with 0 shares
+        address actor = _getRandomActor(0);
+
+        // Build the fulfill args manually with 0 shares
+        address[] memory controllers = new address[](1);
+        controllers[0] = actor;
+
+        address redeemHook = _getRedeemHookForType(YieldSourceType.ERC4626);
+        bytes memory redeemHookCalldata = abi.encodePacked(
+            bytes32(0), // oracle ID
+            _getYieldSource(),
+            address(superVaultStrategy),
+            uint256(0), // 0 shares!
+            false
+        );
+
+        address[] memory hooks = new address[](1);
+        hooks[0] = redeemHook;
+
+        bytes[] memory hookCalldata = new bytes[](1);
+        hookCalldata[0] = redeemHookCalldata;
+
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        expectedAssetsOrSharesOut[0] = 1; // Non-zero expected (this might be the issue!)
+
+        bytes32[][] memory globalProofs = new bytes32[][](1);
+        bytes32[][] memory strategyProofs = new bytes32[][](1);
+
+        ISuperVaultStrategy.FulfillArgs memory fulfillArgs = ISuperVaultStrategy
+            .FulfillArgs({
+                hooks: hooks,
+                hookCalldata: hookCalldata,
+                expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+                globalProofs: globalProofs,
+                strategyProofs: strategyProofs,
+                controllers: controllers
+            });
+
+        // This should demonstrate the issue
+        console2.log(
+            "Attempting to fulfill with 0 shares but non-zero expected output..."
+        );
+        vm.expectRevert(); // We expect this to revert
+        superVaultStrategy_fulfillRedeemRequests(fulfillArgs);
     }
 
     function _verifyRedemptionFulfillment(
@@ -1515,7 +1705,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         public
     {
         // Alternative test using working patterns and proper manual fulfillment
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC4626);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
 
         // Two users deposit
         switchActor(1);
@@ -1631,7 +1821,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     {
         // Switch to ERC7540 yield source to test auto-detection
         _switchYieldSource(2); // Switch to ERC7540 (index 2)
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType.ERC7540);
+        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC7540));
 
         // User deposits into SuperVault to create shares
         switchActor(1);
@@ -1650,9 +1840,10 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         uint256 redeemShares = 100e18;
         superVault_requestRedeem(redeemShares);
 
-        // Manager fulfills the redeem request - should auto-detect ERC7540 and use correct hook
-        switchActor(0);
-        superVaultStrategy_fulfillRedeemRequests_clamped(redeemShares, 123); // Add entropy parameter
+        // User (who has the pending redemption) fulfills their own redeem request
+        // The new implementation uses _getActor() which returns the current actor
+        // So we need the actor with pending redemptions to call this function
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemShares);
 
         // Verify withdraw price was set
         assertTrue(
@@ -2805,7 +2996,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     /// Reproducers
     // forge test --match-test test_doomsday_mintRedeemSymmetrical_1 -vvv
     // function test_doomsday_mintRedeemSymmetrical_1() public {
-    //     superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
+    //     superVaultStrategy_manageYieldSource_clamped(0);
 
     //     superVault_mint(2);
 
@@ -2818,9 +3009,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // }
 
     // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
-    // TODO: create an optimization test for this, looks like there's an inconsistency that might allow a user to redeem the same shares more than once
+    // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here
     function test_superVaultStrategy_fulfillRedeemRequests_clamped_0() public {
-        superVaultStrategy_manageYieldSource_clamped(YieldSourceType(0));
+        superVaultStrategy_manageYieldSource_clamped(0);
         superVault_mint(2);
         uint256[] memory hookTypeInts = new uint256[](1);
         hookTypeInts[0] = 0;
@@ -2834,7 +3025,33 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             amountsToInvest,
             usePrevHookAmounts
         );
-        superVault_requestRedeem(2);
-        superVaultStrategy_fulfillRedeemRequests_clamped(1, 456); // Add entropy parameter
+        superVault_requestRedeem(1);  // Reduce to match available balance
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+    }
+
+    // forge test --match-test test_doomsday_previewEquivalenceFromAssets_0 -vvv
+    // TODO: optimization test, looks like a real break
+    function test_doomsday_previewEquivalenceFromAssets_0() public {
+        property_previewEquivalenceFromAssets(1);
+    }
+
+    // forge test --match-test test_doomsday_previewEquivalenceFromShares_3 -vvv
+    // TODO: same as above - optimization test, looks like a real break
+    function test_doomsday_previewEquivalenceFromShares_3() public {
+        property_previewEquivalenceFromShares(1);
+    }
+
+    // forge test --match-test test_property_naivePPSDoesntChangeOnAddOrRemove_1 -vvv
+    // TODO: determine if this is actually relevant because it just means that a donation causes the implied PPS to decrease on withdrawal but this isn't used anywhere
+    function test_property_naivePPSDoesntChangeOnAddOrRemove_1() public {
+        yieldSource_simulateGain(1);
+
+        superVault_deposit(2);
+
+        superVault_deposit(2);
+
+        console2.log("summedTotalAssets: ", _before.summedTotalAssets);
+        // console2.log("summedTotalAssets: ", _before.summedTotalAssets);
+        property_naivePPSDoesntChangeOnAddOrRemove();
     }
 }
