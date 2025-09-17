@@ -90,6 +90,9 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
             .getSuperVaultState(_getActor())
             .accumulatorCostBasis;
         uint256 previewShares = superVault.previewDeposit(assets);
+        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(
+            address(superVaultStrategy)
+        );
 
         uint256 shares = superVault.deposit(assets, _getActor());
 
@@ -99,6 +102,9 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorCostBasis;
+        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(
+            address(superVaultStrategy)
+        );
 
         eq(
             accumulatorSharesAfter - accumulatorSharesBefore,
@@ -107,12 +113,13 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         );
         // The accumulatorCostBasis increases by the actual amount after fees
         // not necessarily by the full assets amount due to management fees
-        uint256 actualIncrease = sumAccumulatorCostBasisAfter - sumAccumulatorCostBasisBefore;
+        uint256 actualIncrease = sumAccumulatorCostBasisAfter -
+            sumAccumulatorCostBasisBefore;
         // The increase should be equal to the shares minted (which accounts for fees)
         eq(
             actualIncrease,
-            shares,
-            "accumulatorCostBasis is always accurately increased by shares amount"
+            balanceAfter - balanceBefore,
+            "accumulatorCostBasis is always accurately increased by deposited amount"
         );
         eq(
             previewShares,
