@@ -55,9 +55,10 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
 
         // Use the minimum of requested amount and what the controller actually has pending
         // If pendingAmount is 0, skip this operation
-        uint256 actualRedeemAmount = redeemAmount > pendingAmount
-            ? pendingAmount
-            : redeemAmount;
+        // uint256 actualRedeemAmount = redeemAmount > pendingAmount
+        //     ? pendingAmount
+        //     : redeemAmount;
+        uint256 actualRedeemAmount = redeemAmount % (pendingAmount + 1);
 
         address[] memory controllers = new address[](1);
         controllers[0] = selectedController;

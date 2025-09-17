@@ -46,12 +46,12 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         uint256[] memory amountsToInvest,
         bool[] memory usePrevHookAmounts
     ) public payable {
-        // Limit the number of hooks to 17 maximum
+        // Limit the number of hooks to 10 maximum
         uint256 numHooks = hookTypeInts.length;
-        if (numHooks > 17) {
-            numHooks = 17;
+        if (numHooks > 10) {
+            numHooks = 10;
         }
-        
+
         // Ensure all arrays have the same length
         if (amountsToInvest.length < numHooks) {
             numHooks = amountsToInvest.length;
@@ -59,7 +59,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         if (usePrevHookAmounts.length < numHooks) {
             numHooks = usePrevHookAmounts.length;
         }
-        
+
         // Return early if no hooks to execute
         if (numHooks == 0) {
             return;
@@ -79,12 +79,11 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         for (uint256 i = 0; i < numHooks; i++) {
             // Convert integer to enum (will wrap around if > max enum value)
             HookType hookType = HookType(hookTypeInts[i] % 17); // 17 is the total number of hooks
-            
+
             // Clamp to the strategy's asset balance (not SuperVault's balance)
-            uint256 clampedAmount = amountsToInvest[i] % MockERC20(_getAsset()).balanceOf(
-                address(superVaultStrategy)
-            );
-            
+            uint256 clampedAmount = amountsToInvest[i] %
+                MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+
             // Get the hook address and calldata
             (
                 address hookAddress,
@@ -94,7 +93,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
                     clampedAmount,
                     usePrevHookAmounts[i]
                 );
-            
+
             executeArgs.hooks[i] = hookAddress;
             executeArgs.hookCalldata[i] = hookCalldata;
             executeArgs.expectedAssetsOrSharesOut[i] = clampedAmount;
@@ -104,6 +103,8 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
 
         // Execute all hooks
         this.superVaultStrategy_executeHooks{value: msg.value}(executeArgs);
+
+        executeHooksClampedSuccess = true;
     }
 
     function _getHookAddressAndCalldata(
@@ -279,6 +280,8 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         ISuperVaultStrategy.ExecuteArgs memory args
     ) public payable asAdmin {
         superVaultStrategy.executeHooks{value: msg.value}(args);
+
+        executeHooksSuccess = true;
     }
 
     // Functions that require SuperGovernor access

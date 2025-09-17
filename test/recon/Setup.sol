@@ -117,6 +117,10 @@ abstract contract Setup is
     // Ghosts
     bool hasUpdatedPPS;
 
+    // Canaries
+    bool executeHooksClampedSuccess;
+    bool executeHooksSuccess;
+
     /// === MODIFIERS === ///
     /// Prank admin and actor
 
