@@ -226,6 +226,56 @@ abstract contract Properties is BeforeAfter, Asserts {
         }
     }
 
+    /// @dev Property: previewMint and previewDeposit equivalence (from shares)
+    function property_previewEquivalenceFromShares(uint256 shares) public {
+        uint256 sharesAsAssets = superVault.convertToAssets(shares);
+        uint256 previewDepositShares = superVault.previewDeposit(
+            sharesAsAssets
+        );
+
+        uint256 previewMintAssets = superVault.previewMint(shares);
+        uint256 previewMintShares = superVault.convertToShares(
+            previewMintAssets
+        );
+
+        // setting optimization values
+        if (previewMintShares > previewDepositShares) {
+            previewMintSharesGreater = int256(previewMintShares);
+        } else {
+            previewDepositSharesGreater = int256(previewDepositShares);
+        }
+
+        eq(
+            previewDepositShares,
+            previewMintShares,
+            "previewMint and previewDeposit equivalence (from shares)"
+        );
+    }
+
+    /// @dev Property: previewMint and previewDeposit equivalence (from assets)
+    function property_previewEquivalenceFromAssets(uint256 assets) public {
+        uint256 previewDepositShares = superVault.previewDeposit(assets);
+        uint256 previewDepositAssets = superVault.convertToAssets(
+            previewDepositShares
+        );
+
+        uint256 assetsAsShares = superVault.convertToShares(assets);
+        uint256 previewMintAssets = superVault.previewMint(assetsAsShares);
+
+        // setting optimization values
+        if (previewMintAssets > previewDepositAssets) {
+            previewMintSharesGreater = int256(previewMintAssets);
+        } else {
+            previewDepositSharesGreater = int256(previewDepositAssets);
+        }
+
+        eq(
+            previewDepositAssets,
+            previewMintAssets,
+            "previewMint and previewDeposit equivalence (from assets)"
+        );
+    }
+
     /// Optimization Tests
 
     /// @dev Optimize the difference between the amount of assets in the system and claimable assets
@@ -282,6 +332,30 @@ abstract contract Properties is BeforeAfter, Asserts {
         returns (int256)
     {
         return burnedLessThanRequested;
+    }
+
+    function optimize_previewMintSharesGreater() public view returns (int256) {
+        return previewMintSharesGreater;
+    }
+
+    function optimize_previewDepositSharesGreater()
+        public
+        view
+        returns (int256)
+    {
+        return previewDepositSharesGreater;
+    }
+
+    function optimize_previewMintAssetsGreater() public view returns (int256) {
+        return previewMintAssetsGreater;
+    }
+
+    function optimize_previewDepositAssetsGreater()
+        public
+        view
+        returns (int256)
+    {
+        return previewDepositAssetsGreater;
     }
 
     // Canaries
