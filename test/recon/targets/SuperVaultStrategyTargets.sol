@@ -165,11 +165,25 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
             address(superVaultStrategy)
         );
 
-        eq(
-            pendingRedeemBefore - pendingRedeemAfter,
-            totalSharesBefore - totalSharesAfter,
-            "redemptions only burn the requested amount of shares"
-        );
+        // setting values for optimization test
+        if (
+            pendingRedeemBefore - pendingRedeemAfter >
+            totalSharesBefore - totalSharesAfter
+        ) {
+            burnedLessThanRequested =
+                int256(totalSharesBefore) -
+                int256(totalSharesAfter);
+        } else {
+            burnedMoreThanRequested =
+                int256(totalSharesBefore) -
+                int256(totalSharesAfter);
+        }
+
+        // eq(
+        //     pendingRedeemBefore - pendingRedeemAfter,
+        //     totalSharesBefore - totalSharesAfter,
+        //     "redemptions only burn the requested amount of shares"
+        // );
         eq(
             sumAccumulatorSharesBefore - sumAccumulatorSharesAfter,
             totalSharesBefore - totalSharesAfter,
