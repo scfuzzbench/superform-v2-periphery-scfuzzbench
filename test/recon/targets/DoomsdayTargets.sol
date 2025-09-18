@@ -239,6 +239,30 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
     }
 
+    /// @dev Property: All users should always be able to redeem unless the system is paused
+    function doomsday_allUsersCanRedeem() public stateless {
+        address[] memory actors = _getActors();
+        bool paused = superVaultAggregator.isStrategyPaused(
+            address(superVaultStrategy)
+        );
+
+        // try to redeem for all users that have redeemable assets
+        for (uint256 i; i < actors.length; i++) {
+            uint256 claimable = superVault.claimableRedeemRequest(0, actors[i]);
+
+            if (claimable > 0 && !paused) {
+                try
+                    superVault.redeem(claimable, actors[i], actors[i])
+                {} catch {
+                    t(
+                        false,
+                        "users should always be able to redeem unless the system is paused"
+                    );
+                }
+            }
+        }
+    }
+
     // Helpers
 
     /// @dev Helper function to create FulfillArgs for multiple actors
