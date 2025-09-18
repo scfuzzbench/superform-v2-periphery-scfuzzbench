@@ -3089,6 +3089,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
         console2.log("summedTotalAssets: ", _before.summedTotalAssets);
         // console2.log("summedTotalAssets: ", _before.summedTotalAssets);
-        property_naivePPSDoesntChangeOnAddOrRemove();
+        property_naivePPSDoesntChangeOnDepositOrMint();
     }
 }

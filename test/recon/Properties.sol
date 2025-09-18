@@ -28,7 +28,7 @@ abstract contract Properties is BeforeAfter, Asserts {
             _before.naivePPS != 0 // price starts as zero when no shares minted
         ) {
             gte(
-                _after.naivePPS
+                _after.naivePPS,
                 _before.naivePPS,
                 "deposit/mint cannot decrease naive PPS"
             );
@@ -42,7 +42,7 @@ abstract contract Properties is BeforeAfter, Asserts {
             _before.naivePPS != 0 // price starts as zero when no shares minted
         ) {
             gte(
-                _after.naivePPS
+                _after.naivePPS,
                 _before.naivePPS,
                 "redeem/withdraw cannot decrease naive PPS"
             );
