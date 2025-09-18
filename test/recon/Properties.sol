@@ -328,6 +328,36 @@ abstract contract Properties is BeforeAfter, Asserts {
         }
     }
 
+    /// @dev Property: If maxWithdraw > 0, then averageWithdrawPrice > 0
+    function property_maxWithdraw() public {
+        uint256 maxWithdaw = superVault.maxWithdaw(_getActor());
+        if (maxWithdaw > 0) {
+            SuperVaultState memory state = superVaultStrategy
+                .getSuperVaultState(_getActor());
+
+            gt(
+                state.averageWithdrawPrice,
+                0,
+                "averageWithdrawPrice < 0 when maxWithdraw > 0"
+            );
+        }
+    }
+
+    /// @dev Property: If maxWithdraw == 0, then averageWithdrawPrice == 0
+    function property_avgWithdrawPrice() public {
+        uint256 maxWithdaw = superVault.maxWithdaw(_getActor());
+        if (maxWithdaw == 0) {
+            SuperVaultState memory state = superVaultStrategy
+                .getSuperVaultState(_getActor());
+
+            eq(
+                state.averageWithdrawPrice,
+                0,
+                "averageWithdrawPrice < 0 when maxWithdraw > 0"
+            );
+        }
+    }
+
     /// Optimization Tests
 
     /// @dev Optimize the difference between the amount of assets in the system and claimable assets

@@ -49,8 +49,8 @@
 | `superVault_transfer` | Transfers of shares should transfer the exact amount of `accumulatorShares` to the recipient | Related to high risk issue outlined [here](https://github.com/Recon-Fuzz/superform-review/issues/20#issue-3405662380), potential to cause overflows? Might be useful to have an optimization test for the difference | ✅ |  |
 | `superVault_transfer` | Transfers of shares should transfer the exact amount of `accumulatorCostBasis` to the recipient |  | ✅ |  |
 | `property_avgPPSMonotonicity` | `averageWithdrawPrice` should never decrease when new redemptions are fulfilled at a higher PPS |  | ✅ |  |
-| `property_x` | If maxWithdraw > 0, then `averageWithdrawPrice` > 0 |  |  |  |
-| `property_x` | If maxWithdraw == 0, then `averageWithdrawPrice` == 0 |  |  |  |
+| `property_maxWithdraw` | If maxWithdraw > 0, then `averageWithdrawPrice` > 0 |  | ✅ |  |
+| `property_avgWithdrawPrice` | If maxWithdraw == 0, then `averageWithdrawPrice` == 0 |  | ✅ |  |
 | `property_x` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  |  |  |
 
 ## SuperVaultAggregator 
