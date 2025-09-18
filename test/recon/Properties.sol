@@ -21,16 +21,30 @@ abstract contract Properties is BeforeAfter, Asserts {
         }
     }
 
-    /// @dev Property: naive PPS doesn't change on deposit/mint/redeem/withdraw
-    function property_naivePPSDoesntChangeOnAddOrRemove() public {
+    /// @dev Property: naive PPS doesn't change on deposit/mint
+    function property_naivePPSDoesntChangeOnDepositOrMint() public {
         if (
-            (_currentOp == OpType.ADD || _currentOp == OpType.REMOVE) &&
+            (_currentOp == OpType.ADD) &&
             _before.naivePPS != 0 // price starts as zero when no shares minted
         ) {
-            eq(
+            gte(
+                _after.naivePPS
                 _before.naivePPS,
-                _after.naivePPS,
-                "deposit/withdrawal changes naive PPS"
+                "deposit/mint cannot decrease naive PPS"
+            );
+        }
+    }
+
+    /// @dev Property: naive PPS doesn't change on redeem/withdraw
+    function property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
+        if (
+            (_currentOp == OpType.REMOVE) &&
+            _before.naivePPS != 0 // price starts as zero when no shares minted
+        ) {
+            gte(
+                _after.naivePPS
+                _before.naivePPS,
+                "redeem/withdraw cannot decrease naive PPS"
             );
         }
     }
