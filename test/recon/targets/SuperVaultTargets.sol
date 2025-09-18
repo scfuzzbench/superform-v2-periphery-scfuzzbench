@@ -230,13 +230,63 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Propery: _update should never revert
+    /// @dev Property: Transfers of shares should transfer the exact amount of accumulatorShares to the recipient
+    /// @dev Property: Transfers of shares should transfer the exact amount of accumulatorCostBasis to the recipient
     // NOTE: _update only gets called on transfer of Vault shares
     function superVault_transfer(
         uint256 entropy,
         uint256 value
     ) public updateGhostsWithOpType(OpType.TRANSFER) asActor {
         address to = _getRandomActor(entropy);
-        try superVault.transfer(to, value) {} catch (bytes memory err) {
+        (
+            ,
+            ,
+            ,
+            uint256 accumulatorSharesSenderBefore,
+            uint256 accumulatorCostBasisSenderBefore,
+
+        ) = superVaultStrategy.getSuperVaultState(_getActor());
+        (
+            ,
+            ,
+            ,
+            uint256 accumulatorSharesRecipientBefore,
+            uint256 accumulatorCostBasisRecipientBefore,
+
+        ) = superVaultStrategy.getSuperVaultState(to);
+
+        try superVault.transfer(to, value) {
+            (
+                ,
+                ,
+                ,
+                uint256 accumulatorSharesSenderAfter,
+                uint256 accumulatorCostBasisSenderAfter,
+
+            ) = superVaultStrategy.getSuperVaultState(_getActor());
+            (
+                ,
+                ,
+                ,
+                uint256 accumulatorSharesRecipientAfter,
+                uint256 accumulatorCostBasisRecipientAfter,
+
+            ) = superVaultStrategy.getSuperVaultState(to);
+
+            eq(
+                accumulatorSharesSenderBefore - accumulatorSharesSenderAfter,
+                accumulatorSharesRecipientAfter -
+                    accumulatorSharesRecipientBefore,
+                "recipient loses shares on transfer"
+            );
+            eq(
+                accumulatorCostBasisSenderBefore -
+                    accumulatorCostBasisSenderAfter,
+                accumulatorCostBasisRecipientAfter -
+                    accumulatorCostBasisRecipientBefore,
+                "recipient loses cost basis on transfer"
+            );
+        } catch (bytes memory err) {
             bool expectedError;
             expectedError = checkError(
                 err,
