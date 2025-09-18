@@ -275,6 +275,23 @@ abstract contract Properties is BeforeAfter, Asserts {
         );
     }
 
+    /// @dev Property: previewMint is higher than or equal to convertToAssets
+    function property_comparePreviewMintAndConvertToAssets(uint256 shares) public {
+        uint256 previewMintAssets = superVault.previewMint(shares);
+        uint256 convertToAssets = superVault.convertToAssets(shares);
+        gte(previewMintAssets, convertToAssets, "previewMint is higher than or equal to convertToAssets");
+    }
+
+    /// @dev Property: convertToShares is higher than or equal to previewDepositShares (equivalent without fees)
+    function property_comparePreviewDepositAndConvertToShares(uint256 assets) public {
+        uint256 previewDepositShares = superVault.previewDeposit(assets);
+        uint256 convertToShares = superVault.convertToShares(assets);
+        gte(convertToShares, previewDepositShares, "convertToShares is higher than or equal to previewDepositShares (equivalent without fees)");
+    }
+
+    // NOTE: Withdrawal properties are more nuanced, as we should ensure that no gain can be had and that losses are imputed to the controller receiving the assets
+
+
     /// @dev Property: After all redemptions are processed, the sum of all claimable is <= balance available
     function property_sumOfClaimable() public {
         address[] memory actors = _getActors();
