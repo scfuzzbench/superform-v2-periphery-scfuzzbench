@@ -289,7 +289,7 @@ abstract contract Properties is BeforeAfter, Asserts {
             sumClaimable += superVault.maxWithdraw(actors[i]);
         }
 
-        uint256 strategyBalance = MockERC20(_getAsset()).balanceOf(
+        uint256 strategyBalance = MockERC20(superVault.asset()).balanceOf(
             address(superVaultStrategy)
         );
 
