@@ -51,7 +51,7 @@
 | `property_avgPPSMonotonicity` | `averageWithdrawPrice` should never decrease when new redemptions are fulfilled at a higher PPS |  | ✅ |  |
 | `property_maxWithdraw` | If maxWithdraw > 0, then `averageWithdrawPrice` > 0 |  | ✅ |  |
 | `property_avgWithdrawPrice` | If maxWithdraw == 0, then `averageWithdrawPrice` == 0 |  | ✅ |  |
-| `property_x` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  |  |  |
+| `property_maxWithdraw` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  | ✅ |  |
 
 ## SuperVaultAggregator 
 | Property | Description | Comments | Implemented | Tested |

@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {Asserts} from "@chimera/Asserts.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
 
+import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
+
 import {OpType} from "test/recon/BeforeAfter.sol";
 import {BeforeAfter} from "./BeforeAfter.sol";
 
@@ -330,10 +332,12 @@ abstract contract Properties is BeforeAfter, Asserts {
 
     /// @dev Property: If maxWithdraw > 0, then averageWithdrawPrice > 0
     function property_maxWithdraw() public {
-        uint256 maxWithdaw = superVault.maxWithdaw(_getActor());
-        if (maxWithdaw > 0) {
-            SuperVaultState memory state = superVaultStrategy
-                .getSuperVaultState(_getActor());
+        uint256 maxWithdraw = superVault.maxWithdraw(_getActor());
+        if (maxWithdraw > 0) {
+            ISuperVaultStrategy.SuperVaultState
+                memory state = superVaultStrategy.getSuperVaultState(
+                    _getActor()
+                );
 
             gt(
                 state.averageWithdrawPrice,
@@ -345,15 +349,32 @@ abstract contract Properties is BeforeAfter, Asserts {
 
     /// @dev Property: If maxWithdraw == 0, then averageWithdrawPrice == 0
     function property_avgWithdrawPrice() public {
-        uint256 maxWithdaw = superVault.maxWithdaw(_getActor());
-        if (maxWithdaw == 0) {
-            SuperVaultState memory state = superVaultStrategy
-                .getSuperVaultState(_getActor());
+        uint256 maxWithdraw = superVault.maxWithdraw(_getActor());
+        if (maxWithdraw == 0) {
+            ISuperVaultStrategy.SuperVaultState
+                memory state = superVaultStrategy.getSuperVaultState(
+                    _getActor()
+                );
 
             eq(
                 state.averageWithdrawPrice,
                 0,
                 "averageWithdrawPrice < 0 when maxWithdraw > 0"
+            );
+        }
+    }
+
+    /// @dev Property: state.accumulatorShares >= superVaultState[controllers[i]].pendingRedeemRequest for each user
+    function property_accumulatorSharesGtPendingRequests() public {
+        address[] memory actors = _getActors();
+
+        for (uint256 i; i < actors.length; i++) {
+            ISuperVaultStrategy.SuperVaultState
+                memory state = superVaultStrategy.getSuperVaultState(actors[i]);
+            gte(
+                state.accumulatorShares,
+                state.pendingRedeemRequest,
+                "state.accumulatorShares >= state.pendingRedeemRequest for each user"
             );
         }
     }
