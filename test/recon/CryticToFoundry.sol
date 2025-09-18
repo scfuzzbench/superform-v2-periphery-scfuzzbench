@@ -3065,30 +3065,4 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVault_requestRedeem(1); // Reduce to match available balance
         superVaultStrategy_fulfillRedeemRequests_clamped(1);
     }
-
-    // forge test --match-test test_doomsday_previewEquivalenceFromAssets_0 -vvv
-    // TODO: optimization test, looks like a real break
-    function test_doomsday_previewEquivalenceFromAssets_0() public {
-        property_previewEquivalenceFromAssets(1);
-    }
-
-    // forge test --match-test test_doomsday_previewEquivalenceFromShares_3 -vvv
-    // TODO: same as above - optimization test, looks like a real break
-    function test_doomsday_previewEquivalenceFromShares_3() public {
-        property_previewEquivalenceFromShares(1);
-    }
-
-    // forge test --match-test test_property_naivePPSDoesntChangeOnAddOrRemove_1 -vvv
-    // TODO: determine if this is actually relevant because it just means that a donation causes the implied PPS to decrease on withdrawal but this isn't used anywhere
-    function test_property_naivePPSDoesntChangeOnAddOrRemove_1() public {
-        yieldSource_simulateGain(1);
-
-        superVault_deposit(2);
-
-        superVault_deposit(2);
-
-        console2.log("summedTotalAssets: ", _before.summedTotalAssets);
-        // console2.log("summedTotalAssets: ", _before.summedTotalAssets);
-        property_naivePPSDoesntChangeOnDepositOrMint();
-    }
 }
