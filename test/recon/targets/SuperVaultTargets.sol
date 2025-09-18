@@ -61,7 +61,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 pendingRedeemRequestsAsAssets = superVault.convertToAssets(
             pendingRedeemRequestsBefore
         );
-        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
+        uint256 balanceBefore = MockERC20(asset).balanceOf(_getActor());
 
         vm.prank(_getActor());
         superVault.cancelRedeem(_getActor());
@@ -73,7 +73,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 averageRequestPPS = superVaultStrategy
             .getSuperVaultState(_getActor())
             .averageRequestPPS;
-        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
+        uint256 balanceAfter = MockERC20(asset).balanceOf(_getActor());
 
         // Checks
         eq(
@@ -98,7 +98,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     /// @dev Property: previewDeposit returns the correct amounts compared to executing a deposit
     function superVault_deposit(
         uint256 assets
-    ) public updateGhostsWithOpType(OpType.ADD) asActor {
+    ) public updateGhostsWithOpType(OpType.ADD) {
         uint256 accumulatorSharesBefore = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorShares;
@@ -106,10 +106,11 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
             .getSuperVaultState(_getActor())
             .accumulatorCostBasis;
         uint256 previewShares = superVault.previewDeposit(assets);
-        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(
+        uint256 balanceBefore = MockERC20(asset).balanceOf(
             address(superVaultStrategy)
         );
 
+        vm.prank(_getActor()); /// @audit FIX: prank actor
         uint256 shares = superVault.deposit(assets, _getActor());
 
         uint256 accumulatorSharesAfter = superVaultStrategy
@@ -118,7 +119,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorCostBasis;
-        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(
+        uint256 balanceAfter = MockERC20(asset).balanceOf(
             address(superVaultStrategy)
         );
 
@@ -160,7 +161,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 sumAccumulatorCostBasisBefore = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorCostBasis;
-        uint256 assetsBefore = MockERC20(_getAsset()).balanceOf(
+        uint256 assetsBefore = MockERC20(asset).balanceOf(
             address(superVaultStrategy)
         );
         uint256 previewMint = superVault.previewMint(shares);
@@ -174,7 +175,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
             .getSuperVaultState(_getActor())
             .accumulatorCostBasis;
-        uint256 assetsAfter = MockERC20(_getAsset()).balanceOf(
+        uint256 assetsAfter = MockERC20(asset).balanceOf(
             address(superVaultStrategy)
         );
 

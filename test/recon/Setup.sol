@@ -61,6 +61,7 @@ abstract contract Setup is
 {
     // Configuration constants
     uint8 internal constant DECIMALS = 18;
+    address asset;
 
     // Core contracts
     SuperGovernor superGovernor;
@@ -222,7 +223,7 @@ abstract contract Setup is
         ECDSAPPSOracle.setSUPER_GOVERNORReturn(address(superVaultAggregator));
 
         // Set valid assets for all oracles
-        address asset = _getAsset();
+        asset = _getAsset();
         erc4626YieldSourceOracle.setValidAsset(asset, true);
         erc5115YieldSourceOracle.setValidAsset(asset, true);
         erc7540YieldSourceOracle.setValidAsset(asset, true);
