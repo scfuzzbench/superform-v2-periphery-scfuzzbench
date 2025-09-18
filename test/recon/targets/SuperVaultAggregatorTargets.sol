@@ -2,15 +2,14 @@
 pragma solidity ^0.8.0;
 
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
-import {BeforeAfter} from "../BeforeAfter.sol";
-import {Properties} from "../Properties.sol";
-// Chimera deps
 import {vm} from "@chimera/Hevm.sol";
-
-// Helpers
 import {Panic} from "@recon/Panic.sol";
 
+import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import "src/SuperVault/SuperVaultAggregator.sol";
+
+import {BeforeAfter} from "../BeforeAfter.sol";
+import {Properties} from "../Properties.sol";
 
 abstract contract SuperVaultAggregatorTargets is
     BaseTargetFunctions,
@@ -28,6 +27,40 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator_executeChangePrimaryManager(
             address(superVaultStrategy)
         );
+    }
+
+    function superVaultAggregator_createVault_clamped(
+        uint256 minUpdateInterval,
+        uint256 maxStaleness,
+        uint256 performanceFeeBps,
+        uint256 managementFeeBps
+    ) public {
+        // Clamp values to reasonable ranges
+        minUpdateInterval = minUpdateInterval % 3600; // Max 1 hour
+        maxStaleness = (maxStaleness % 86400) + 300; // Between 5 minutes and 1 day
+        performanceFeeBps = performanceFeeBps % 9001; // Max 90%
+        managementFeeBps = managementFeeBps % 5001; // Max 50%
+
+        // Create secondary managers array
+        address[] memory secondaryManagers = new address[](1);
+
+        ISuperVaultAggregator.VaultCreationParams
+            memory params = ISuperVaultAggregator.VaultCreationParams({
+                asset: _getAsset(),
+                name: "SuperVault",
+                symbol: "SV",
+                mainManager: address(this),
+                secondaryManagers: secondaryManagers,
+                minUpdateInterval: minUpdateInterval,
+                maxStaleness: maxStaleness,
+                feeConfig: ISuperVaultStrategy.FeeConfig({
+                    performanceFeeBps: performanceFeeBps,
+                    managementFeeBps: managementFeeBps,
+                    recipient: address(this)
+                })
+            });
+
+        superVaultAggregator_createVault(params);
     }
 
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
@@ -70,12 +103,19 @@ abstract contract SuperVaultAggregatorTargets is
         superVaultAggregator.claimUpkeep(amount);
     }
 
-    /// @dev disabled for now since we already deploy the triad in the setup
-    // function superVaultAggregator_createVault(
-    //     ISuperVaultAggregator.VaultCreationParams memory params
-    // ) public asActor {
-    //     superVaultAggregator.createVault(params);
-    // }
+    function superVaultAggregator_createVault(
+        ISuperVaultAggregator.VaultCreationParams memory params
+    ) public asActor {
+        (
+            address _superVault,
+            address _strategy,
+            address _escrow
+        ) = superVaultAggregator.createVault(params);
+
+        superVault = SuperVault(_superVault);
+        superVaultStrategy = SuperVaultStrategy(payable(_strategy));
+        superVaultEscrow = SuperVaultEscrow(_escrow);
+    }
 
     function superVaultAggregator_depositStake(
         address manager,
