@@ -314,6 +314,20 @@ abstract contract Properties is BeforeAfter, Asserts {
         }
     }
 
+    /// @dev Property: averageWithdrawPrice should never decrease when new redemptions are fulfilled at a higher PPS
+    function property_avgPPSMonotonicity() public {
+        if (
+            _currentOp == OpType.FULFILL &&
+            _before.oraclePPS > _before.avgPPS[_getActor()] // fulfilled at a higher price
+        ) {
+            gte(
+                _after.avgPPS[_getActor()],
+                _before.avgPPS[_getActor()],
+                "averageWithdrawPrice should not decrease when fulfilled at a higher PPS"
+            );
+        }
+    }
+
     /// Optimization Tests
 
     /// @dev Optimize the difference between the amount of assets in the system and claimable assets

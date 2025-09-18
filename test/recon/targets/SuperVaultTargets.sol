@@ -238,52 +238,24 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 value
     ) public updateGhostsWithOpType(OpType.TRANSFER) asActor {
         address to = _getRandomActor(entropy);
-        (
-            ,
-            ,
-            ,
-            uint256 accumulatorSharesSenderBefore,
-            uint256 accumulatorCostBasisSenderBefore,
-
-        ) = superVaultStrategy.getSuperVaultState(_getActor());
-        (
-            ,
-            ,
-            ,
-            uint256 accumulatorSharesRecipientBefore,
-            uint256 accumulatorCostBasisRecipientBefore,
-
-        ) = superVaultStrategy.getSuperVaultState(to);
+        ISuperVaultStrategy.SuperVaultState memory stateSenderBefore = superVaultStrategy.getSuperVaultState(_getActor());
+        ISuperVaultStrategy.SuperVaultState memory stateRecipientBefore = superVaultStrategy.getSuperVaultState(to);
 
         try superVault.transfer(to, value) {
-            (
-                ,
-                ,
-                ,
-                uint256 accumulatorSharesSenderAfter,
-                uint256 accumulatorCostBasisSenderAfter,
-
-            ) = superVaultStrategy.getSuperVaultState(_getActor());
-            (
-                ,
-                ,
-                ,
-                uint256 accumulatorSharesRecipientAfter,
-                uint256 accumulatorCostBasisRecipientAfter,
-
-            ) = superVaultStrategy.getSuperVaultState(to);
+            ISuperVaultStrategy.SuperVaultState memory stateSenderAfter = superVaultStrategy.getSuperVaultState(_getActor());
+            ISuperVaultStrategy.SuperVaultState memory stateRecipientAfter = superVaultStrategy.getSuperVaultState(to);
 
             eq(
-                accumulatorSharesSenderBefore - accumulatorSharesSenderAfter,
-                accumulatorSharesRecipientAfter -
-                    accumulatorSharesRecipientBefore,
+                stateSenderBefore.accumulatorShares - stateSenderAfter.accumulatorShares,
+                stateRecipientAfter.accumulatorShares -
+                    stateRecipientBefore.accumulatorShares,
                 "recipient loses shares on transfer"
             );
             eq(
-                accumulatorCostBasisSenderBefore -
-                    accumulatorCostBasisSenderAfter,
-                accumulatorCostBasisRecipientAfter -
-                    accumulatorCostBasisRecipientBefore,
+                stateSenderBefore.accumulatorCostBasis -
+                    stateSenderAfter.accumulatorCostBasis,
+                stateRecipientAfter.accumulatorCostBasis -
+                    stateRecipientBefore.accumulatorCostBasis,
                 "recipient loses cost basis on transfer"
             );
         } catch (bytes memory err) {
