@@ -47,7 +47,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // Test the new multi-hook functionality
     function test_executeMultipleHooks() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // Setup initial deposit
         uint256 depositAmount = 2000e18;
@@ -98,7 +100,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // This test demonstrates that the usePrevHookAmount logic is only reachable with multiple hooks
     function test_multipleHooks_reachLine586_usePrevHookAmount() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // Setup initial deposit
         uint256 depositAmount = 2000e18;
@@ -163,7 +167,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // but IS reachable with multiple hooks when usePrevHookAmount = true
     function test_line586_onlyReachableWithMultipleHooks() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         uint256 depositAmount = 2000e18;
         superVault_deposit(depositAmount);
@@ -214,7 +220,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     // forge test --match-test test_crytic -vvv
     function test_crytic() public {
         add_new_vault();
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
     }
 
     /// === SuperVaultTargets Functions ===
@@ -585,7 +593,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_userDepositToInvestmentVaultFlowNoRegistration() public {
         // Add the investment vault as a yield source to the strategy
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // Switch to a user and deposit into SuperVault
         uint256 depositAmount = 1000e18;
@@ -671,7 +681,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc4626_approveAndDepositViaHook() public {
         _switchYieldSource(0); // Use ERC4626 yield source
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -717,7 +729,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc4626_multipleDepositViaHooks() public {
         _switchYieldSource(0); // Use ERC4626 yield source
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -777,7 +791,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookExecutionWithLargeAmount() public {
         // Test based on the working guide pattern but with larger amount
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -825,7 +841,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookExecutionWithSmallAmount() public {
         // Test with minimal amount to verify precision
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -865,7 +883,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc7540_vaultInteractionViaHooks() public {
         _switchYieldSource(2); // Use ERC7540 yield source
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC7540));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC7540)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -912,7 +932,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_erc7540_multipleDepositViaHooks() public {
         _switchYieldSource(2); // Use ERC7540 yield source
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC7540));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC7540)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -977,7 +999,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_hookExecutionStateConsistency() public {
         // Test that hook execution maintains consistent state across operations
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         switchActor(1);
         address user = _getActor();
@@ -1033,7 +1057,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_depositRequestRedeemAndRedeemFlow() public {
         // Step 1: Setup yield source and deposit funds to strategy
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // User deposits into SuperVault
         switchActor(1);
@@ -1453,7 +1479,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         public
     {
         // Setup yield source
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // User deposits into SuperVault to create shares
         switchActor(1);
@@ -1506,7 +1534,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_debug_fulfillRedeemRequests_hook_execution() public {
         // Setup exactly like the basic test
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // User deposits
         switchActor(1);
@@ -1553,7 +1583,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     function test_debug_echidna_scenario_hook_failure() public {
         // Test the exact scenario where hook execution fails
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // Setup: User deposits and requests redemption
         switchActor(1);
@@ -1705,7 +1737,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         public
     {
         // Alternative test using working patterns and proper manual fulfillment
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC4626));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
 
         // Two users deposit
         switchActor(1);
@@ -1821,7 +1855,9 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     {
         // Switch to ERC7540 yield source to test auto-detection
         _switchYieldSource(2); // Switch to ERC7540 (index 2)
-        superVaultStrategy_manageYieldSource_clamped(uint256(YieldSourceType.ERC7540));
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC7540)
+        );
 
         // User deposits into SuperVault to create shares
         switchActor(1);
@@ -3010,6 +3046,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
     // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here
+    // TODO: confirrm if this still breaks after latest commit update
     function test_superVaultStrategy_fulfillRedeemRequests_clamped_0() public {
         superVaultStrategy_manageYieldSource_clamped(0);
         superVault_mint(2);
@@ -3025,7 +3062,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             amountsToInvest,
             usePrevHookAmounts
         );
-        superVault_requestRedeem(1);  // Reduce to match available balance
+        superVault_requestRedeem(1); // Reduce to match available balance
         superVaultStrategy_fulfillRedeemRequests_clamped(1);
     }
 

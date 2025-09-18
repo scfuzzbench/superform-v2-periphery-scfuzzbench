@@ -197,10 +197,16 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         );
     }
 
+    /// @dev Property: Redeem should never revert due to underflow
     function superVault_redeem(
         uint256 shares
     ) public updateGhostsWithOpType(OpType.REMOVE) asActor {
-        superVault.redeem(shares, _getActor(), _getActor());
+        try superVault.redeem(shares, _getActor(), _getActor()) {} catch (
+            bytes memory err
+        ) {
+            bool unexpectedError = checkError(err, Panic.arithmeticPanic);
+            t(!unexpectedError, "redeem should never revert due to underflow");
+        }
     }
 
     function superVault_withdraw(
