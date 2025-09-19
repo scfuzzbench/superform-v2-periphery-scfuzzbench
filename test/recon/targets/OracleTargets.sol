@@ -20,7 +20,7 @@ import {Properties} from "../Properties.sol";
 abstract contract OracleTargets is BaseTargetFunctions, Properties {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
     function yieldSourceOracle_setValidAsset_clamped() public {
-        mockERC4626YieldSourceOracle_setValidAsset(_getAsset(), true);
+        mockERC4626YieldSourceOracle_setValidAsset(superVault.asset(), true);
     }
 
     function mockERC4626YieldSourceOracle_setValidAsset(

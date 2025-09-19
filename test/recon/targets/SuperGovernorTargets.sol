@@ -22,7 +22,7 @@ abstract contract SuperGovernorTargets is BaseTargetFunctions, Properties {
                 address(approveAndDeposit4626Hook),
                 address(redeem4626Hook),
                 _getYieldSource(),
-                _getAsset()
+                superVault.asset()
             );
 
         superGovernor_proposeGlobalHooksRoot(testRoot);

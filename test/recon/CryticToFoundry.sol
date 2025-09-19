@@ -3046,7 +3046,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
     // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here
-    // TODO: confirrm if this still breaks after latest commit update
+    // TODO: confirm if this still breaks after latest commit update
     function test_superVaultStrategy_fulfillRedeemRequests_clamped_0() public {
         superVaultStrategy_manageYieldSource_clamped(0);
         superVault_mint(2);
@@ -3088,7 +3088,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVault_deposit(2);
 
         console2.log("summedTotalAssets: ", _before.summedTotalAssets);
-        // console2.log("summedTotalAssets: ", _before.summedTotalAssets);
         property_naivePPSDoesntChangeOnAddOrRemove();
     }
 }

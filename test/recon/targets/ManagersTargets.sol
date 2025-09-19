@@ -39,7 +39,7 @@ abstract contract ManagersTargets is BaseTargetFunctions, Properties {
     /// @dev Deploy a new vault using the current asset and add it to the list of vaults,
     /// then set it as the current vault
     function add_new_vault() public {
-        _newVault(_getAsset());
+        _newVault(superVault.asset());
     }
 
     /// === GHOST UPDATING HANDLERS ===///
@@ -52,11 +52,11 @@ abstract contract ManagersTargets is BaseTargetFunctions, Properties {
         address to,
         uint128 amt
     ) public updateGhosts asActor {
-        MockERC20(_getAsset()).approve(to, amt);
+        MockERC20(superVault.asset()).approve(to, amt);
     }
 
     /// @dev Mint to arbitrary address, uses owner by default, even though MockERC20 doesn't check
     function asset_mint(address to, uint128 amt) public updateGhosts asAdmin {
-        MockERC20(_getAsset()).mint(to, amt);
+        MockERC20(superVault.asset()).mint(to, amt);
     }
 }

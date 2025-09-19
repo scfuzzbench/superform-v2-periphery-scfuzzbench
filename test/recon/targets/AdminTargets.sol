@@ -83,7 +83,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
 
             // Clamp to the strategy's asset balance (not SuperVault's balance)
             uint256 clampedAmount = amountsToInvest[i] %
-                MockERC20(_getAsset()).balanceOf(address(superVaultStrategy));
+                MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy));
 
             // Get the hook address and calldata
             (
@@ -118,7 +118,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             hookCalldata = abi.encodePacked(
                 bytes32(0), // yieldSourceOracleId placeholder
                 _getYieldSource(), // Address of the yield source
-                _getAsset(), // Address of the token to approve and deposit
+                superVault.asset(), // Address of the token to approve and deposit
                 amountToInvest, // Amount to deposit
                 usePrevHookAmount
             );
@@ -144,7 +144,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             hookCalldata = abi.encodePacked(
                 bytes32(0), // yieldSourceOracleId placeholder
                 _getYieldSource(), // Address of the yield source
-                _getAsset(), // Address of the token to approve and deposit
+                superVault.asset(), // Address of the token to approve and deposit
                 bytes32(0), // tokenId (for ERC5115)
                 amountToInvest, // Amount to deposit
                 usePrevHookAmount
@@ -210,7 +210,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             hookCalldata = abi.encodePacked(
                 bytes32(0), // yieldSourceOracleId placeholder
                 _getYieldSource(), // Address of the yield source
-                _getAsset(), // Address of the token to approve
+                superVault.asset(), // Address of the token to approve
                 amountToInvest, // Amount to request deposit
                 address(superVaultStrategy), // Owner
                 address(superVaultStrategy) // Controller
@@ -377,7 +377,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             uint256 sumAccumulatorCostBasisBefore
         ) = _sumSuperVaultValsForControllers(controllers);
         uint256 totalSharesBefore = superVault.totalSupply();
-        uint256 assetBalanceBefore = MockERC20(_getAsset()).balanceOf(
+        uint256 assetBalanceBefore = MockERC20(superVault.asset()).balanceOf(
             address(superVaultStrategy)
         );
 
@@ -391,7 +391,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             uint256 sumAccumulatorCostBasisAfter
         ) = _sumSuperVaultValsForControllers(controllers);
         uint256 totalSharesAfter = superVault.totalSupply();
-        uint256 assetBalanceAfter = MockERC20(_getAsset()).balanceOf(
+        uint256 assetBalanceAfter = MockERC20(superVault.asset()).balanceOf(
             address(superVaultStrategy)
         );
 
