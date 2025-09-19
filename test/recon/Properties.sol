@@ -380,6 +380,20 @@ abstract contract Properties is BeforeAfter, Asserts {
         }
     }
 
+    /// @dev Property: Claiming redemptions should never revert with INVALID_REDEEM_CLAIM
+    function property_redemptionsNeverReverts(uint256 shares) public {
+        vm.prank(_getActor());
+        try superVault.redeem(shares, _getActor(), _getActor()) {} catch (
+            bytes memory err
+        ) {
+            bool unexpectedError = checkError(err, "INVALID_REDEEM_CLAIM()");
+            t(
+                !unexpectedError,
+                "Claiming redemptions should never revert with INVALID_REDEEM_CLAIM"
+            );
+        }
+    }
+
     /// Optimization Tests
 
     /// @dev Optimize the difference between the amount of assets in the system and claimable assets
@@ -474,4 +488,8 @@ abstract contract Properties is BeforeAfter, Asserts {
     // function canary_fulfillRedeemRequests() public {
     //     t(!fulfillRedeemRequestsSuccess, "fulfillRedeemRequests canary");
     // }
+
+    function canary_deployedNewVault() public {
+        t(!hasDeployedNewVault, "deployed new vault canary");
+    }
 }

@@ -123,17 +123,20 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 shares = superVault.balanceOf(_getActor());
 
         // 2. Request redemption of all shares
+        vm.prank(_getActor());
         superVault.requestRedeem(shares, _getActor(), _getActor());
 
         // 3. Fulfill the redemption request
         ISuperVaultStrategy.FulfillArgs
             memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        // called as admin address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Check maxWithdraw after fulfillment and use that value
         uint256 maxWithdrawable = superVault.maxWithdraw(_getActor());
 
         // 5. Withdraw the exact amount returned by maxWithdraw
+        vm.prank(_getActor());
         superVault.withdraw(maxWithdrawable, _getActor(), _getActor());
 
         // 6. Check maxWithdraw is reset to 0 after full withdrawal
@@ -251,6 +254,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             uint256 claimable = superVault.claimableRedeemRequest(0, actors[i]);
 
             if (claimable > 0 && !paused) {
+                vm.prank(actors[i]);
                 try
                     superVault.redeem(claimable, actors[i], actors[i])
                 {} catch {
@@ -260,19 +264,6 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                     );
                 }
             }
-        }
-    }
-
-    /// @dev Property: Claiming redemptions should never revert with INVALID_REDEEM_CLAIM
-    function doomsday_redemptionsNeverReverts(uint256 shares) public {
-        try superVault.redeem(shares, _getActor(), _getActor()) {} catch (
-            bytes memory err
-        ) {
-            bool unexpectedError = checkError(err, "INVALID_REDEEM_CLAIM()");
-            t(
-                !unexpectedError,
-                "Claiming redemptions should never revert with INVALID_REDEEM_CLAIM"
-            );
         }
     }
 
