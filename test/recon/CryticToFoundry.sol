@@ -1533,6 +1533,46 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         _verifyRedemptionFulfillment(user1, user2, redeemAmt);
     }
 
+    function test_superVaultStrategy_fulfillRedeemRequests_no_investment()
+        public
+    {
+        // Setup yield source
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
+
+        // User deposits into SuperVault to create shares
+        switchActor(1);
+        address user1 = _getActor();
+        superVault_deposit(1000e18);
+
+        // Manager invests funds into yield source using executeHooks
+        switchActor(0);
+
+        // Multiple users request redemptions with the same amount
+        switchActor(1);
+        uint256 redeemAmt = 100e18;
+        superVault_requestRedeem(redeemAmt);
+
+        // Second user also requests the same amount
+        switchActor(2);
+        address user2 = _getActor();
+        superVault_deposit(500e18);
+        superVault_requestRedeem(redeemAmt);
+
+        // Admin fulfills using the clamped function
+        // Since the function no longer uses asActor modifier, it's always called by address(this)
+        // No need to switch actors - the function internally handles admin permissions
+        // The function uses random controller selection based on entropy
+        // entropy=1 % 3 = 1 (selects user1 at address 0x100)
+        // entropy=2 % 3 = 2 (selects user2 at address 0x200)
+        // Pass the exact requested amount to avoid assertion failures
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt);
+
+        // Check that at least one user has their withdraw price set
+        _verifyRedemptionFulfillment(user1, user2, redeemAmt);
+    }
+
     function test_debug_fulfillRedeemRequests_hook_execution() public {
         // Setup exactly like the basic test
         superVaultStrategy_manageYieldSource_clamped(
