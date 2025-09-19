@@ -10,6 +10,7 @@ import {BeforeAfter} from "../BeforeAfter.sol";
 import {Properties} from "../Properties.sol";
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import {YieldSourceType} from "test/recon/managers/YieldManager.sol";
+import {MockERC4626Tester} from "test/recon/mocks/MockERC4626Tester.sol";
 
 abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     /// Makes a handler have no side effects
@@ -21,65 +22,77 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: mint/redeem is symmetrical
-    // function doomsday_mintRedeemSymmetrical(
-    //     uint256 sharesToMint
-    // ) public stateless {
-    //     uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
+    // NOTE: ignores yield gain because there's no simple way to determine yield distribution for the superVault
+    function doomsday_mintRedeemSymmetrical(
+        uint256 sharesToMint
+    ) public stateless {
+        // skip if there's been any gain because it complicates the assertion checking
+        if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
+            return;
+        }
 
-    //     // 1. Deposit
-    //     superVault.mint(sharesToMint, _getActor());
+        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
 
-    //     // 2. Request Redemption
-    //     uint256 shares = superVault.balanceOf(_getActor());
-    //     superVault.requestRedeem(shares, _getActor(), _getActor());
+        // 1. Deposit
+        superVault.mint(sharesToMint, _getActor());
 
-    //     // 3. Fulfill Redemption
-    //     ISuperVaultStrategy.FulfillArgs
-    //         memory fulfillArgs = _createFulfillRedeemArgs(shares);
-    //     superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
+        // 2. Request Redemption
+        uint256 shares = superVault.balanceOf(_getActor());
+        superVault.requestRedeem(shares, _getActor(), _getActor());
 
-    //     // 4. Claim Redemption
-    //     superVault.redeem(shares, _getActor(), _getActor());
+        // 3. Fulfill Redemption
+        ISuperVaultStrategy.FulfillArgs
+            memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
-    //     uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
+        // 4. Claim Redemption
+        superVault.redeem(shares, _getActor(), _getActor());
 
-    //     lte(
-    //         balanceAfter,
-    //         balanceBefore,
-    //         "User gained assets in deposit/withdrawal flow"
-    //     );
-    // }
+        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
 
-    // /// @dev Property: deposit/withdraw is symmetrical
-    // function doomsday_depositWithdrawSymmetrical(
-    //     uint256 assetsToDeposit
-    // ) public stateless {
-    //     uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
+        lte(
+            balanceAfter,
+            balanceBefore,
+            "User gained assets in deposit/withdrawal flow"
+        );
+    }
 
-    //     // 1. Deposit
-    //     superVault.deposit(assetsToDeposit, _getActor());
+    /// @dev Property: deposit/withdraw is symmetrical
+    // NOTE: ignores yield gain because there's no simple way to determine yield distribution for the superVault
+    function doomsday_depositWithdrawSymmetrical(
+        uint256 assetsToDeposit
+    ) public stateless {
+        // skip if there's been any gain because it complicates the assertion checking
+        if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
+            return;
+        }
 
-    //     // 2. Request Withdrawal (through redemption in ERC7540)
-    //     uint256 shares = superVault.balanceOf(_getActor());
-    //     superVault.requestRedeem(shares, _getActor(), _getActor());
+        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
 
-    //     // 3. Fulfill Withdrawal
-    //     ISuperVaultStrategy.FulfillArgs
-    //         memory fulfillArgs = _createFulfillRedeemArgs(shares);
-    //     superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
+        // 1. Deposit
+        superVault.deposit(assetsToDeposit, _getActor());
 
-    //     // 4. Claim Withdrawal
-    //     uint256 withdrawableAssets = superVault.maxWithdraw(_getActor());
-    //     superVault.withdraw(withdrawableAssets, _getActor(), _getActor());
+        // 2. Request Withdrawal (through redemption in ERC7540)
+        uint256 shares = superVault.balanceOf(_getActor());
+        superVault.requestRedeem(shares, _getActor(), _getActor());
 
-    //     uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
+        // 3. Fulfill Withdrawal
+        ISuperVaultStrategy.FulfillArgs
+            memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
-    //     lte(
-    //         balanceAfter,
-    //         balanceBefore,
-    //         "User gained assets in deposit/withdrawal flow"
-    //     );
-    // }
+        // 4. Claim Withdrawal
+        uint256 withdrawableAssets = superVault.maxWithdraw(_getActor());
+        superVault.withdraw(withdrawableAssets, _getActor(), _getActor());
+
+        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
+
+        lte(
+            balanceAfter,
+            balanceBefore,
+            "User gained assets in deposit/withdrawal flow"
+        );
+    }
 
     /// @dev Property: maxRedeem is reset to 0 after full redemption
     function doomsday_maxRedeemResetsAfterFullRedemption(

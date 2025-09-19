@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {FoundryAsserts} from "@chimera/FoundryAsserts.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
 import {Test, console2} from "forge-std/Test.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Deposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Deposit4626VaultHook.sol";
 import {ApproveAndDeposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/ApproveAndDeposit4626VaultHook.sol";
 import {Redeem4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Redeem4626VaultHook.sol";
@@ -2733,174 +2734,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         );
     }
 
-    /// === Test for reaching !args.isExempt check in SuperVaultAggregator ===
-
-    // function test_forwardPPS_reaches_isExempt_check() public {
-    //     // NOTE: In the test environment, upkeep payments are disabled by default,
-    //     // which means isExempt will be true. However, we can still verify that
-    //     // the code path through _forwardPPS and the isExempt check is reached.
-
-    //     // Step 1: Setup - ensure we have a strategy and manager
-    //     address manager = address(this); // The test contract is the manager
-
-    //     // Step 2: Switch to UP token and deposit upkeep for the manager
-    //     // Even though upkeep won't be deducted due to isExempt=true,
-    //     // we still set this up to demonstrate the full flow
-    //     _switchAsset(1); // Switch to UP token (second asset)
-    //     address upToken = _getAsset();
-
-    //     // Approve aggregator to spend UP tokens for upkeep deposit
-    //     vm.prank(manager);
-    //     MockERC20(upToken).approve(
-    //         address(superVaultAggregator),
-    //         type(uint256).max
-    //     );
-
-    //     // Deposit upkeep to ensure we have sufficient balance
-    //     uint256 upkeepAmount = 1000e18;
-    //     superVaultAggregator_depositUpkeep(upkeepAmount);
-
-    //     // Verify upkeep was deposited
-    //     uint256 upkeepBalance = superVaultAggregator.getUpkeepBalance(manager);
-    //     assertTrue(
-    //         upkeepBalance >= upkeepAmount,
-    //         "Upkeep balance should be deposited"
-    //     );
-
-    //     // Step 3: Wait some time to avoid UPDATE_TOO_FREQUENT error
-    //     vm.warp(block.timestamp + 10);
-
-    //     // Step 4: Prepare UpdatePPSArgs with current timestamp
-    //     uint256 newPPS = 1.2e18; // 20% increase
-    //     uint256 oldPPS = superVaultStrategy.getStoredPPS();
-
-    //     address[] memory strategies = new address[](1);
-    //     strategies[0] = address(superVaultStrategy);
-
-    //     bytes[][] memory proofsArray = new bytes[][](1);
-    //     proofsArray[0] = new bytes[](0);
-
-    //     uint256[] memory ppss = new uint256[](1);
-    //     ppss[0] = newPPS;
-
-    //     uint256[] memory ppsStdevs = new uint256[](1);
-    //     ppsStdevs[0] = 0;
-
-    //     uint256[] memory validatorSets = new uint256[](1);
-    //     validatorSets[0] = 0;
-
-    //     uint256[] memory totalValidators = new uint256[](1);
-    //     totalValidators[0] = 0;
-
-    //     uint256[] memory timestamps = new uint256[](1);
-    //     timestamps[0] = block.timestamp;
-
-    //     IECDSAPPSOracle.UpdatePPSArgs memory updateArgs = IECDSAPPSOracle
-    //         .UpdatePPSArgs({
-    //             strategies: strategies,
-    //             proofsArray: proofsArray,
-    //             ppss: ppss,
-    //             ppsStdevs: ppsStdevs,
-    //             validatorSets: validatorSets,
-    //             totalValidators: totalValidators,
-    //             timestamps: timestamps
-    //         });
-
-    //     // Step 5: Record upkeep balance before the update
-    //     uint256 upkeepBalanceBefore = superVaultAggregator.getUpkeepBalance(
-    //         manager
-    //     );
-
-    //     // Step 6: Call ECDSAPPSOracle_updatePPS which will call _forwardPPS internally
-    //     // This will reach the isExempt check at line 1280 in SuperVaultAggregator
-    //     // The check will evaluate to true (isExempt=true) because upkeep payments are disabled
-    //     ECDSAPPSOracle_updatePPS(updateArgs);
-
-    //     // Step 7: Verify the code path was executed by checking observable effects
-    //     uint256 upkeepBalanceAfter = superVaultAggregator.getUpkeepBalance(
-    //         manager
-    //     );
-
-    //     // Since isExempt=true (upkeep payments disabled), balance should remain the same
-    //     assertEq(
-    //         upkeepBalanceAfter,
-    //         upkeepBalanceBefore,
-    //         "Upkeep balance should remain unchanged when isExempt=true"
-    //     );
-
-    //     // Step 8: Verify PPS was actually updated (this happens regardless of isExempt)
-    //     uint256 updatedPPS = superVaultStrategy.getStoredPPS();
-    //     assertEq(updatedPPS, newPPS, "PPS should be updated to new value");
-    //     assertTrue(
-    //         updatedPPS != oldPPS,
-    //         "PPS should have changed from old value"
-    //     );
-
-    //     // Step 9: Verify that the code reached line 1280 by confirming the PPS update
-    //     // The fact that PPS was updated proves that _forwardPPS was called and
-    //     // executed past the isExempt check (line 1280), even though isExempt=true
-    //     console2.log(
-    //         "Code execution reached line 1280 in SuperVaultAggregator"
-    //     );
-    //     console2.log(
-    //         "isExempt evaluated to: true (upkeep payments disabled in test)"
-    //     );
-    //     console2.log("PPS successfully updated from", oldPPS, "to", newPPS);
-    //     console2.log("Upkeep balance unchanged:", upkeepBalanceBefore);
-
-    //     // Step 10: Test with stale update to verify different isExempt path
-    //     vm.warp(block.timestamp + 1000000); // Fast forward to make update stale
-
-    //     address[] memory staleStrategies = new address[](1);
-    //     staleStrategies[0] = address(superVaultStrategy);
-
-    //     bytes[][] memory staleProofsArray = new bytes[][](1);
-    //     staleProofsArray[0] = new bytes[](0);
-
-    //     uint256[] memory stalePpss = new uint256[](1);
-    //     stalePpss[0] = 1.5e18;
-
-    //     uint256[] memory stalePpsStdevs = new uint256[](1);
-    //     stalePpsStdevs[0] = 0;
-
-    //     uint256[] memory staleValidatorSets = new uint256[](1);
-    //     staleValidatorSets[0] = 0;
-
-    //     uint256[] memory staleTotalValidators = new uint256[](1);
-    //     staleTotalValidators[0] = 0;
-
-    //     uint256[] memory staleTimestamps = new uint256[](1);
-    //     staleTimestamps[0] = block.timestamp - 999999;
-
-    //     IECDSAPPSOracle.UpdatePPSArgs memory staleUpdateArgs = IECDSAPPSOracle
-    //         .UpdatePPSArgs({
-    //             strategies: staleStrategies,
-    //             proofsArray: staleProofsArray,
-    //             ppss: stalePpss,
-    //             ppsStdevs: stalePpsStdevs,
-    //             validatorSets: staleValidatorSets,
-    //             totalValidators: staleTotalValidators,
-    //             timestamps: staleTimestamps
-    //         });
-
-    //     // This will also reach line 1280 but with isExempt=true due to stale update
-    //     ECDSAPPSOracle_updatePPS(staleUpdateArgs);
-
-    //     uint256 ppsAfterStale = superVaultStrategy.getStoredPPS();
-    //     assertEq(
-    //         ppsAfterStale,
-    //         1.5e18,
-    //         "PPS should be updated even for stale update"
-    //     );
-
-    //     console2.log(
-    //         "Confirmed: Line 1280 (!args.isExempt) is reachable in SuperVaultAggregator"
-    //     );
-    //     console2.log(
-    //         "Test demonstrates code path through _forwardPPS to the isExempt check"
-    //     );
-    // }
-
     /// === Test to verify superGovernor_proposeUpkeepPaymentsChange can enable upkeep payments ===
 
     function test_enable_upkeep_payments_makes_isExempt_false() public {
@@ -3029,20 +2862,75 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         );
     }
 
+    function test_move_accumulators() public {
+        uint256 fromState_accumulatorCostBasis = 5;
+        uint256 fromState_accumulatorShares = 2;
+
+        uint256 toState_accumulatorCostBasis = 0;
+        uint256 toState_accumulatorShares = 0;
+
+        uint256 sharesToMove = 1;
+        uint256 availableAccumulatorShares = fromState_accumulatorShares;
+
+        console2.log(
+            "fromState_accumulatorShares B4",
+            fromState_accumulatorShares
+        );
+        console2.log(
+            "fromState_accumulatorCostBasis B4",
+            fromState_accumulatorCostBasis
+        );
+        console2.log("toState_accumulatorShares B4", toState_accumulatorShares);
+        console2.log(
+            "toState_accumulatorCostBasis B4",
+            toState_accumulatorCostBasis
+        );
+
+        // Pro-rata move of cost basis (NO PPS here; preserves fee correctness)
+        uint256 movedCostBasis = sharesToMove == availableAccumulatorShares
+            ? fromState_accumulatorCostBasis
+            : Math.mulDiv(
+                sharesToMove,
+                fromState_accumulatorCostBasis,
+                availableAccumulatorShares
+            ); // Floor by default
+
+        fromState_accumulatorShares -= sharesToMove;
+        fromState_accumulatorCostBasis -= movedCostBasis;
+
+        toState_accumulatorShares += sharesToMove;
+        toState_accumulatorCostBasis += movedCostBasis;
+
+        console2.log(" === After === ");
+        console2.log(
+            "fromState_accumulatorShares",
+            fromState_accumulatorShares
+        );
+        console2.log(
+            "fromState_accumulatorCostBasis",
+            fromState_accumulatorCostBasis
+        );
+        console2.log("toState_accumulatorShares", toState_accumulatorShares);
+        console2.log(
+            "toState_accumulatorCostBasis",
+            toState_accumulatorCostBasis
+        );
+    }
+
     /// Reproducers
     // forge test --match-test test_doomsday_mintRedeemSymmetrical_1 -vvv
-    // function test_doomsday_mintRedeemSymmetrical_1() public {
-    //     superVaultStrategy_manageYieldSource_clamped(0);
+    function test_doomsday_mintRedeemSymmetrical_1() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
 
-    //     superVault_mint(2);
+        superVault_mint(2);
 
-    //     // superVaultStrategy_executeHooks_clamped(17034, 1, false);
-    //     _executeSingleHook(17034, 1, false);
+        // superVaultStrategy_executeHooks_clamped(17034, 1, false);
+        _executeSingleHook(17034, 1, false);
 
-    //     yieldSource_simulateGain(620363132890971);
+        yieldSource_simulateGain(620363132890971);
 
-    //     doomsday_mintRedeemSymmetrical(626386102211729);
-    // }
+        doomsday_mintRedeemSymmetrical(626386102211729);
+    }
 
     // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
     // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here

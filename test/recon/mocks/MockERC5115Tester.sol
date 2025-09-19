@@ -132,6 +132,7 @@ enum RevertType {
 contract MockERC5115Tester is ERC5115 {
     RevertType public revertBehaviour;
     uint256 public totalLosses;
+    uint256 public totalGains;
     uint256 public MAX_BPS = 10_000;
 
     constructor(address _yieldToken) ERC5115(MockERC20(_yieldToken)) {}
@@ -216,6 +217,7 @@ contract MockERC5115Tester is ERC5115 {
             address(this),
             gainAmount
         );
+        totalGains += gainAmount;
     }
 
     function increaseYield(uint256 increasePercentageFP4) public {

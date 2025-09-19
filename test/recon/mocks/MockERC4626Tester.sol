@@ -172,6 +172,7 @@ contract MockERC4626Tester is ERC4626 {
     uint8 public decimalsOffset;
     /// @dev Track total losses
     uint256 public totalLosses;
+    uint256 public totalGains;
     uint256 public lossOnWithdraw;
     uint256 public MAX_BPS = 10_000;
 
@@ -306,6 +307,7 @@ contract MockERC4626Tester is ERC4626 {
     /// @dev Simulate a gain on the vault's assets (similar to Yearn's profit taking)
     function simulateGain(uint256 gainAmount) external {
         MockERC20(asset).transferFrom(msg.sender, address(this), gainAmount);
+        totalGains += gainAmount;
     }
 
     /// @dev Set the loss on withdraw as percentage of the assets being withdrawn

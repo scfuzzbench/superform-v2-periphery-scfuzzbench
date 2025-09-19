@@ -183,6 +183,8 @@ contract MockERC7540Tester is ERC7575, IERC165 {
 
     uint256 public yieldMultiplier = 10000; // 100% in basis points
     uint256 private constant MAX_BPS = 10000;
+    uint256 public totalLosses;
+    uint256 public totalGains;
 
     constructor(address _asset) ERC7575(MockERC20(_asset)) {}
 
@@ -434,14 +436,18 @@ contract MockERC7540Tester is ERC7575, IERC165 {
 
     function simulateGain(uint256 gainAmount) external {
         MockERC20(asset).transferFrom(msg.sender, address(this), gainAmount);
+        totalGains += gainAmount;
     }
 
     function simulateLoss(uint256 lossAmount) external {
         MockERC20(asset).transfer(address(0xbeef), lossAmount);
+        totalLosses += lossAmount;
     }
 
     /// @notice ERC165 interface detection
-    function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure override returns (bool) {
         return interfaceId == type(IERC165).interfaceId;
     }
 }
