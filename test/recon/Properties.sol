@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Asserts} from "@chimera/Asserts.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
+import {vm} from "@chimera/Hevm.sol";
 
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 
