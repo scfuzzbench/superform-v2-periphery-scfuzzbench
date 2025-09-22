@@ -313,7 +313,134 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
     }
 
+    /// @dev Property: all users can withdraw (solvency)
+    function doomsday_allUsersCanWithdraw() public stateless {
+        address[] memory actors = _getActors();
+        bool paused = superVaultAggregator.isStrategyPaused(
+            address(superVaultStrategy)
+        );
+
+        // request redemption for all actors
+        for (uint256 i; i < actors.length; i++) {
+            uint256 redeemableShares = superVault.balanceOf(actors[i]);
+
+            vm.prank(actors[i]);
+            superVault.requestRedeem(redeemableShares, actors[i], actors[i]);
+        }
+
+        // fulfill redemption for all actors
+        for (uint256 i; i < actors.length; i++) {
+            uint256 redeemableShares = superVault.pendingRedeemRequest(
+                0,
+                actors[i]
+            );
+
+            // switch the actor
+            _switchActor(i);
+
+            ISuperVaultStrategy.FulfillArgs
+                memory fulfillArgs = _fulfillRedeemRequestsArgs(
+                    redeemableShares
+                );
+            superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
+        }
+
+        // try to withdraw max possible for all actors
+        for (uint256 i; i < actors.length; i++) {
+            uint256 withdrawable = superVault.maxWithdraw(actors[i]);
+
+            if (withdrawable > 0 && !paused) {
+                vm.prank(actors[i]);
+                try
+                    superVault.withdraw(withdrawable, actors[i], actors[i])
+                {} catch {
+                    // if user can't maxWithdraw there's most likely an insolvency issue related to the TOLERANCE_CONSTANT
+                    t(
+                        false,
+                        "users should always be able to withdraw unless the system is paused"
+                    );
+                }
+            }
+        }
+    }
+
     // Helpers
+
+    /// @dev Helper function to clamp the values for the function call
+    function _fulfillRedeemRequestsArgs(
+        uint256 redeemAmount
+    ) public returns (ISuperVaultStrategy.FulfillArgs memory fulfillArgs) {
+        // Find a controller that has pending redeem requests
+        address selectedController = _getActor();
+        uint256 pendingAmount = superVaultStrategy.pendingRedeemRequest(
+            selectedController
+        );
+
+        // Clamp using the actor's pending amount
+        uint256 actualRedeemAmount = redeemAmount % (pendingAmount + 1);
+
+        address[] memory controllers = new address[](1);
+        controllers[0] = selectedController;
+
+        // Determine yield source type from currently active yield source
+        YieldSourceType activeYieldSourceType = _getYieldSourceTypeFromAddress(
+            _getYieldSource()
+        );
+        address redeemHook = _getRedeemHookForType(activeYieldSourceType);
+
+        // Create realistic hook calldata for redeem operation
+        bytes memory redeemHookCalldata;
+
+        if (
+            activeYieldSourceType == YieldSourceType.ERC4626 ||
+            activeYieldSourceType == YieldSourceType.ERC5115
+        ) {
+            // ERC4626/ERC5115 Layout: bytes32 oracleId, address yieldSource, address owner, uint256 shares, bool usePrevAmount
+            redeemHookCalldata = abi.encodePacked(
+                bytes32(0), // yieldSourceOracleId placeholder
+                _getYieldSource(), // Current active yield source
+                address(superVaultStrategy), // Owner (strategy owns the yield source shares)
+                actualRedeemAmount, // Amount to redeem (matches controller's pending request)
+                false // Don't use previous hook amount
+            );
+        } else {
+            // ERC7540 Layout: bytes32 oracleId, address yieldSource, uint256 shares, bool usePrevAmount
+            redeemHookCalldata = abi.encodePacked(
+                bytes32(0), // yieldSourceOracleId placeholder
+                _getYieldSource(), // Current active yield source
+                actualRedeemAmount, // Amount to redeem (matches controller's pending request)
+                false // Don't use previous hook amount
+            );
+        }
+
+        // Create arrays for FulfillArgs
+        address[] memory hooks = new address[](1);
+        hooks[0] = redeemHook;
+
+        bytes[] memory hookCalldata = new bytes[](1);
+        hookCalldata[0] = redeemHookCalldata;
+
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        expectedAssetsOrSharesOut[0] = actualRedeemAmount; // Expect amount matching the actual redeem
+
+        bytes32[][] memory globalProofs = new bytes32[][](1);
+        globalProofs[0] = new bytes32[](0); // Empty proof for UnsafeSuperVaultAggregator
+
+        bytes32[][] memory strategyProofs = new bytes32[][](1);
+        strategyProofs[0] = new bytes32[](0); // Empty proof
+
+        // Create the FulfillArgs struct
+        fulfillArgs = ISuperVaultStrategy.FulfillArgs({
+            controllers: controllers,
+            hooks: hooks,
+            hookCalldata: hookCalldata,
+            expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+            globalProofs: globalProofs,
+            strategyProofs: strategyProofs
+        });
+
+        return fulfillArgs;
+    }
 
     /// @dev Helper function to create FulfillArgs for multiple actors
     function _createMultiActorFulfillArgs(

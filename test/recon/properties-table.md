@@ -47,6 +47,7 @@
 | `superVault_transfer` | Transfers of shares should transfer the exact amount of `accumulatorCostBasis` to the recipient |  | ✅ |  |
 | `property_avgPPSMonotonicity` | `averageWithdrawPrice` should never decrease when new redemptions are fulfilled at a higher PPS |  | ✅ |  |
 | `property_accumulatorSharesGtPendingRequests` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  | ✅ |  |
+| `doomsday_allUsersCanWithdraw` | all users can withdraw (solvency) |  | ✅ |  |
 
 ## SuperVaultAggregator 
 | Property | Description | Comments | Implemented | Tested |
