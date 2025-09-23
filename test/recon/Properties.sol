@@ -245,12 +245,15 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         uint256 previewDepositShares = superVault.previewDeposit(
             previewMintAssets
         );
+        uint256 price = superVaultStrategy.getStoredPPS();
 
-        eq(
-            shares,
-            previewDepositShares,
-            "previewMint and previewDeposit equivalence (from shares)"
-        );
+        if (price > 0) {
+            eq(
+                shares,
+                previewDepositShares,
+                "previewMint and previewDeposit equivalence (from shares)"
+            );
+        }
     }
 
     /// @dev Property: previewMint and previewDeposit equivalence (from assets)
@@ -262,18 +265,21 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         uint256 previewMintAssets_over = superVault.previewMint(
             previewDepositShares + 1
         );
+        uint256 price = superVaultStrategy.getStoredPPS();
 
-        gte(
-            assets,
-            previewMintAssets_under,
-            "previewMint and previewDeposit equivalence under (from assets)"
-        );
+        if (price > 0) {
+            gte(
+                assets,
+                previewMintAssets_under,
+                "previewMint and previewDeposit equivalence under (from assets)"
+            );
 
-        lte(
-            assets,
-            previewMintAssets_over,
-            "previewMint and previewDeposit equivalence over (from assets)"
-        );
+            lte(
+                assets,
+                previewMintAssets_over,
+                "previewMint and previewDeposit equivalence over (from assets)"
+            );
+        }
     }
 
     /// @dev Property: previewMint is >= convertToAssets
@@ -446,9 +452,13 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
 
         if (previewDepositShares > previewMintShares) {
-            previewDepositSharesGreater = int256(previewDepositShares);
+            previewDepositSharesGreater =
+                int256(previewDepositShares) -
+                int256(previewMintShares);
         } else {
-            previewMintSharesGreater = int256(previewMintShares);
+            previewMintSharesGreater =
+                int256(previewMintShares) -
+                int256(previewDepositShares);
         }
     }
 

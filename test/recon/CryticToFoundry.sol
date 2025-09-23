@@ -3094,4 +3094,27 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             340282366920938463463374607431768211451
         );
     }
+
+    // forge test --match-test test_optimize_previewMintSharesGreater_0 -vvv
+    function test_optimize_previewMintSharesGreater_0() public {
+        // Max value: 57896044618658097711785492504343953926634992332820282019728792003956564819967;
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            115792089237316195423570985008687907853269984665640564039457584007913129639932
+        );
+
+        setPreviewSharesGreater(
+            57896044618658097711785492504343953926851202526103111848155002437154048892770
+        );
+
+        console2.log(
+            "previewDepositSharesGreater: ",
+            previewDepositSharesGreater
+        );
+        console2.log("previewMintSharesGreater: ", previewMintSharesGreater);
+    }
 }
