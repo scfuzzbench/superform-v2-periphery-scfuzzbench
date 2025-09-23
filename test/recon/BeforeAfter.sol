@@ -56,7 +56,7 @@ abstract contract BeforeAfter is Setup {
         _before.summedTotalShares = _sumTotalShares();
         _before.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _before.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
-        _before.summedTotalAssets = _sumVaultAssets();
+        _before.summedTotalAssets = _sumStrategyAssets();
         _before.avgPPS[_getActor()] = superVaultStrategy
             .getSuperVaultState(_getActor())
             .averageRequestPPS;
@@ -75,7 +75,7 @@ abstract contract BeforeAfter is Setup {
         _after.summedTotalShares = _sumTotalShares();
         _after.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _after.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
-        _after.summedTotalAssets = _sumVaultAssets();
+        _after.summedTotalAssets = _sumStrategyAssets();
         _after.avgPPS[_getActor()] = superVaultStrategy
             .getSuperVaultState(_getActor())
             .averageRequestPPS;
@@ -113,7 +113,7 @@ abstract contract BeforeAfter is Setup {
         }
 
         // Calculate total assets across all locations
-        uint256 totalAssets = _sumVaultAssets();
+        uint256 totalAssets = _sumStrategyAssets();
 
         // Calculate naive PPS: (totalAssets * PRECISION) / totalSupply
         // Using 1e18 as precision to match the system's PPS_DECIMALS
@@ -122,7 +122,7 @@ abstract contract BeforeAfter is Setup {
         return naivePPS;
     }
 
-    function _sumVaultAssets() public view returns (uint256) {
+    function _sumStrategyAssets() public view returns (uint256) {
         // Get the underlying asset
         address asset = superVault.asset();
 

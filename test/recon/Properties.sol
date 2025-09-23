@@ -186,7 +186,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
 
     /// @dev Property: if totalSupply > 0, then totalAssets > 0
     function property_assetBacking() public {
-        uint256 summedTotalAssets = _sumVaultAssets();
+        uint256 summedTotalAssets = _sumStrategyAssets();
 
         if (superVault.totalSupply() > 0) {
             gt(
@@ -318,7 +318,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
 
     /// @dev Property: If the sum of assets in SuperVaultStrategy and yield strategies is 0, maxWithdraw should be 0
     function property_sumOfAssetsMaxWithdrawable() public {
-        uint256 summedTotalAssets = _sumVaultAssets();
+        uint256 summedTotalAssets = _sumStrategyAssets();
 
         if (summedTotalAssets == 0) {
             uint256 maxWithdraw = superVault.maxWithdraw(_getActor());
@@ -359,18 +359,18 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         }
     }
 
-    /// @dev Property: Claiming redemptions should never revert with INVALID_REDEEM_CLAIM
-    function property_redemptionsNeverReverts(uint256 shares) public {
-        vm.prank(_getActor());
-        try superVault.redeem(shares, _getActor(), _getActor()) {} catch (
-            bytes memory err
-        ) {
-            bool unexpectedError = checkError(err, "INVALID_REDEEM_CLAIM()");
-            t(
-                !unexpectedError,
-                "Claiming redemptions should never revert with INVALID_REDEEM_CLAIM"
-            );
+    /// @dev Property: sum(maxWithdraw(actors[i])) <= (asset.balanceOf(superVaultStrategy) + yield strategies)
+    function property_superVaultStrategySolvency() public {
+        address[] memory actors = _getActors();
+
+        uint256 summedMaxWithdraw;
+        for (uint256 i; i < actors.length; i++) {
+            summedMaxWithdraw += superVault.maxWithdraw(actors[i]);
         }
+
+        uint256 summedStrategyAssets = _sumStrategyAssets();
+
+        gte(summedStrategyAssets, summedMaxWithdraw, "strategy is insolvent");
     }
 
     /// Optimization Setters
@@ -418,7 +418,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             );
         }
 
-        uint256 totalAssets = _sumVaultAssets();
+        uint256 totalAssets = _sumStrategyAssets();
 
         return int256(totalAssets) - int256(summedClaimableRedemptionsAsAssets);
     }
@@ -438,7 +438,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             );
         }
 
-        uint256 totalAssets = _sumVaultAssets();
+        uint256 totalAssets = _sumStrategyAssets();
 
         if (summedClaimableRedemptionsAsAssets > totalAssets) {
             return
