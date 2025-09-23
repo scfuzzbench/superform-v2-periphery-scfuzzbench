@@ -5,6 +5,7 @@ import {Asserts} from "@chimera/Asserts.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
 import {vm} from "@chimera/Hevm.sol";
 import {ERC7540Properties} from "@properties-7540/ERC7540Properties.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 
@@ -12,6 +13,8 @@ import {OpType} from "test/recon/BeforeAfter.sol";
 import {BeforeAfter} from "./BeforeAfter.sol";
 
 abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
+    using Math for uint256;
+
     /// @dev Property: oracle PPS doesn't change on deposit/mint/redeem/withdraw
     function property_oraclePPSDoesntChangeOnAddOrRemove() public {
         if (_currentOp == OpType.ADD || _currentOp == OpType.REMOVE) {
@@ -64,7 +67,16 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     /// @dev Property: maxRedeem and maxWithdraw should always be equivalent
     function property_maxRedeemMaxWithdrawSymmetry() public {
         uint256 maxWithdraw = superVault.maxWithdraw(_getActor());
-        uint256 maxWithdrawAsShares = superVault.convertToShares(maxWithdraw);
+        // convertToShares uses current price instead of avg from fulfillment
+        uint256 withdrawPrice = superVaultStrategy.getAverageWithdrawPrice(
+            _getActor()
+        );
+        uint256 maxWithdrawAsShares = maxWithdraw.mulDiv(
+            superVault.PRECISION(),
+            withdrawPrice,
+            Math.Rounding.Floor
+        );
+
         uint256 maxRedeem = superVault.maxRedeem(_getActor());
 
         eq(maxWithdrawAsShares, maxRedeem, "maxWithdrawAsShares != maxRedeem");
@@ -159,15 +171,15 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     function property_cannotClaimMoreThanRequested() public {
         if (_currentOp == OpType.FULFILL) {
             // pending decreases
-            uint256 fulfilled = _before.pendingUserAssets[_getActor()] -
+            uint256 fulfilledDelta = _before.pendingUserAssets[_getActor()] -
                 _after.pendingUserAssets[_getActor()];
             // claimable increases
-            uint256 claimable = _after.claimableUserAssets[_getActor()] -
+            uint256 claimableDelta = _after.claimableUserAssets[_getActor()] -
                 _before.claimableUserAssets[_getActor()];
 
             eq(
-                fulfilled,
-                claimable,
+                fulfilledDelta,
+                claimableDelta,
                 "user cannot claim more assets than requested in redemption"
             );
         }
@@ -263,7 +275,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
     }
 
-    /// @dev Property: previewMint is higher than or equal to convertToAssets
+    /// @dev Property: previewMint is >= convertToAssets
     function property_comparePreviewMintAndConvertToAssets(
         uint256 shares
     ) public {
@@ -272,11 +284,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         gte(
             previewMintAssets,
             convertToAssets,
-            "previewMint is higher than or equal to convertToAssets"
+            "previewMint is >= convertToAssets"
         );
     }
 
-    /// @dev Property: convertToShares is higher than or equal to previewDepositShares (equivalent without fees)
+    /// @dev Property: convertToShares is >= previewDepositShares (equivalent without fees)
     function property_comparePreviewDepositAndConvertToShares(
         uint256 assets
     ) public {
@@ -354,12 +366,12 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             gte(
                 state.accumulatorShares,
                 state.pendingRedeemRequest,
-                "state.accumulatorShares >= state.pendingRedeemRequest for each user"
+                "state.accumulatorShares < state.pendingRedeemRequest"
             );
         }
     }
 
-    /// @dev Property: sum(maxWithdraw(actors[i])) <= (asset.balanceOf(superVaultStrategy) + yield strategies)
+    /// @dev Property: sum(maxWithdraw(actors[i])) <= asset.balanceOf(superVaultStrategy)
     function property_superVaultStrategySolvency() public {
         address[] memory actors = _getActors();
 
@@ -368,9 +380,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             summedMaxWithdraw += superVault.maxWithdraw(actors[i]);
         }
 
-        uint256 summedStrategyAssets = _sumStrategyAssets();
+        uint256 strategyAssetBalance = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
 
-        gte(summedStrategyAssets, summedMaxWithdraw, "strategy is insolvent");
+        gte(strategyAssetBalance, summedMaxWithdraw, "strategy is insolvent");
     }
 
     /// Optimization Setters

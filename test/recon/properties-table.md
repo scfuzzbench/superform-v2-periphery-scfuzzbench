@@ -48,9 +48,11 @@
 | `property_avgPPSMonotonicity` | `averageWithdrawPrice` should never decrease when new redemptions are fulfilled at a higher PPS |  | ✅ |  |
 | `property_accumulatorSharesGtPendingRequests` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  | ✅ |  |
 | `doomsday_allUsersCanWithdraw` | all users can withdraw (solvency) |  | ✅ |  |
-| `property_superVaultStrategySolvency` | sum(maxWithdraw(actors[i])) <= (asset.balanceOf(superVaultStrategy) + yield strategies) |  | ✅ |  |
+| `property_superVaultStrategySolvency` | sum(maxWithdraw(actors[i])) <= asset.balanceOf(superVaultStrategy) |  | ✅ |  |
 | `doomsday_mintRedeemSymmetrical` | mint/redeem doesn't cause loss to user |  | ✅ |  |
 | `doomsday_depositWithdrawSymmetrical` | deposit/withdraw doesn't cause loss to user |  | ✅ |  |
+| `property_comparePreviewMintAndConvertToAssets` | previewMint is >= convertToAssets |  | ✅ |  |
+| `property_comparePreviewDepositAndConvertToShares` | convertToShares is >= previewDepositShares (equivalent without fees) |  | ✅ |  |
 
 ## SuperVaultAggregator 
 | Property | Description | Comments | Implemented | Tested |
