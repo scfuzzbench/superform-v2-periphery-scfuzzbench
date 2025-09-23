@@ -340,14 +340,6 @@ abstract contract YieldSourceTargets is BaseTargetFunctions, Properties {
     }
 
     /// Common yield manipulation functions ///
-    function yieldSource_setLossOnWithdraw(uint256 lossOnWithdraw) public {
-        YieldSourceType currentType = _getCurrentYieldSourceType();
-        address yieldSource = _getYieldSource();
-
-        if (currentType == YieldSourceType.ERC4626) {
-            MockERC4626Tester(yieldSource).setLossOnWithdraw(lossOnWithdraw);
-        }
-    }
 
     function yieldSource_simulateLoss(uint256 lossAmount) public {
         YieldSourceType currentType = _getCurrentYieldSourceType();

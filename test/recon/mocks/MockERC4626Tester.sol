@@ -298,11 +298,6 @@ contract MockERC4626Tester is ERC4626 {
         revertBehaviours[ft] = rt;
     }
 
-    function setLossOnWithdraw(uint256 _lossOnWithdraw) public {
-        _lossOnWithdraw %= MAX_BPS + 1; // clamp to ensure we set a max of 100%
-        lossOnWithdraw = _lossOnWithdraw;
-    }
-
     /// @dev Simulate a loss on the vault's assets
     function simulateLoss(uint256 lossAmount) external {
         MockERC20(asset).transfer(address(0xbeef), lossAmount);
