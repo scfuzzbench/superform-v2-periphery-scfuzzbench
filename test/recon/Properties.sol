@@ -227,12 +227,13 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     /// @dev Property: When a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease
     function property_avgPPSDoesntDecrease() public {
         uint256 currentPrice = _before.oraclePPS;
-        uint256 avgPPS = _before.avgPPS[_getActor()];
+        uint256 beforeAvgPPS = _before.state[_getActor()].averageRequestPPS;
+        uint256 afterAvgPPS = _after.state[_getActor()].averageRequestPPS;
 
-        if (_currentOp == OpType.REQUEST && currentPrice >= avgPPS) {
+        if (_currentOp == OpType.REQUEST && currentPrice >= beforeAvgPPS) {
             gte(
-                _after.avgPPS[_getActor()],
-                _before.avgPPS[_getActor()],
+                beforeAvgPPS,
+                afterAvgPPS,
                 "when a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease"
             );
         }
@@ -346,11 +347,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     function property_avgPPSMonotonicity() public {
         if (
             _currentOp == OpType.FULFILL &&
-            _before.oraclePPS > _before.avgPPS[_getActor()] // fulfilled at a higher price
+            _before.oraclePPS > _before.state[_getActor()].averageRequestPPS // fulfilled at a higher price
         ) {
             gte(
-                _after.avgPPS[_getActor()],
-                _before.avgPPS[_getActor()],
+                _after.state[_getActor()].averageRequestPPS,
+                _before.state[_getActor()].averageRequestPPS,
                 "averageWithdrawPrice should not decrease when fulfilled at a higher PPS"
             );
         }
@@ -385,6 +386,42 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
 
         gte(strategyAssetBalance, summedMaxWithdraw, "strategy is insolvent");
+    }
+
+    /// @dev Property: accumulatorShares is always accurately increased
+    function property_accumulatorSharesIncrease() public {
+        if (_currentOp == OpType.ADD) {
+            uint256 accumulatorSharesBefore = _before
+                .state[_getActor()]
+                .accumulatorShares;
+            uint256 accumulatorSharesAfter = _after
+                .state[_getActor()]
+                .accumulatorShares;
+            uint256 actorSharesBefore = _before.superVaultShares[_getActor()];
+            uint256 actorSharesAfter = _after.superVaultShares[_getActor()];
+            eq(
+                accumulatorSharesAfter - accumulatorSharesBefore,
+                actorSharesAfter - actorSharesBefore,
+                "accumulatorShares is always accurately updated"
+            );
+        }
+    }
+
+    /// @dev Property: accumulatorCostBasis is always accurately increased
+    function property_accumulatorCostBasisIncrease() public {
+        if (_currentOp == OpType.ADD) {
+            uint256 accumulatorCostBasisBefore = _before
+                .state[_getActor()]
+                .accumulatorCostBasis;
+            uint256 accumulatorCostBasisAfter = _after
+                .state[_getActor()]
+                .accumulatorCostBasis;
+            eq(
+                accumulatorCostBasisAfter - accumulatorCostBasisBefore,
+                _after.strategyAssetBalance - _before.strategyAssetBalance,
+                "accumulatorShares is always accurately updated"
+            );
+        }
     }
 
     /// Optimization Setters
