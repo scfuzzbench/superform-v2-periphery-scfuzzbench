@@ -49,6 +49,8 @@
 | `property_accumulatorSharesGtPendingRequests` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  | ✅ |  |
 | `doomsday_allUsersCanWithdraw` | all users can withdraw (solvency) |  | ✅ |  |
 | `property_superVaultStrategySolvency` | sum(maxWithdraw(actors[i])) <= (asset.balanceOf(superVaultStrategy) + yield strategies) |  | ✅ |  |
+| `doomsday_mintRedeemSymmetrical` | mint/redeem doesn't cause loss to user |  | ✅ |  |
+| `doomsday_depositWithdrawSymmetrical` | deposit/withdraw doesn't cause loss to user |  | ✅ |  |
 
 ## SuperVaultAggregator 
 | Property | Description | Comments | Implemented | Tested |
