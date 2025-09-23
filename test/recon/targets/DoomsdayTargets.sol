@@ -55,7 +55,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         address asset = superVault.asset();
         uint256 balanceBefore = MockERC20(asset).balanceOf(_getActor());
 
-        // 1. Deposit
+        // 1. Mint
         vm.prank(_getActor());
         superVault.mint(sharesToMint, _getActor());
 
@@ -131,16 +131,20 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 sharesToMint
     ) public stateless {
         // 1. Deposit to get shares
+        vm.prank(_getActor());
         superVault.mint(sharesToMint, _getActor());
 
-        uint256 shares = superVault.maxRedeem(_getActor());
+        // redeem all user shares
+        uint256 shares = superVault.balanceOf(_getActor());
 
         // 2. Request full redemption
+        vm.prank(_getActor());
         superVault.requestRedeem(shares, _getActor(), _getActor());
 
         // 3. Fulfill the redemption request
         ISuperVaultStrategy.FulfillArgs
             memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        // fulfill as address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Check maxRedeem before claiming
@@ -168,6 +172,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 assetsToDeposit
     ) public stateless {
         // 1. Deposit to get shares
+        vm.prank(_getActor());
         superVault.deposit(assetsToDeposit, _getActor());
 
         uint256 shares = superVault.balanceOf(_getActor());
@@ -183,12 +188,12 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Check maxWithdraw after fulfillment and use that value
-        uint256 maxWithdrawable = superVault.maxWithdraw(_getActor());
+        uint256 maxWithdrawBefore = superVault.maxWithdraw(_getActor());
 
         // 5. Withdraw the exact amount returned by maxWithdraw
         vm.prank(_getActor());
         try
-            superVault.withdraw(maxWithdrawable, _getActor(), _getActor())
+            superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor())
         {} catch {
             t(false, "withdraw of maxWithdraw should not revert");
         }
@@ -260,6 +265,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
 
         // 4. Fulfill all redemption requests at once
+        // fulfill as address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 5. Calculate total pending after
@@ -284,6 +290,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         address newManager = _getActor();
 
         // Since address(this) has SUPER_GOVERNOR_ROLE, this should always succeed
+        vm.prank(address(this));
         try superGovernor.changePrimaryManager(strategy, newManager) {
             // Call succeeded - this is expected behavior
         } catch (bytes memory err) {
