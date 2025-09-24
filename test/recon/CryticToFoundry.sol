@@ -1535,9 +1535,19 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     }
 
     // TODO: create a foundry fuzz test to see if we can force insolvency
-    function test_superVaultStrategy_fulfillRedeemRequests_clamped_insolvency()
-        public
-    {
+    // NOTE: if this doesn't find insolvency it could be because both requested redemptions are for the full user share balance
+    function test_superVaultStrategy_fulfillRedeemRequests_clamped_insolvency(
+        uint256 amountToDeposit,
+        uint256 amountToInvest
+    ) public {
+        // Bound inputs to avoid INVALID_AMOUNT errors
+        // Ensure deposits are large enough to generate shares (min 1e18 for precision)
+        amountToDeposit = bound(amountToDeposit, 1e18, 1e27);
+
+        // Ensure investment amount is reasonable relative to deposits (both users deposit)
+        // Make it smaller than total deposits to potentially create insolvency scenarios
+        amountToInvest = bound(amountToInvest, 1e18, amountToDeposit * 2);
+
         // Setup yield source
         superVaultStrategy_manageYieldSource_clamped(
             uint256(YieldSourceType.ERC4626)
@@ -1546,11 +1556,11 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // Users deposits into SuperVault to create shares
         switchActor(1);
         address user1 = _getActor();
-        superVault_deposit(1000e18);
+        superVault_deposit(amountToDeposit);
 
         switchActor(2);
         address user2 = _getActor();
-        superVault_deposit(500e18);
+        superVault_deposit(amountToDeposit);
 
         // Manager invests funds into yield source using executeHooks
         switchActor(0);
@@ -1561,7 +1571,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         hookTypeInts[0] = 0; // ApproveAndDeposit4626 is the first enum value (index 0)
 
         uint256[] memory amountsToInvest = new uint256[](1);
-        amountsToInvest[0] = 500e18; // Amount to deposit
+        amountsToInvest[0] = amountToInvest; // Amount to deposit into strategy vault
 
         bool[] memory usePrevHookAmounts = new bool[](1);
         usePrevHookAmounts[0] = false;
@@ -1572,27 +1582,49 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             usePrevHookAmounts
         );
 
-        // Multiple users request redemptions with the same amount
+        // Multiple users request redemptions of their full balance
         switchActor(1);
-        uint256 redeemAmt = 100e18;
-        superVault_requestRedeem(redeemAmt);
+        uint256 redeemAmt1 = superVault.balanceOf(_getActor()); // redeem actor's full balance
+        superVault_requestRedeem(redeemAmt1);
 
         // Second user also requests the same amount
         switchActor(2);
-        user2 = _getActor();
-        superVault_requestRedeem(redeemAmt);
+        uint256 redeemAmt2 = superVault.balanceOf(_getActor()); // redeem actor's full balance
+        superVault_requestRedeem(redeemAmt2);
 
-        // Admin fulfills using the clamped function
-        // Since the function no longer uses asActor modifier, it's always called by address(this)
-        // No need to switch actors - the function internally handles admin permissions
-        // The function uses random controller selection based on entropy
-        // entropy=1 % 3 = 1 (selects user1 at address 0x100)
-        // entropy=2 % 3 = 2 (selects user2 at address 0x200)
-        // Pass the exact requested amount to avoid assertion failures
-        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt);
+        // Skip test if no shares were created (avoid divide by zero)
+        if (redeemAmt1 == 0 && redeemAmt2 == 0) {
+            return;
+        }
 
-        // Check that at least one user has their withdraw price set
-        _verifyRedemptionFulfillment(user1, user2, redeemAmt);
+        // Use a simpler approach - fulfill each request individually using clamped function
+        // This avoids the complexity of setting up proper hook calldata
+
+        // First fulfill user1's request
+        switchActor(0); // Switch to admin
+
+        // Store initial state
+        uint256 strategyBalanceBefore = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
+
+        // Call the existing fulfillment function twice, once for each user
+        // The clamped function handles the controller selection internally
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt1);
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt2);
+
+        // check that sum of maxWithdraw for all actors <= strategy balance
+        uint256 sumOfMaxWithdraw;
+        address[] memory actors = _getActors();
+        for (uint256 i; i < actors.length; i++) {
+            sumOfMaxWithdraw += superVault.maxWithdraw(actors[i]);
+        }
+
+        uint256 strategyBalance = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
+
+        gte(strategyBalance, sumOfMaxWithdraw, "strategy is insolvent");
     }
 
     function test_superVaultStrategy_fulfillRedeemRequests_no_investment()
