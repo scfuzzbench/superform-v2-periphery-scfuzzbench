@@ -232,8 +232,8 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
 
         if (_currentOp == OpType.REQUEST && currentPrice >= beforeAvgPPS) {
             gte(
-                beforeAvgPPS,
                 afterAvgPPS,
+                beforeAvgPPS,
                 "when a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease"
             );
         }
