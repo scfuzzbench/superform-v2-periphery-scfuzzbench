@@ -15,7 +15,8 @@ abstract contract ManagersTargets is BaseTargetFunctions, Properties {
     // == ACTOR HANDLERS == //
 
     /// @dev Start acting as another actor
-    function switchActor(uint256 entropy) public {
+    /// @dev Update ghosts here to make global property checks not fail falsely
+    function switchActor(uint256 entropy) public updateGhosts {
         _switchActor(entropy);
     }
 
