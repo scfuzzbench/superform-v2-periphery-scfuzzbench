@@ -550,9 +550,9 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
 
     // Canaries
 
-    function canary_deployedNewVault() public {
-        t(!hasDeployedNewVault, "deployed new vault canary");
-    }
+    // function canary_deployedNewVault() public {
+    //     t(!hasDeployedNewVault, "deployed new vault canary");
+    // }
 
     // ERC7540 Properties from erc7540-reusable-properties
 

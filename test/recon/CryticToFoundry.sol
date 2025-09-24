@@ -1534,6 +1534,67 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         _verifyRedemptionFulfillment(user1, user2, redeemAmt);
     }
 
+    // TODO: create a foundry fuzz test to see if we can force insolvency
+    function test_superVaultStrategy_fulfillRedeemRequests_clamped_insolvency()
+        public
+    {
+        // Setup yield source
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
+
+        // Users deposits into SuperVault to create shares
+        switchActor(1);
+        address user1 = _getActor();
+        superVault_deposit(1000e18);
+
+        switchActor(2);
+        address user2 = _getActor();
+        superVault_deposit(500e18);
+
+        // Manager invests funds into yield source using executeHooks
+        switchActor(0);
+
+        // First, invest deposits into the yield source
+        // Use the clamped function to execute hooks
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626 is the first enum value (index 0)
+
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 500e18; // Amount to deposit
+
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+
+        // Multiple users request redemptions with the same amount
+        switchActor(1);
+        uint256 redeemAmt = 100e18;
+        superVault_requestRedeem(redeemAmt);
+
+        // Second user also requests the same amount
+        switchActor(2);
+        user2 = _getActor();
+        superVault_requestRedeem(redeemAmt);
+
+        // Admin fulfills using the clamped function
+        // Since the function no longer uses asActor modifier, it's always called by address(this)
+        // No need to switch actors - the function internally handles admin permissions
+        // The function uses random controller selection based on entropy
+        // entropy=1 % 3 = 1 (selects user1 at address 0x100)
+        // entropy=2 % 3 = 2 (selects user2 at address 0x200)
+        // Pass the exact requested amount to avoid assertion failures
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt);
+
+        // Check that at least one user has their withdraw price set
+        _verifyRedemptionFulfillment(user1, user2, redeemAmt);
+    }
+
     function test_superVaultStrategy_fulfillRedeemRequests_no_investment()
         public
     {
@@ -2903,7 +2964,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         );
     }
 
-    function test_move_accumulators() public {
+    function test_move_accumulators_1() public {
         uint256 fromState_accumulatorCostBasis = 5;
         uint256 fromState_accumulatorShares = 2;
 
@@ -2943,6 +3004,63 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         toState_accumulatorCostBasis += movedCostBasis;
 
         console2.log(" === After === ");
+        console2.log("movedCostBasis: ", movedCostBasis);
+        console2.log(
+            "fromState_accumulatorShares",
+            fromState_accumulatorShares
+        );
+        console2.log(
+            "fromState_accumulatorCostBasis",
+            fromState_accumulatorCostBasis
+        );
+        console2.log("toState_accumulatorShares", toState_accumulatorShares);
+        console2.log(
+            "toState_accumulatorCostBasis",
+            toState_accumulatorCostBasis
+        );
+    }
+
+    function test_move_accumulators_2() public {
+        uint256 fromState_accumulatorCostBasis = 9;
+        uint256 fromState_accumulatorShares = 4;
+
+        uint256 toState_accumulatorCostBasis = 11;
+        uint256 toState_accumulatorShares = 5;
+
+        uint256 sharesToMove = 1;
+        uint256 availableAccumulatorShares = fromState_accumulatorShares;
+
+        console2.log(
+            "fromState_accumulatorShares B4",
+            fromState_accumulatorShares
+        );
+        console2.log(
+            "fromState_accumulatorCostBasis B4",
+            fromState_accumulatorCostBasis
+        );
+        console2.log("toState_accumulatorShares B4", toState_accumulatorShares);
+        console2.log(
+            "toState_accumulatorCostBasis B4",
+            toState_accumulatorCostBasis
+        );
+
+        // Pro-rata move of cost basis (NO PPS here; preserves fee correctness)
+        uint256 movedCostBasis = sharesToMove == availableAccumulatorShares
+            ? fromState_accumulatorCostBasis
+            : Math.mulDiv(
+                sharesToMove,
+                fromState_accumulatorCostBasis,
+                availableAccumulatorShares
+            ); // Floor by default
+
+        fromState_accumulatorShares -= sharesToMove;
+        fromState_accumulatorCostBasis -= movedCostBasis;
+
+        toState_accumulatorShares += sharesToMove;
+        toState_accumulatorCostBasis += movedCostBasis;
+
+        console2.log(" === After === ");
+        console2.log("movedCostBasis: ", movedCostBasis);
         console2.log(
             "fromState_accumulatorShares",
             fromState_accumulatorShares
