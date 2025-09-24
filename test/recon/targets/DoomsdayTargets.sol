@@ -78,8 +78,8 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         // 5. Check that user didn't lose assets
         gte(
-            balanceBefore,
             balanceAfter,
+            balanceBefore,
             "User loses assets in deposit/withdrawal flow"
         );
     }
@@ -120,8 +120,8 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         // 5. Check that user didn't lose assets
         gte(
-            balanceBefore,
             balanceAfter,
+            balanceBefore,
             "User loses assets in deposit/withdrawal flow"
         );
     }
