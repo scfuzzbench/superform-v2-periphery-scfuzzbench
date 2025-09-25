@@ -1534,6 +1534,99 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         _verifyRedemptionFulfillment(user1, user2, redeemAmt);
     }
 
+    // TODO: create a foundry fuzz test to see if we can force insolvency
+    // NOTE: if this doesn't find insolvency it could be because both requested redemptions are for the full user share balance
+    function test_superVaultStrategy_fulfillRedeemRequests_clamped_insolvency(
+        uint256 amountToDeposit,
+        uint256 amountToInvest
+    ) public {
+        // Bound inputs to avoid INVALID_AMOUNT errors
+        // Ensure deposits are large enough to generate shares (min 1e18 for precision)
+        amountToDeposit = bound(amountToDeposit, 1e18, 1e27);
+
+        // Ensure investment amount is reasonable relative to deposits (both users deposit)
+        // Make it smaller than total deposits to potentially create insolvency scenarios
+        amountToInvest = bound(amountToInvest, 1e18, amountToDeposit * 2);
+
+        // Setup yield source
+        superVaultStrategy_manageYieldSource_clamped(
+            uint256(YieldSourceType.ERC4626)
+        );
+
+        // Users deposits into SuperVault to create shares
+        switchActor(1);
+        address user1 = _getActor();
+        superVault_deposit(amountToDeposit);
+
+        switchActor(2);
+        address user2 = _getActor();
+        superVault_deposit(amountToDeposit);
+
+        // Manager invests funds into yield source using executeHooks
+        switchActor(0);
+
+        // First, invest deposits into the yield source
+        // Use the clamped function to execute hooks
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626 is the first enum value (index 0)
+
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = amountToInvest; // Amount to deposit into strategy vault
+
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+
+        // Multiple users request redemptions of their full balance
+        switchActor(1);
+        uint256 redeemAmt1 = superVault.balanceOf(_getActor()); // redeem actor's full balance
+        superVault_requestRedeem(redeemAmt1);
+
+        // Second user also requests the same amount
+        switchActor(2);
+        uint256 redeemAmt2 = superVault.balanceOf(_getActor()); // redeem actor's full balance
+        superVault_requestRedeem(redeemAmt2);
+
+        // Skip test if no shares were created (avoid divide by zero)
+        if (redeemAmt1 == 0 && redeemAmt2 == 0) {
+            return;
+        }
+
+        // Use a simpler approach - fulfill each request individually using clamped function
+        // This avoids the complexity of setting up proper hook calldata
+
+        // First fulfill user1's request
+        switchActor(0); // Switch to admin
+
+        // Store initial state
+        uint256 strategyBalanceBefore = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
+
+        // Call the existing fulfillment function twice, once for each user
+        // The clamped function handles the controller selection internally
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt1);
+        superVaultStrategy_fulfillRedeemRequests_clamped(redeemAmt2);
+
+        // check that sum of maxWithdraw for all actors <= strategy balance
+        uint256 sumOfMaxWithdraw;
+        address[] memory actors = _getActors();
+        for (uint256 i; i < actors.length; i++) {
+            sumOfMaxWithdraw += superVault.maxWithdraw(actors[i]);
+        }
+
+        uint256 strategyBalance = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
+
+        gte(strategyBalance, sumOfMaxWithdraw, "strategy is insolvent");
+    }
+
     function test_superVaultStrategy_fulfillRedeemRequests_no_investment()
         public
     {
@@ -2903,7 +2996,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         );
     }
 
-    function test_move_accumulators() public {
+    function test_move_accumulators_1() public {
         uint256 fromState_accumulatorCostBasis = 5;
         uint256 fromState_accumulatorShares = 2;
 
@@ -2943,6 +3036,63 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         toState_accumulatorCostBasis += movedCostBasis;
 
         console2.log(" === After === ");
+        console2.log("movedCostBasis: ", movedCostBasis);
+        console2.log(
+            "fromState_accumulatorShares",
+            fromState_accumulatorShares
+        );
+        console2.log(
+            "fromState_accumulatorCostBasis",
+            fromState_accumulatorCostBasis
+        );
+        console2.log("toState_accumulatorShares", toState_accumulatorShares);
+        console2.log(
+            "toState_accumulatorCostBasis",
+            toState_accumulatorCostBasis
+        );
+    }
+
+    function test_move_accumulators_2() public {
+        uint256 fromState_accumulatorCostBasis = 9;
+        uint256 fromState_accumulatorShares = 4;
+
+        uint256 toState_accumulatorCostBasis = 11;
+        uint256 toState_accumulatorShares = 5;
+
+        uint256 sharesToMove = 1;
+        uint256 availableAccumulatorShares = fromState_accumulatorShares;
+
+        console2.log(
+            "fromState_accumulatorShares B4",
+            fromState_accumulatorShares
+        );
+        console2.log(
+            "fromState_accumulatorCostBasis B4",
+            fromState_accumulatorCostBasis
+        );
+        console2.log("toState_accumulatorShares B4", toState_accumulatorShares);
+        console2.log(
+            "toState_accumulatorCostBasis B4",
+            toState_accumulatorCostBasis
+        );
+
+        // Pro-rata move of cost basis (NO PPS here; preserves fee correctness)
+        uint256 movedCostBasis = sharesToMove == availableAccumulatorShares
+            ? fromState_accumulatorCostBasis
+            : Math.mulDiv(
+                sharesToMove,
+                fromState_accumulatorCostBasis,
+                availableAccumulatorShares
+            ); // Floor by default
+
+        fromState_accumulatorShares -= sharesToMove;
+        fromState_accumulatorCostBasis -= movedCostBasis;
+
+        toState_accumulatorShares += sharesToMove;
+        toState_accumulatorCostBasis += movedCostBasis;
+
+        console2.log(" === After === ");
+        console2.log("movedCostBasis: ", movedCostBasis);
         console2.log(
             "fromState_accumulatorShares",
             fromState_accumulatorShares
@@ -2959,64 +3109,221 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     }
 
     /// Reproducers
-    // forge test --match-test test_doomsday_mintRedeemSymmetrical_1 -vvv
-    function test_doomsday_mintRedeemSymmetrical_1() public {
+
+    // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_1 -vvv
+    // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here
+    function test_superVaultStrategy_fulfillRedeemRequests_clamped_1() public {
+        superVault_deposit(4);
+        superVault_requestRedeem_clamped(2);
         superVaultStrategy_manageYieldSource_clamped(0);
 
-        superVault_mint(2);
+        uint256[] memory hookTypes = new uint256[](1);
+        hookTypes[
+            0
+        ] = 727274302833518615492845037239295802792876209365430308729559717363410497539;
 
-        // superVaultStrategy_executeHooks_clamped(17034, 1, false);
-        _executeSingleHook(17034, 1, false);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1;
 
-        yieldSource_simulateGain(620363132890971);
+        bool[] memory usePrevAmounts = new bool[](1);
+        usePrevAmounts[0] = false;
 
-        doomsday_mintRedeemSymmetrical(626386102211729);
+        superVaultStrategy_executeHooks_clamped(
+            hookTypes,
+            amounts,
+            usePrevAmounts
+        );
+
+        // summed accumulator shares decreases by 2 instead of 1 (the amount that the totalSupply decreases by)
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
     }
 
-    // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
-    // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here
-    // TODO: confirm if this still breaks after latest commit update
-    function test_superVaultStrategy_fulfillRedeemRequests_clamped_0() public {
+    // NOTE: optimization tests in optimize_previewMintAssetsGreater and optimize_previewDepositAssetsGreater
+    // forge test --match-test test_property_previewEquivalenceFromAssets_1 -vvv
+    function test_property_previewEquivalenceFromAssets_1() public {
+        superVaultStrategy_proposeVaultFeeConfigUpdate(
+            0,
+            10000,
+            0x00000000000000000000000000000000DeaDBeef
+        );
+
+        vm.warp(block.timestamp + 577107);
+
+        vm.roll(block.number + 1);
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 27732);
+        // setting fees to 100%
+        superVaultStrategy_executeVaultFeeConfigUpdate();
+
+        // previewMint explicitly returns 0 with 100% fees
+        property_previewEquivalenceFromAssets(1);
+    }
+
+    // NOTE: optimization tests in optimize_previewMintSharesGreater and optimize_previewDepositSharesGreater
+    // forge test --match-test test_property_previewEquivalenceFromShares_1 -vvv
+    function test_property_previewEquivalenceFromShares_1() public {
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(1);
+
+        console2.log("precision: ", superVault.PRECISION());
+        property_previewEquivalenceFromShares(1);
+    }
+
+    // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_2 -vvv
+    // TODO: determine if this is actually relevant because it just means that a donation causes the implied PPS to decrease on withdrawal but this isn't used anywhere
+    function test_property_naivePPSDoesntChangeOnDepositOrMint_2() public {
+        yieldSource_mint(1, 0x0000000000000000000000000000000000000000);
+
+        // crytic_erc7540_7_deposit(2);
+
+        superVault_mint(1);
+
+        property_naivePPSDoesntChangeOnDepositOrMint();
+    }
+
+    // NOTE: shares are burned on fulfillment but assets only get transferred on withdraw/redeem so implied PPS changes after assets get transferred to user
+    // TODO: same as above, determine if there are any side effects related to this
+    function test_property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
+        superVault_deposit(4);
+        superVault_requestRedeem_clamped(2);
         superVaultStrategy_manageYieldSource_clamped(0);
-        superVault_mint(2);
+
         uint256[] memory hookTypeInts = new uint256[](1);
-        hookTypeInts[0] = 0;
+        hookTypeInts[
+            0
+        ] = 3366039565052519506129160632812429979925236647654304654821762322802056013872;
         uint256[] memory amountsToInvest = new uint256[](1);
-        amountsToInvest[0] = 97923320596094294801741071335978558490853670156049;
+        amountsToInvest[0] = 2;
         bool[] memory usePrevHookAmounts = new bool[](1);
         usePrevHookAmounts[0] = false;
-
         superVaultStrategy_executeHooks_clamped(
             hookTypeInts,
             amountsToInvest,
             usePrevHookAmounts
         );
-        superVault_requestRedeem(1); // Reduce to match available balance
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+        superVaultStrategy_fulfillRedeemRequests_clamped(2);
+        superVault_withdraw_clamped(1);
+        property_naivePPSDoesntChangeOnRedeemOrWithdraw();
     }
 
-    // forge test --match-test test_doomsday_previewEquivalenceFromAssets_0 -vvv
-    // TODO: optimization test, looks like a real break
-    function test_doomsday_previewEquivalenceFromAssets_0() public {
-        property_previewEquivalenceFromAssets(1);
-    }
-
-    // forge test --match-test test_doomsday_previewEquivalenceFromShares_3 -vvv
-    // TODO: same as above - optimization test, looks like a real break
-    function test_doomsday_previewEquivalenceFromShares_3() public {
-        property_previewEquivalenceFromShares(1);
-    }
-
-    // forge test --match-test test_property_naivePPSDoesntChangeOnAddOrRemove_1 -vvv
-    // TODO: determine if this is actually relevant because it just means that a donation causes the implied PPS to decrease on withdrawal but this isn't used anywhere
-    function test_property_naivePPSDoesntChangeOnAddOrRemove_1() public {
-        yieldSource_simulateGain(1);
-
+    // forge test --match-test test_superVault_transfer_9 -vvv
+    // NOTE: issue related to rounding down in shares transferred from the sender
+    // TODO: create an optimization test to maximize the difference between shares received and shares sent
+    function test_superVault_transfer_9() public {
         superVault_deposit(2);
 
-        superVault_deposit(2);
+        switchActor(1);
 
-        console2.log("summedTotalAssets: ", _before.summedTotalAssets);
-        property_naivePPSDoesntChangeOnDepositOrMint();
+        superVault_transfer(2, 1);
+    }
+
+    // forge test --match-test test_property_comparePreviewMintAndConvertToAssets_13 -vvv
+    // NOTE: see issue here: https://github.com/Recon-Fuzz/superform-review/issues/49
+    function test_property_comparePreviewMintAndConvertToAssets_13() public {
+        superVaultStrategy_proposeVaultFeeConfigUpdate(
+            0,
+            10000,
+            0x00000000000000000000000000000000DeaDBeef
+        );
+
+        vm.warp(block.timestamp + 237093);
+
+        vm.roll(block.number + 1);
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 367768);
+        superVaultStrategy_executeVaultFeeConfigUpdate();
+
+        property_comparePreviewMintAndConvertToAssets(1);
+    }
+
+    // force vault loss socialization
+    function test_force_socialization() public {
+        // register yield source
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        // make a deposit
+        uint256 amounToDeposit = 10e18;
+        superVault_deposit(amounToDeposit);
+
+        // transfer assets into yield source
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0;
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 2;
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+
+        // force a loss on the yield source
+        // Set a 10% loss on withdrawal (10% of withdrawn amount will be lost)
+        yieldSource_setLossOnWithdraw(1000); // 1000 basis points = 10%
+        
+        // Now call the doomsday function which should demonstrate the vulnerability
+        // where the user will receive less than they deposited due to the loss on withdrawal
+        uint256 sharesToMint = 5e18; // Mint some shares for the test
+        
+        // This will fail its internal assertion because the assertion in doomsday_mintRedeemSymmetrical 
+        // expects balanceAfter >= balanceBefore, but due to the loss on withdrawal,
+        // the user will receive less assets than they initially put in
+        doomsday_mintRedeemSymmetrical(sharesToMint);
+    }
+
+    /// Optimization tests
+    // forge test --match-test test_optimize_maxDustAccumulation_1 -vvv
+    function test_optimize_maxDustAccumulation_1() public {
+        // Max value: 673998960742062360239077156080980998554;
+
+        yieldSource_mint(132, 0x0000000000000000000000000000000000000000);
+
+        asset_mint(
+            0xc3C1658B1e3b9e017030807d0C50895456FD2379,
+            333716593821123896775702548649212786971
+        );
+
+        console2.log("strategy", address(superVaultStrategy));
+        address[] memory yieldSources = _getYieldSources();
+        for (uint256 i = 0; i < yieldSources.length; i++) {
+            if (yieldSources[i] != address(0)) {
+                // Get the underlying asset balance held in each yield source
+                console2.log("yield source", address(yieldSources[i]));
+            }
+        }
+
+        asset_mint(
+            0xc7183455a4C133Ae270771860664b6B7ec320bB1,
+            340282366920938463463374607431768211451
+        );
+    }
+
+    // forge test --match-test test_optimize_previewMintSharesGreater_0 -vvv
+    function test_optimize_previewMintSharesGreater_0() public {
+        // Max value: 57896044618658097711785492504343953926634992332820282019728792003956564819967;
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            115792089237316195423570985008687907853269984665640564039457584007913129639932
+        );
+
+        setPreviewSharesGreater(
+            57896044618658097711785492504343953926851202526103111848155002437154048892770
+        );
+
+        console2.log(
+            "previewDepositSharesGreater: ",
+            previewDepositSharesGreater
+        );
+        console2.log("previewMintSharesGreater: ", previewMintSharesGreater);
     }
 }

@@ -1,17 +1,16 @@
 # Properties Table
 
 ## SuperVault 
-| Property | Description | Comments | Implemented | Tested |
+| Property | Description | Comments | Implemented | Passes |
 | --- | --- | --- | --- | --- |
-| `doomsday_mintRedeemSymmetrical` | deposit/redeem is symmetrical, no value gained due to rounding |  | ✅ |  |
-| `doomsday_depositWithdrawSymmetrical` | deposit/withdraw is symmetrical, no value gained due to rounding |  | ✅ |  |
 | `doomsday_maxRedeemResetsAfterFullRedemption` | `maxRedeem` is reset to 0 after full redemption |  | ✅ |  |
 | `doomsday_maxRedeemResetsAfterFullRedemption` | `maxRedeem` is reset to 0 after full redemption |  | ✅ |  |
 | `doomsday_maxWithdrawResetsAfterFullWithdrawal` | `maxWithdraw` is reset to 0 after full withdrawal |  | ✅ |  |
 | `doomsday_fulfillDoesntOverRedeemMultipleActors` | fulfillRedeemRequests doesn't redeem more than requested for multiple actors |  | ✅ |  |
 | `property_naivePPSDoesntChangeOnRedeem` | fulfillRedeemRequest doesn't change naive PPS |  | ✅ | ❌ |
-| `property_oraclePPSDoesntChangeOnAddOrRemove` | oracle PPS doesn't change on deposit/mint/redeem/withdraw |  | ✅ |  |
-| `property_naivePPSDoesntChangeOnAddOrRemove` | naive PPS (assets/shares in system) never changes on deposit/mint/redeem/withdraw  |  | ✅ |  |
+| `property_oraclePPSDoesntChangeOnAddOrRemove` | oracle PPS doesn't change on deposit/mint/redeem/withdraw |  | ✅ | ❌ |
+| `property_naivePPSDoesntChangeOnDepositOrMint` | naive PPS (assets/shares in system) never changes on deposit/mint  |  | ✅ | ❌ |
+| `property_naivePPSDoesntChangeOnRedeemOrWithdraw` | naive PPS (assets/shares in system) never changes on redeem/withdraw  |  | ✅ | ❌ |
 | `property_maxRedeemMaxWithdrawSymmetry` | `maxRedeem` and `maxWithdraw` should always be equivalent  |  | ✅ |  |
 | `property_totalSharesDontDecreaseOnRedemptionRequest` | `requestRedeem` should never reduce `SuperVault` shares  |  | ✅ |  |
 | `superVault_cancelRedeem` | `pendingRedeemRequest` should be 0 after a user calls `cancelRedeem`  |  | ✅ |  |
@@ -22,7 +21,6 @@
 | `superVaultStrategy_fulfillRedeemRequests` | redemptions only burn the requested amount of shares (exact check) |  | ✅ |  |
 | `property_maxMintZeroWhenPaused` | `maxMint` should be 0 when aggregator is paused |  | ✅ |  |
 | `property_maxDepositZeroWhenPaused` | `maxDeposit` should be 0 when strategy is paused |  | ✅ |  |
-| `property_avgWithdrawPriceSanity` | If user's maxWithdraw == 0 then getAverageWithdrawPrice for the user is also == 0 |  | ✅ |  |
 | `property_accumulatorSharesSolvency` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers |  | ✅ |  |
 | `property_accumulatorCostBasisSolvency` | SUM(accumulatorCostBasis) doesn't change on `SuperVault` share transfers |  | ✅ |  |
 | `superVaultStrategy_fulfillRedeemRequests` | `accumulatorShares` decreases by the exact amounts requested when fulfilling redemptions |  | ✅ |  |
@@ -45,13 +43,18 @@
 | `doomsday_allUsersCanRedeem` | All users should always be able to redeem unless the system is paused | most likely will break if vault experiences a loss; meant to catch issues related to insufficient redemption processing | ✅ |  |
 | `property_sumOfClaimable` | After all redemptions are processed, the sum of all claimable is <= balance available |  | ✅ |  |
 | `property_sumOfAssetsMaxWithdrawable` | If the sum of assets in `SuperVaultStrategy` and yield strategies is 0, `maxWithdraw` should be 0 | Related to dust issue described [here](https://github.com/superform-xyz/v2-periphery/pull/43) | ✅ |  |
-| `property_redemptionsNeverReverts` | When claiming redemption, it should never revert with `INVALID_REDEEM_CLAIM` (doomsday) | Related to second doomsday property outlined [here](https://github.com/Recon-Fuzz/superform-review/issues/20#issue-3405662380) | ✅ |  |
+| `doomsday_redemptionsNeverReverts` | When claiming redemption, it should never revert with `INVALID_REDEEM_CLAIM` (doomsday) | Related to second doomsday property outlined [here](https://github.com/Recon-Fuzz/superform-review/issues/20#issue-3405662380) | ✅ |  |
 | `superVault_transfer` | Transfers of shares should transfer the exact amount of `accumulatorShares` to the recipient | Related to high risk issue outlined [here](https://github.com/Recon-Fuzz/superform-review/issues/20#issue-3405662380), potential to cause overflows? Might be useful to have an optimization test for the difference | ✅ |  |
 | `superVault_transfer` | Transfers of shares should transfer the exact amount of `accumulatorCostBasis` to the recipient |  | ✅ |  |
 | `property_avgPPSMonotonicity` | `averageWithdrawPrice` should never decrease when new redemptions are fulfilled at a higher PPS |  | ✅ |  |
-| `property_maxWithdraw` | If maxWithdraw > 0, then `averageWithdrawPrice` > 0 |  | ✅ |  |
-| `property_avgWithdrawPrice` | If maxWithdraw == 0, then `averageWithdrawPrice` == 0 |  | ✅ |  |
-| `property_maxWithdraw` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  | ✅ |  |
+| `property_accumulatorSharesGtPendingRequests` | `state.accumulatorShares` >= `superVaultState[controllers[i]].pendingRedeemRequest` for each user |  | ✅ |  |
+| `doomsday_allUsersCanWithdraw` | all users can withdraw (solvency) |  | ✅ |  |
+| `property_superVaultStrategySolvency` | sum(maxWithdraw(actors[i])) <= asset.balanceOf(superVaultStrategy) |  | ✅ |  |
+| `doomsday_mintRedeemSymmetrical` | mint/redeem doesn't cause loss to user |  | ✅ |  |
+| `doomsday_depositWithdrawSymmetrical` | deposit/withdraw doesn't cause loss to user |  | ✅ |  |
+| `property_comparePreviewMintAndConvertToAssets` | previewMint is >= convertToAssets |  | ✅ |  |
+| `property_comparePreviewDepositAndConvertToShares` | convertToShares is >= previewDepositShares (equivalent without fees) |  | ✅ |  |
+| `property_lossSocialization` | SUM(accumulatorCostBasis) <= balance of superVaultStrategy and deposited yield strategies |  | ✅ |  |
 
 ## SuperVaultAggregator 
 | Property | Description | Comments | Implemented | Tested |

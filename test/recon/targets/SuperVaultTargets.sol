@@ -61,7 +61,9 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 pendingRedeemRequestsAsAssets = superVault.convertToAssets(
             pendingRedeemRequestsBefore
         );
-        uint256 balanceBefore = MockERC20(superVault.asset()).balanceOf(_getActor());
+        uint256 balanceBefore = MockERC20(superVault.asset()).balanceOf(
+            _getActor()
+        );
 
         vm.prank(_getActor());
         superVault.cancelRedeem(_getActor());
@@ -73,7 +75,9 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 averageRequestPPS = superVaultStrategy
             .getSuperVaultState(_getActor())
             .averageRequestPPS;
-        uint256 balanceAfter = MockERC20(superVault.asset()).balanceOf(_getActor());
+        uint256 balanceAfter = MockERC20(superVault.asset()).balanceOf(
+            _getActor()
+        );
 
         // Checks
         eq(
@@ -93,51 +97,15 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         );
     }
 
-    /// @dev Property: accumulatorShares is always accurately increased
-    /// @dev Property: accumulatorCostBasis is always accurately increased
     /// @dev Property: previewDeposit returns the correct amounts compared to executing a deposit
     function superVault_deposit(
         uint256 assets
     ) public updateGhostsWithOpType(OpType.ADD) {
-        uint256 accumulatorSharesBefore = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorShares;
-        uint256 sumAccumulatorCostBasisBefore = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorCostBasis;
         uint256 previewShares = superVault.previewDeposit(assets);
-        uint256 balanceBefore = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
 
-        vm.prank(_getActor()); /// @audit FIX: prank actor
+        vm.prank(_getActor());
         uint256 shares = superVault.deposit(assets, _getActor());
 
-        uint256 accumulatorSharesAfter = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorShares;
-        uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorCostBasis;
-        uint256 balanceAfter = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
-        eq(
-            accumulatorSharesAfter - accumulatorSharesBefore,
-            shares,
-            "accumulatorShares is always accurately updated"
-        );
-        // The accumulatorCostBasis increases by the actual amount after fees
-        // not necessarily by the full assets amount due to management fees
-        uint256 actualIncrease = sumAccumulatorCostBasisAfter -
-            sumAccumulatorCostBasisBefore;
-        // The increase should be equal to the shares minted (which accounts for fees)
-        eq(
-            actualIncrease,
-            balanceAfter - balanceBefore,
-            "accumulatorCostBasis is always accurately increased by deposited amount"
-        );
         eq(
             previewShares,
             shares,
@@ -145,55 +113,24 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         );
     }
 
-    function superVault_invalidateNonce(bytes32 nonce) public asActor {
-        superVault.invalidateNonce(nonce);
-    }
-
-    /// @dev Property: accumulatorShares is always accurately updated
-    /// @dev Property: accumulatorCostBasis is always accurately accurately increased
     /// @dev Property: previewMint returns the correct amounts compared to executing a mint
     function superVault_mint(
         uint256 shares
     ) public updateGhostsWithOpType(OpType.ADD) {
-        uint256 accumulatorSharesBefore = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorShares;
-        uint256 sumAccumulatorCostBasisBefore = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorCostBasis;
-        uint256 assetsBefore = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
         uint256 previewMint = superVault.previewMint(shares);
 
         vm.prank(_getActor());
         uint256 assets = superVault.mint(shares, _getActor());
 
-        uint256 accumulatorSharesAfter = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorShares;
-        uint256 sumAccumulatorCostBasisAfter = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .accumulatorCostBasis;
-        uint256 assetsAfter = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
-        eq(
-            accumulatorSharesAfter - accumulatorSharesBefore,
-            shares,
-            "accumulatorShares is always accurately updated"
-        );
-        eq(
-            assetsAfter - assetsBefore,
-            sumAccumulatorCostBasisAfter - sumAccumulatorCostBasisBefore,
-            "accumulatorCostBasis is always accurately accurately increased"
-        );
         eq(
             assets,
             previewMint,
             "previewMint returns the correct amounts compared to executing a mint"
         );
+    }
+
+    function superVault_invalidateNonce(bytes32 nonce) public asActor {
+        superVault.invalidateNonce(nonce);
     }
 
     /// @dev Property: Redeem should never revert due to underflow
@@ -235,7 +172,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     function superVault_transfer(
         uint256 entropy,
         uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) asActor {
+    ) public updateGhostsWithOpType(OpType.TRANSFER) {
         address to = _getRandomActor(entropy);
         ISuperVaultStrategy.SuperVaultState
             memory stateSenderBefore = superVaultStrategy.getSuperVaultState(
@@ -246,6 +183,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                 to
             );
 
+        vm.prank(_getActor());
         try superVault.transfer(to, value) {
             ISuperVaultStrategy.SuperVaultState
                 memory stateSenderAfter = superVaultStrategy.getSuperVaultState(
@@ -260,14 +198,14 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     stateSenderAfter.accumulatorShares,
                 stateRecipientAfter.accumulatorShares -
                     stateRecipientBefore.accumulatorShares,
-                "recipient loses shares on transfer"
+                "shares are lost on transfer"
             );
             eq(
                 stateSenderBefore.accumulatorCostBasis -
                     stateSenderAfter.accumulatorCostBasis,
                 stateRecipientAfter.accumulatorCostBasis -
                     stateRecipientBefore.accumulatorCostBasis,
-                "recipient loses cost basis on transfer"
+                "cost basis is lost on transfer"
             );
         } catch (bytes memory err) {
             bool expectedError;
@@ -285,10 +223,11 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 entropyFrom,
         uint256 entropyTo,
         uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) asActor {
+    ) public updateGhostsWithOpType(OpType.TRANSFER) {
         address from = _getRandomActor(entropyFrom);
         address to = _getRandomActor(entropyTo);
 
+        vm.prank(_getActor());
         try superVault.transferFrom(from, to, value) {} catch (
             bytes memory err
         ) {

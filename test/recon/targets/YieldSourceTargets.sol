@@ -340,7 +340,8 @@ abstract contract YieldSourceTargets is BaseTargetFunctions, Properties {
     }
 
     /// Common yield manipulation functions ///
-    function yieldSource_simulateLoss(uint256 lossAmount) public asActor {
+
+    function yieldSource_simulateLoss(uint256 lossAmount) public {
         YieldSourceType currentType = _getCurrentYieldSourceType();
         address yieldSource = _getYieldSource();
 
@@ -353,7 +354,7 @@ abstract contract YieldSourceTargets is BaseTargetFunctions, Properties {
         }
     }
 
-    function yieldSource_simulateGain(uint256 gainAmount) public asActor {
+    function yieldSource_simulateGain(uint256 gainAmount) public {
         YieldSourceType currentType = _getCurrentYieldSourceType();
         address yieldSource = _getYieldSource();
 

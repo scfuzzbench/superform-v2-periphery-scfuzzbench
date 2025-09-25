@@ -316,7 +316,6 @@ contract MockERC7540Tester is ERC7575, IERC165 {
             canceled: false
         });
 
-        _burn(owner, shares);
         emit RedeemRequest(controller, owner, requestId, msg.sender, shares);
     }
 
@@ -424,6 +423,7 @@ contract MockERC7540Tester is ERC7575, IERC165 {
     }
 
     // Yield simulation functions (similar to MockERC4626Tester)
+    // Primary way that 7540 vaults receive losses is on rounding in redemptions so we just simulate a loss that reduces total asset balance
     function increaseYield(uint256 increasePercentageFP4) external {
         uint256 amount = (totalAssets() * increasePercentageFP4) / MAX_BPS;
         MockERC20(asset).transferFrom(msg.sender, address(this), amount);

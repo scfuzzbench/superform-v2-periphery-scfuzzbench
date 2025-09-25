@@ -119,10 +119,10 @@ abstract contract Setup is
     bool hasUpdatedPPS;
     int256 burnedMoreThanRequested;
     int256 burnedLessThanRequested;
-    int256 previewMintSharesGreater;
-    int256 previewDepositSharesGreater;
-    int256 previewMintAssetsGreater;
-    int256 previewDepositAssetsGreater;
+    int256 previewMintSharesGreater; // setPreviewSharesGreater
+    int256 previewDepositSharesGreater; // setPreviewSharesGreater
+    int256 previewMintAssetsGreater; // setpreviewAssetsGreater
+    int256 previewDepositAssetsGreater; // setpreviewAssetsGreater
 
     // Canaries
     bool executeHooksClampedSuccess;
@@ -141,6 +141,14 @@ abstract contract Setup is
     modifier asActor() {
         vm.prank(address(_getActor()));
         _;
+    }
+
+    /// Makes a handler have no side effects
+    /// The fuzzer will call this anyway, and because it reverts it will be removed from shrinking
+    /// Replace the "withGhosts" with "stateless" to make the code clean
+    modifier stateless() {
+        _;
+        revert("stateless");
     }
 
     /// === Setup === ///

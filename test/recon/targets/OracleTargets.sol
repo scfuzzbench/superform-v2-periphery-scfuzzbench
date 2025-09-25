@@ -48,27 +48,29 @@ abstract contract OracleTargets is BaseTargetFunctions, Properties {
     }
 
     function ECDSAPPSOracle_updatePPS_clamped(uint256 pps) public {
+        pps %= (100_000_000 * 1e18); // clamp to a reasonable max price
+
         address[] memory strategies = new address[](1);
         strategies[0] = address(superVaultStrategy);
-        
+
         bytes[][] memory proofsArray = new bytes[][](1);
         proofsArray[0] = new bytes[](0);
-        
+
         uint256[] memory ppss = new uint256[](1);
         ppss[0] = pps;
-        
+
         uint256[] memory ppsStdevs = new uint256[](1);
         ppsStdevs[0] = 0;
-        
+
         uint256[] memory validatorSets = new uint256[](1);
         validatorSets[0] = 0;
-        
+
         uint256[] memory totalValidators = new uint256[](1);
         totalValidators[0] = 0;
-        
+
         uint256[] memory timestamps = new uint256[](1);
         timestamps[0] = block.timestamp;
-        
+
         IECDSAPPSOracle.UpdatePPSArgs memory args = IECDSAPPSOracle
             .UpdatePPSArgs({
                 strategies: strategies,

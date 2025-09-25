@@ -13,14 +13,6 @@ import {YieldSourceType} from "test/recon/managers/YieldManager.sol";
 import {MockERC4626Tester} from "test/recon/mocks/MockERC4626Tester.sol";
 
 abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
-    /// Makes a handler have no side effects
-    /// The fuzzer will call this anyway, and because it reverts it will be removed from shrinking
-    /// Replace the "withGhosts" with "stateless" to make the code clean
-    modifier stateless() {
-        _;
-        revert("stateless");
-    }
-
     /// @dev Property: previewDeposit and deposit equivalence
     function doomsday_previewDepositEquivalence(
         uint256 assets
@@ -51,76 +43,86 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         );
     }
 
-    /// @dev Property: mint/redeem is symmetrical
-    // NOTE: ignores yield gain because there's no simple way to determine yield distribution for the superVault
+    /// @dev Property: mint/redeem doesn't cause loss to user
     function doomsday_mintRedeemSymmetrical(
         uint256 sharesToMint
     ) public stateless {
         // skip if there's been any gain because it complicates the assertion checking
-        if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
-            return;
-        }
+        // NOTE: removed because was previously checking that user doesn't gain only from minting/redeeming
+        // if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
+        //     return;
+        // }
+        address asset = superVault.asset();
+        uint256 balanceBefore = MockERC20(asset).balanceOf(_getActor());
 
-        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
-
-        // 1. Deposit
+        // 1. Mint
+        vm.prank(_getActor());
         superVault.mint(sharesToMint, _getActor());
 
         // 2. Request Redemption
         uint256 shares = superVault.balanceOf(_getActor());
+        vm.prank(_getActor());
         superVault.requestRedeem(shares, _getActor(), _getActor());
 
         // 3. Fulfill Redemption
         ISuperVaultStrategy.FulfillArgs
             memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        // called by admin address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Claim Redemption
+        vm.prank(_getActor());
         superVault.redeem(shares, _getActor(), _getActor());
 
-        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
+        uint256 balanceAfter = MockERC20(asset).balanceOf(_getActor());
 
-        lte(
+        // 5. Check that user didn't lose assets
+        gte(
             balanceAfter,
             balanceBefore,
-            "User gained assets in deposit/withdrawal flow"
+            "User loses assets in deposit/withdrawal flow"
         );
     }
 
-    /// @dev Property: deposit/withdraw is symmetrical
-    // NOTE: ignores yield gain because there's no simple way to determine yield distribution for the superVault
+    /// @dev Property: deposit/withdraw doesn't cause loss to user
     function doomsday_depositWithdrawSymmetrical(
         uint256 assetsToDeposit
     ) public stateless {
         // skip if there's been any gain because it complicates the assertion checking
-        if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
-            return;
-        }
-
-        uint256 balanceBefore = MockERC20(_getAsset()).balanceOf(_getActor());
+        // NOTE: removed because was previously checking that user doesn't gain only from minting/redeeming
+        // if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
+        //     return;
+        // }
+        address asset = superVault.asset();
+        uint256 balanceBefore = MockERC20(asset).balanceOf(_getActor());
 
         // 1. Deposit
+        vm.prank(_getActor());
         superVault.deposit(assetsToDeposit, _getActor());
 
         // 2. Request Withdrawal (through redemption in ERC7540)
         uint256 shares = superVault.balanceOf(_getActor());
+        vm.prank(_getActor());
         superVault.requestRedeem(shares, _getActor(), _getActor());
 
         // 3. Fulfill Withdrawal
         ISuperVaultStrategy.FulfillArgs
             memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        // fulfills as admin (address(this))
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Claim Withdrawal
         uint256 withdrawableAssets = superVault.maxWithdraw(_getActor());
+        vm.prank(_getActor());
         superVault.withdraw(withdrawableAssets, _getActor(), _getActor());
 
-        uint256 balanceAfter = MockERC20(_getAsset()).balanceOf(_getActor());
+        uint256 balanceAfter = MockERC20(asset).balanceOf(_getActor());
 
-        lte(
+        // 5. Check that user didn't lose assets
+        gte(
             balanceAfter,
             balanceBefore,
-            "User gained assets in deposit/withdrawal flow"
+            "User loses assets in deposit/withdrawal flow"
         );
     }
 
@@ -129,16 +131,20 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 sharesToMint
     ) public stateless {
         // 1. Deposit to get shares
+        vm.prank(_getActor());
         superVault.mint(sharesToMint, _getActor());
 
-        uint256 shares = superVault.maxRedeem(_getActor());
+        // redeem all user shares
+        uint256 shares = superVault.balanceOf(_getActor());
 
         // 2. Request full redemption
+        vm.prank(_getActor());
         superVault.requestRedeem(shares, _getActor(), _getActor());
 
         // 3. Fulfill the redemption request
         ISuperVaultStrategy.FulfillArgs
             memory fulfillArgs = _createFulfillRedeemArgs(shares);
+        // fulfill as address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Check maxRedeem before claiming
@@ -166,6 +172,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 assetsToDeposit
     ) public stateless {
         // 1. Deposit to get shares
+        vm.prank(_getActor());
         superVault.deposit(assetsToDeposit, _getActor());
 
         uint256 shares = superVault.balanceOf(_getActor());
@@ -181,12 +188,12 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 4. Check maxWithdraw after fulfillment and use that value
-        uint256 maxWithdrawable = superVault.maxWithdraw(_getActor());
+        uint256 maxWithdrawBefore = superVault.maxWithdraw(_getActor());
 
         // 5. Withdraw the exact amount returned by maxWithdraw
         vm.prank(_getActor());
         try
-            superVault.withdraw(maxWithdrawable, _getActor(), _getActor())
+            superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor())
         {} catch {
             t(false, "withdraw of maxWithdraw should not revert");
         }
@@ -258,6 +265,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
 
         // 4. Fulfill all redemption requests at once
+        // fulfill as address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
         // 5. Calculate total pending after
@@ -282,6 +290,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         address newManager = _getActor();
 
         // Since address(this) has SUPER_GOVERNOR_ROLE, this should always succeed
+        vm.prank(address(this));
         try superGovernor.changePrimaryManager(strategy, newManager) {
             // Call succeeded - this is expected behavior
         } catch (bytes memory err) {
@@ -319,7 +328,151 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
     }
 
+    /// @dev Property: all users can withdraw (solvency)
+    // NOTE: if withdrawing from a given strategy via fulfillRedeemRequests fails, it can be expected that one of the YieldSourceTargets would be called to switch the yield source
+    // this should allow fulfillments to eventually succeed so we don't need to sort through all yield sources that have currently been deposited into before fulfilling
+    function doomsday_allUsersCanWithdraw() public stateless {
+        address[] memory actors = _getActors();
+        bool paused = superVaultAggregator.isStrategyPaused(
+            address(superVaultStrategy)
+        );
+
+        // request redemption for all actors
+        for (uint256 i; i < actors.length; i++) {
+            uint256 redeemableShares = superVault.balanceOf(actors[i]);
+
+            vm.prank(actors[i]);
+            superVault.requestRedeem(redeemableShares, actors[i], actors[i]);
+        }
+
+        // fulfill redemption for all actors
+        for (uint256 i; i < actors.length; i++) {
+            uint256 redeemableShares = superVault.pendingRedeemRequest(
+                0,
+                actors[i]
+            );
+
+            // switch the actor
+            _switchActor(i);
+
+            ISuperVaultStrategy.FulfillArgs
+                memory fulfillArgs = _fulfillRedeemRequestsArgs(
+                    redeemableShares
+                );
+            superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
+        }
+
+        // try to withdraw max possible for all actors
+        for (uint256 i; i < actors.length; i++) {
+            uint256 withdrawable = superVault.maxWithdraw(actors[i]);
+
+            if (withdrawable > 0 && !paused) {
+                vm.prank(actors[i]);
+                try
+                    superVault.withdraw(withdrawable, actors[i], actors[i])
+                {} catch {
+                    // if user can't maxWithdraw there's most likely an insolvency issue related to the TOLERANCE_CONSTANT
+                    t(
+                        false,
+                        "users should always be able to withdraw unless the system is paused"
+                    );
+                }
+            }
+        }
+    }
+
+    /// @dev Property: Claiming redemptions should never revert with INVALID_REDEEM_CLAIM
+    function doomsday_redemptionsNeverReverts(
+        uint256 shares
+    ) public asActor stateless {
+        try superVault.redeem(shares, _getActor(), _getActor()) {} catch (
+            bytes memory err
+        ) {
+            bool unexpectedError = checkError(err, "INVALID_REDEEM_CLAIM()");
+            t(
+                !unexpectedError,
+                "Claiming redemptions should never revert with INVALID_REDEEM_CLAIM"
+            );
+        }
+    }
+
     // Helpers
+
+    /// @dev Helper function to clamp the values for the function call
+    function _fulfillRedeemRequestsArgs(
+        uint256 redeemAmount
+    ) public returns (ISuperVaultStrategy.FulfillArgs memory fulfillArgs) {
+        // Find a controller that has pending redeem requests
+        address selectedController = _getActor();
+        uint256 pendingAmount = superVaultStrategy.pendingRedeemRequest(
+            selectedController
+        );
+
+        // Clamp using the actor's pending amount
+        uint256 actualRedeemAmount = redeemAmount % (pendingAmount + 1);
+
+        address[] memory controllers = new address[](1);
+        controllers[0] = selectedController;
+
+        // Determine yield source type from currently active yield source
+        YieldSourceType activeYieldSourceType = _getYieldSourceTypeFromAddress(
+            _getYieldSource()
+        );
+        address redeemHook = _getRedeemHookForType(activeYieldSourceType);
+
+        // Create realistic hook calldata for redeem operation
+        bytes memory redeemHookCalldata;
+
+        if (
+            activeYieldSourceType == YieldSourceType.ERC4626 ||
+            activeYieldSourceType == YieldSourceType.ERC5115
+        ) {
+            // ERC4626/ERC5115 Layout: bytes32 oracleId, address yieldSource, address owner, uint256 shares, bool usePrevAmount
+            redeemHookCalldata = abi.encodePacked(
+                bytes32(0), // yieldSourceOracleId placeholder
+                _getYieldSource(), // Current active yield source
+                address(superVaultStrategy), // Owner (strategy owns the yield source shares)
+                actualRedeemAmount, // Amount to redeem (matches controller's pending request)
+                false // Don't use previous hook amount
+            );
+        } else {
+            // ERC7540 Layout: bytes32 oracleId, address yieldSource, uint256 shares, bool usePrevAmount
+            redeemHookCalldata = abi.encodePacked(
+                bytes32(0), // yieldSourceOracleId placeholder
+                _getYieldSource(), // Current active yield source
+                actualRedeemAmount, // Amount to redeem (matches controller's pending request)
+                false // Don't use previous hook amount
+            );
+        }
+
+        // Create arrays for FulfillArgs
+        address[] memory hooks = new address[](1);
+        hooks[0] = redeemHook;
+
+        bytes[] memory hookCalldata = new bytes[](1);
+        hookCalldata[0] = redeemHookCalldata;
+
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        expectedAssetsOrSharesOut[0] = actualRedeemAmount; // Expect amount matching the actual redeem
+
+        bytes32[][] memory globalProofs = new bytes32[][](1);
+        globalProofs[0] = new bytes32[](0); // Empty proof for UnsafeSuperVaultAggregator
+
+        bytes32[][] memory strategyProofs = new bytes32[][](1);
+        strategyProofs[0] = new bytes32[](0); // Empty proof
+
+        // Create the FulfillArgs struct
+        fulfillArgs = ISuperVaultStrategy.FulfillArgs({
+            controllers: controllers,
+            hooks: hooks,
+            hookCalldata: hookCalldata,
+            expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+            globalProofs: globalProofs,
+            strategyProofs: strategyProofs
+        });
+
+        return fulfillArgs;
+    }
 
     /// @dev Helper function to create FulfillArgs for multiple actors
     function _createMultiActorFulfillArgs(

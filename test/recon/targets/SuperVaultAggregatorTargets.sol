@@ -115,6 +115,8 @@ abstract contract SuperVaultAggregatorTargets is
         superVault = SuperVault(_superVault);
         superVaultStrategy = SuperVaultStrategy(payable(_strategy));
         superVaultEscrow = SuperVaultEscrow(_escrow);
+
+        hasDeployedNewVault = true;
     }
 
     function superVaultAggregator_depositStake(

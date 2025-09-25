@@ -83,7 +83,9 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
 
             // Clamp to the strategy's asset balance (not SuperVault's balance)
             uint256 clampedAmount = amountsToInvest[i] %
-                MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy));
+                MockERC20(superVault.asset()).balanceOf(
+                    address(superVaultStrategy)
+                );
 
             // Get the hook address and calldata
             (
@@ -423,7 +425,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         eq(
             assetBalanceAfter - assetBalanceBefore,
             sumAccumulatorCostBasisBefore - sumAccumulatorCostBasisAfter,
-            "accumulatorShares decreases by the exact amounts requested when fulfilling redemptions"
+            "accumulatorCostBasis decreases by the exact amounts requested when fulfilling redemptions"
         );
     }
 

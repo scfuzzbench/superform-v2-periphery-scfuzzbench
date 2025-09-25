@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0
 pragma solidity ^0.8.0;
 
-import {Setup} from "./Setup.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {MockERC20} from "@recon/MockERC20.sol";
+
+import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
+
+import {Setup} from "./Setup.sol";
 
 enum OpType {
     DEFAULT,
@@ -20,13 +24,15 @@ abstract contract BeforeAfter is Setup {
     struct Vars {
         mapping(address user => uint256 pendingAsAssets) pendingUserAssets;
         mapping(address user => uint256 claimableAsAssets) claimableUserAssets;
-        mapping(address user => uint256 price) avgPPS;
+        mapping(address user => ISuperVaultStrategy.SuperVaultState) state;
+        mapping(address user => uint256 shares) superVaultShares;
         uint256 oraclePPS;
         uint256 naivePPS;
         uint256 summedTotalShares;
         uint256 summedAccumulatorShares;
         uint256 summedAccumulatorCostBasis;
         uint256 summedTotalAssets;
+        uint256 strategyAssetBalance;
     }
 
     Vars internal _before;
@@ -54,13 +60,19 @@ abstract contract BeforeAfter is Setup {
         ) = _sumSuperVaultValues();
         _before.naivePPS = _calculateNaivePPS();
         _before.summedTotalShares = _sumTotalShares();
+        _before.summedTotalAssets = _sumStrategyAssets();
         _before.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _before.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
-        _before.summedTotalAssets = _sumVaultAssets();
-        _before.avgPPS[_getActor()] = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .averageRequestPPS;
+        _before.state[_getActor()] = superVaultStrategy.getSuperVaultState(
+            _getActor()
+        );
+        _before.superVaultShares[_getActor()] = superVault.balanceOf(
+            _getActor()
+        );
 
+        _before.strategyAssetBalance = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
         _before.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
         );
@@ -73,13 +85,19 @@ abstract contract BeforeAfter is Setup {
         ) = _sumSuperVaultValues();
         _after.naivePPS = _calculateNaivePPS();
         _after.summedTotalShares = _sumTotalShares();
+        _after.summedTotalAssets = _sumStrategyAssets();
         _after.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _after.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
-        _after.summedTotalAssets = _sumVaultAssets();
-        _after.avgPPS[_getActor()] = superVaultStrategy
-            .getSuperVaultState(_getActor())
-            .averageRequestPPS;
+        _after.state[_getActor()] = superVaultStrategy.getSuperVaultState(
+            _getActor()
+        );
+        _after.superVaultShares[_getActor()] = superVault.balanceOf(
+            _getActor()
+        );
 
+        _after.strategyAssetBalance = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
         _after.oraclePPS = superVaultAggregator.getPPS(
             address(superVaultStrategy)
         );
@@ -113,7 +131,7 @@ abstract contract BeforeAfter is Setup {
         }
 
         // Calculate total assets across all locations
-        uint256 totalAssets = _sumVaultAssets();
+        uint256 totalAssets = _sumStrategyAssets();
 
         // Calculate naive PPS: (totalAssets * PRECISION) / totalSupply
         // Using 1e18 as precision to match the system's PPS_DECIMALS
@@ -122,7 +140,7 @@ abstract contract BeforeAfter is Setup {
         return naivePPS;
     }
 
-    function _sumVaultAssets() public view returns (uint256) {
+    function _sumStrategyAssets() public view returns (uint256) {
         // Get the underlying asset
         address asset = superVault.asset();
 
