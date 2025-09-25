@@ -3241,6 +3241,42 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         property_comparePreviewMintAndConvertToAssets(1);
     }
 
+    // force vault loss socialization
+    function test_force_socialization() public {
+        // register yield source
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        // make a deposit
+        uint256 amounToDeposit = 10e18;
+        superVault_deposit(amounToDeposit);
+
+        // transfer assets into yield source
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0;
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = 2;
+        bool[] memory usePrevHookAmounts = new bool[](1);
+        usePrevHookAmounts[0] = false;
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevHookAmounts
+        );
+
+        // force a loss on the yield source
+        // Set a 10% loss on withdrawal (10% of withdrawn amount will be lost)
+        yieldSource_setLossOnWithdraw(1000); // 1000 basis points = 10%
+        
+        // Now call the doomsday function which should demonstrate the vulnerability
+        // where the user will receive less than they deposited due to the loss on withdrawal
+        uint256 sharesToMint = 5e18; // Mint some shares for the test
+        
+        // This will fail its internal assertion because the assertion in doomsday_mintRedeemSymmetrical 
+        // expects balanceAfter >= balanceBefore, but due to the loss on withdrawal,
+        // the user will receive less assets than they initially put in
+        doomsday_mintRedeemSymmetrical(sharesToMint);
+    }
+
     /// Optimization tests
     // forge test --match-test test_optimize_maxDustAccumulation_1 -vvv
     function test_optimize_maxDustAccumulation_1() public {
