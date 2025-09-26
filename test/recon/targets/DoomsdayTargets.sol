@@ -79,8 +79,8 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 TOLERANCE = 10; // 10 wei max tolerance of assets lost
         // 5. Check that user didn't lose assets
         gte(
-            balanceAfter,
-            balanceBefore - TOLERANCE,
+            balanceAfter + TOLERANCE,
+            balanceBefore,
             "User loses assets in deposit/withdrawal flow"
         );
     }
@@ -122,8 +122,8 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         uint256 TOLERANCE = 10; // 10 wei max tolerance of assets lost
         // 5. Check that user didn't lose assets
         gte(
-            balanceAfter,
-            balanceBefore - TOLERANCE,
+            balanceAfter + TOLERANCE,
+            balanceBefore,
             "User loses assets in deposit/withdrawal flow"
         );
 
