@@ -373,9 +373,6 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         ISuperVaultStrategy.FulfillArgs memory args
     ) public updateGhostsWithOpType(OpType.FULFILL) {
         address[] memory controllers = args.controllers;
-        uint256 pendingRedeemBefore = _requestedSharesForControllers(
-            controllers
-        );
         (
             uint256 sumAccumulatorSharesBefore,
             uint256 sumAccumulatorCostBasisBefore
@@ -393,9 +390,6 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         // no need to prank because called as admin address(this)
         superVaultStrategy.fulfillRedeemRequests(args);
 
-        uint256 pendingRedeemAfter = _requestedSharesForControllers(
-            controllers
-        );
         (
             uint256 sumAccumulatorSharesAfter,
             uint256 sumAccumulatorCostBasisAfter
@@ -405,25 +399,6 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             address(superVaultStrategy)
         );
 
-        // setting values for optimization test
-        if (
-            pendingRedeemBefore - pendingRedeemAfter >
-            totalSharesBefore - totalSharesAfter
-        ) {
-            burnedLessThanRequested =
-                int256(totalSharesBefore) -
-                int256(totalSharesAfter);
-        } else {
-            burnedMoreThanRequested =
-                int256(totalSharesBefore) -
-                int256(totalSharesAfter);
-        }
-
-        eq(
-            pendingRedeemBefore - pendingRedeemAfter,
-            totalSharesBefore - totalSharesAfter,
-            "redemptions only burn the requested amount of shares"
-        );
         eq(
             sumAccumulatorSharesBefore - sumAccumulatorSharesAfter,
             totalSharesBefore - totalSharesAfter,

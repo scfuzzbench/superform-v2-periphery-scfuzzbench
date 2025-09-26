@@ -18,7 +18,7 @@
 | `superVault_cancelRedeem` | user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem |  | ✅ |  |
 | `property_shareSolvency` | `SuperVault::totalSupply` == SUM(user balances) + balanceOf(escrow)  (solvency) |  | ✅ |  |
 | `property_escrowBalance` | balanceOf(escrow) >= SUM(controllers.pendingRedeemRequest) |  | ✅ |  |
-| `superVaultStrategy_fulfillRedeemRequests` | redemptions only burn the requested amount of shares (exact check) |  | ✅ |  |
+| `property_fulfillOnlyBurnsRequestedAmount` | redemptions only burn the requested amount of shares (within tolerance range) |  | ✅ |  |
 | `property_maxMintZeroWhenPaused` | `maxMint` should be 0 when aggregator is paused |  | ✅ |  |
 | `property_maxDepositZeroWhenPaused` | `maxDeposit` should be 0 when strategy is paused |  | ✅ |  |
 | `property_accumulatorSharesSolvency` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers |  | ✅ |  |

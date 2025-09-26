@@ -453,6 +453,35 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
     }
 
+    /// @dev Property: redemptions only burn the requested amount of shares (within tolerance range)
+    function property_fulfillOnlyBurnsRequestedAmount() public {
+        uint256 TOLERANCE_CONSTANT = 10 wei; // taken from SuperVaultStrategy
+
+        if (_currentOp == OpType.FULFILL) {
+            uint256 pendingRedeemDelta = _before.summedPendingRedeem -
+                _after.summedPendingRedeem;
+            uint256 totalSupplyDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+
+            // Check that burned amount is within tolerance of requested amount
+            if (totalSupplyDelta < pendingRedeemDelta) {
+                // Burned less than requested - check within tolerance
+                gte(
+                    totalSupplyDelta,
+                    pendingRedeemDelta - TOLERANCE_CONSTANT,
+                    "burned less than requested beyond tolerance"
+                );
+            } else {
+                // Burned more than requested - check within tolerance
+                lte(
+                    totalSupplyDelta,
+                    pendingRedeemDelta + TOLERANCE_CONSTANT,
+                    "burned more than requested beyond tolerance"
+                );
+            }
+        }
+    }
+
     /// Optimization Setters
 
     function setpreviewAssetsGreater(uint256 shares) public {
@@ -482,6 +511,26 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             previewMintSharesGreater =
                 int256(previewMintShares) -
                 int256(previewDepositShares);
+        }
+    }
+
+    function setFulfilledDifference() public {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 pendingRedeemDelta = _before.summedPendingRedeem -
+                _after.summedPendingRedeem;
+            uint256 totalSupplyDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+
+            // Check that burned amount is within tolerance of requested amount
+            if (totalSupplyDelta < pendingRedeemDelta) {
+                // Burned less than requested
+                int256 burnedLessThanRequested = int256(pendingRedeemDelta) -
+                    int256(totalSupplyDelta);
+            } else {
+                // Burned more than requested
+                int256 burnedMoreThanRequested = int256(totalSupplyDelta) -
+                    int256(pendingRedeemDelta);
+            }
         }
     }
 

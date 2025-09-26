@@ -33,6 +33,7 @@ abstract contract BeforeAfter is Setup {
         uint256 summedAccumulatorCostBasis;
         uint256 summedTotalAssets;
         uint256 strategyAssetBalance;
+        uint256 summedPendingRedeem;
     }
 
     Vars internal _before;
@@ -61,6 +62,8 @@ abstract contract BeforeAfter is Setup {
         _before.naivePPS = _calculateNaivePPS();
         _before.summedTotalShares = _sumTotalShares();
         _before.summedTotalAssets = _sumStrategyAssets();
+        _before.summedPendingRedeem = _sumRequestedRedemptions();
+
         _before.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _before.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
         _before.state[_getActor()] = superVaultStrategy.getSuperVaultState(
@@ -86,6 +89,8 @@ abstract contract BeforeAfter is Setup {
         _after.naivePPS = _calculateNaivePPS();
         _after.summedTotalShares = _sumTotalShares();
         _after.summedTotalAssets = _sumStrategyAssets();
+        _after.summedPendingRedeem = _sumRequestedRedemptions();
+
         _after.pendingUserAssets[_getActor()] = _getPendingAsAssets();
         _after.claimableUserAssets[_getActor()] = _getClaimableAsAssets();
         _after.state[_getActor()] = superVaultStrategy.getSuperVaultState(
@@ -175,6 +180,16 @@ abstract contract BeforeAfter is Setup {
                 .getSuperVaultState(actors[i])
                 .accumulatorCostBasis;
         }
+    }
+
+    function _sumRequestedRedemptions() internal returns (uint256) {
+        address[] memory actors = _getActors();
+        uint256 totalRequested;
+        for (uint256 i; i < actors.length; i++) {
+            totalRequested += superVault.pendingRedeemRequest(0, actors[i]);
+        }
+
+        return totalRequested;
     }
 
     function _getPendingAsAssets() internal returns (uint256) {
