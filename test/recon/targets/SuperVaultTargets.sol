@@ -16,7 +16,7 @@ import {Properties} from "../Properties.sol";
 abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     /// CUSTOM TARGET FUNCTIONS - Add your own target functions here ///
     function superVault_requestRedeem_clamped(uint256 shares) public {
-        shares %= superVault.balanceOf(_getActor());
+        shares %= superVault.balanceOf(_getActor()) + 1;
 
         superVault_requestRedeem(shares);
     }
@@ -25,14 +25,14 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         uint256 claimableAssets = superVault.maxWithdraw(_getActor());
         uint256 claimableShares = superVault.convertToShares(claimableAssets);
 
-        shares %= claimableShares;
+        shares %= claimableShares + 1;
 
         superVault_redeem(shares);
     }
 
     function superVault_withdraw_clamped(uint256 assets) public {
         uint256 claimableAssets = superVault.maxWithdraw(_getActor());
-        assets %= claimableAssets;
+        assets %= claimableAssets + 1;
 
         superVault_withdraw(assets);
     }

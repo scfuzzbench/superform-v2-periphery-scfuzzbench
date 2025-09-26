@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {FoundryAsserts} from "@chimera/FoundryAsserts.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
+import {MockERC4626Tester} from "test/recon/mocks/MockERC4626Tester.sol";
 import {Test, console2} from "forge-std/Test.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -20,7 +21,7 @@ import {TargetFunctions} from "./TargetFunctions.sol";
 import {MockERC4626Tester} from "./mocks/MockERC4626Tester.sol";
 import {YieldSourceType} from "./managers/YieldManager.sol";
 
-// forge test --match-contract CryticToFoundry -vv
+// forge test --match-contract CryticToFoundry -vv 
 contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     function setUp() public {
         setup();
@@ -532,4 +533,133 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVault_withdraw_clamped(1);
         property_naivePPSDoesntChangeOnRedeemOrWithdraw();
     }
+
+    // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_ -vvv 
+function test_property_naivePPSDoesntChangeOnDepositOrMint_() public {
+
+    superVault_deposit(2);
+
+    yieldSource_simulateGain(1);
+
+    superVault_mint(1);
+
+    property_naivePPSDoesntChangeOnDepositOrMint();
+
+ }
+
+// forge test --match-test test_property_previewEquivalenceFromAssets_ -vvv 
+function test_property_previewEquivalenceFromAssets_() public {
+
+    superVaultStrategy_proposeVaultFeeConfigUpdate(0,10000,0x00000000000000000000000000000000DeaDBeef);
+
+    vm.warp(block.timestamp + 577107);
+
+    vm.roll(block.number + 1);
+
+    vm.roll(block.number + 1);
+    vm.warp(block.timestamp + 27732);
+    superVaultStrategy_executeVaultFeeConfigUpdate();
+
+    property_previewEquivalenceFromAssets(1);
+
+ }
+
+// forge test --match-test test_property_previewEquivalenceFromShares_ -vvv 
+function test_property_previewEquivalenceFromShares_() public {
+
+    vm.warp(block.timestamp + 5);
+
+    vm.roll(block.number + 1);
+
+    ECDSAPPSOracle_updatePPS_clamped(100000); /// @audit Something dangerous tied to how prices work!?
+
+    property_previewEquivalenceFromShares(1);
+
+ }
+
+// forge test --match-test test_property_comparePreviewMintAndConvertToAssets_ -vvv 
+function test_property_comparePreviewMintAndConvertToAssets_() public {
+
+    superVaultStrategy_proposeVaultFeeConfigUpdate(0,10000,0x00000000000000000000000000000000DeaDBeef);
+
+    vm.warp(block.timestamp + 604912);
+
+    vm.roll(block.number + 1);
+
+    superVaultStrategy_executeVaultFeeConfigUpdate();
+
+    property_comparePreviewMintAndConvertToAssets(1);
+
+ }
+
+    /// @dev Test: Multi-actor deposit, withdrawal request, loss simulation, and distribution validation
+    function test_multiActorDepositWithdrawLossDistribution() public {
+        console2.log("Assets in Strategy B4", MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy)));
+        console2.log("Shares in vault B4", MockERC20(_getYieldSource()).balanceOf(address(superVaultStrategy)));
+        console2.log("Max Redeem B4", MockERC4626Tester(_getYieldSource()).maxRedeem(address(superVaultStrategy)));
+
+
+        // Deposit
+        superVault_deposit(1000e18);
+        switchActor(1);
+        superVault_deposit(1000e18);
+
+        switchActor(0); // Back to 0
+
+        // Add yield source
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        // Deposit into it
+        uint256[] memory hookTypeInts = new uint256[](1);
+        hookTypeInts[0] = 0; // ApproveAndDeposit4626
+
+        uint256[] memory amountsToInvest = new uint256[](1);
+        amountsToInvest[0] = MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy));
+
+        bool[] memory usePrevAmounts = new bool[](1);
+        usePrevAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(hookTypeInts, amountsToInvest, usePrevAmounts);
+
+        console2.log("Assets in Strategy", MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy)));
+        console2.log("Shares in vault", MockERC20(_getYieldSource()).balanceOf(address(superVaultStrategy)));
+        console2.log("Max Redeem", MockERC4626Tester(_getYieldSource()).maxRedeem(address(superVaultStrategy)));
+
+        // // Set loss on withdraw for ERC4626
+        MockERC4626Tester(_getYieldSource()).setLossOnWithdraw(1000);
+
+        // Request all redemptions
+        superVault_requestRedeem_clamped(superVault.balanceOf(_getActor()));
+        switchActor(1);
+        superVault_requestRedeem_clamped(superVault.balanceOf(_getActor()));
+
+        
+        switchActor(0);
+        superVaultStrategy_fulfillRedeemRequests_clamped(superVaultStrategy.pendingRedeemRequest(_getActor()));
+        console2.log("pendingRedeemRequest", "0");
+        switchActor(1);
+        superVaultStrategy_fulfillRedeemRequests_clamped(superVaultStrategy.pendingRedeemRequest(_getActor()));
+        console2.log("pendingRedeemRequest", "1");
+        switchActor(0);
+
+        // Compute the insolvency
+        uint256 maxWithdrawAcc;
+        for (uint256 i; i < _getActors().length; i++) {
+            maxWithdrawAcc += superVault.maxWithdraw(_getActors()[i]);
+        }
+
+        console2.log("Max Withdraw Acc", maxWithdrawAcc);
+        console2.log("Strategy Balance Solvency", MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy)));
+
+        // Show the revert
+        console2.log("Max Withdraw", superVault.maxWithdraw(_getActor()));
+        superVault_withdraw(superVault.maxWithdraw(_getActor()));
+        switchActor(1);
+        console2.log("Max Withdraw", superVault.maxWithdraw(_getActor()));
+        superVault_withdraw(superVault.maxWithdraw(_getActor()));
+
+        // Check if solvent / insolvent due to cached PPS
+
+    }
+
 }
