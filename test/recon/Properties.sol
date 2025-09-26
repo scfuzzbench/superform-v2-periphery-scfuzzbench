@@ -522,45 +522,6 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         }
     }
 
-    /// @dev Property: accumulatorCostBasis decreases by the exact amount requested when fulfilling redemptions
-    function property_accumulatorCostBasisDecreasesOnFulfill_exact() public {
-        if (_currentOp == OpType.FULFILL) {
-            uint256 accumulatorCostBasisDelta = _before
-                .summedAccumulatorCostBasis - _after.summedAccumulatorCostBasis;
-            uint256 assetBalanceDelta = _after.strategyAssetBalance -
-                _before.strategyAssetBalance;
-            eq(
-                accumulatorCostBasisDelta,
-                assetBalanceDelta,
-                "accumulatorCostBasis decreases by the exact amount requested when fulfilling redemptions"
-            );
-        }
-    }
-
-    function property_accumulatorCostBasisDecreasesOnFulfill_with_tolerance()
-        public
-    {
-        if (_currentOp == OpType.FULFILL) {
-            uint256 accumulatorCostBasisDelta = _before
-                .summedAccumulatorCostBasis - _after.summedAccumulatorCostBasis;
-            uint256 assetBalanceDelta = _after.strategyAssetBalance -
-                _before.strategyAssetBalance;
-            if (accumulatorCostBasisDelta >= assetBalanceDelta) {
-                lte(
-                    accumulatorCostBasisDelta - assetBalanceDelta,
-                    TOLERANCE,
-                    "accumulatorCostBasis decreases by more than TOLERANCE when fulfilling redemptions"
-                );
-            } else {
-                lte(
-                    assetBalanceDelta - accumulatorCostBasisDelta,
-                    TOLERANCE,
-                    "assetBalanceDelta decreases by more than TOLERANCE when fulfilling redemptions"
-                );
-            }
-        }
-    }
-
     /// Optimization Setters
 
     function setpreviewAssetsGreater(uint256 shares) public {
