@@ -14,6 +14,7 @@ import {BeforeAfter} from "./BeforeAfter.sol";
 
 abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     using Math for uint256;
+    uint256 internal TOLERANCE = 10;
 
     /// @dev Property: oracle PPS doesn't change on deposit/mint/redeem/withdraw
     function property_oraclePPSDoesntChangeOnAddOrRemove() public {
@@ -477,6 +478,84 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                     totalSupplyDelta,
                     pendingRedeemDelta + TOLERANCE_CONSTANT,
                     "burned more than requested beyond tolerance"
+                );
+            }
+        }
+    }
+
+    /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
+    function property_accumulatorSharesDecreaseOnFulfill_exact() public {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 accumulatorSharesDelta = _before.summedAccumulatorShares -
+                _after.summedAccumulatorShares;
+            uint256 totalSharesDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+            eq(
+                accumulatorSharesDelta,
+                totalSharesDelta,
+                "accumulatorShares decreases by the exact amounts requested when fulfilling redemptions"
+            );
+        }
+    }
+
+    function property_accumulatorSharesDecreaseOnFulfill_with_tolerance()
+        public
+    {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 accumulatorSharesDelta = _before.summedAccumulatorShares -
+                _after.summedAccumulatorShares;
+            uint256 totalSharesDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+            if (accumulatorSharesDelta >= totalSharesDelta) {
+                lte(
+                    accumulatorSharesDelta - totalSharesDelta,
+                    TOLERANCE,
+                    "accumulatorShares decreases by more than TOLERANCE when fulfilling redemptions"
+                );
+            } else {
+                lte(
+                    totalSharesDelta - accumulatorSharesDelta,
+                    TOLERANCE,
+                    "accumulatorShares decreases by less than TOLERANCE when fulfilling redemptions"
+                );
+            }
+        }
+    }
+
+    /// @dev Property: accumulatorCostBasis decreases by the exact amount requested when fulfilling redemptions
+    function property_accumulatorCostBasisDecreasesOnFulfill_exact() public {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 accumulatorCostBasisDelta = _before
+                .summedAccumulatorCostBasis - _after.summedAccumulatorCostBasis;
+            uint256 assetBalanceDelta = _after.strategyAssetBalance -
+                _before.strategyAssetBalance;
+            eq(
+                accumulatorCostBasisDelta,
+                assetBalanceDelta,
+                "accumulatorCostBasis decreases by the exact amount requested when fulfilling redemptions"
+            );
+        }
+    }
+
+    function property_accumulatorCostBasisDecreasesOnFulfill_with_tolerance()
+        public
+    {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 accumulatorCostBasisDelta = _before
+                .summedAccumulatorCostBasis - _after.summedAccumulatorCostBasis;
+            uint256 assetBalanceDelta = _after.strategyAssetBalance -
+                _before.strategyAssetBalance;
+            if (accumulatorCostBasisDelta >= assetBalanceDelta) {
+                lte(
+                    accumulatorCostBasisDelta - assetBalanceDelta,
+                    TOLERANCE,
+                    "accumulatorCostBasis decreases by more than TOLERANCE when fulfilling redemptions"
+                );
+            } else {
+                lte(
+                    assetBalanceDelta - accumulatorCostBasisDelta,
+                    TOLERANCE,
+                    "assetBalanceDelta decreases by more than TOLERANCE when fulfilling redemptions"
                 );
             }
         }

@@ -3138,6 +3138,23 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVaultStrategy_fulfillRedeemRequests_clamped(1);
     }
 
+    // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
+    function test_superVaultStrategy_fulfillRedeemRequests_clamped_0() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVault_deposit(4);
+
+        superVault_requestRedeem_clamped(2);
+
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        // fails for both of these properties
+        property_accumulatorSharesDecreaseOnFulfill();
+        // property_accumulatorCostBasisDecreasesOnFulfill();
+    }
+
     // NOTE: optimization tests in optimize_previewMintAssetsGreater and optimize_previewDepositAssetsGreater
     // forge test --match-test test_property_previewEquivalenceFromAssets_1 -vvv
     function test_property_previewEquivalenceFromAssets_1() public {
@@ -3391,19 +3408,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
             expectedAssets,
             "SuperVaultStrategy should receive full expected assets (property violation when lossOnWithdraw > 0)"
         );
-    }
-
-    // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_0 -vvv
-    function test_superVaultStrategy_fulfillRedeemRequests_clamped_0() public {
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(4);
-
-        superVault_requestRedeem_clamped(2);
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
     }
 
     // forge test --match-test test_doomsday_mintRedeemSymmetrical_4 -vvv

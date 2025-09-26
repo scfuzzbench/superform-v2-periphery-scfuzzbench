@@ -365,22 +365,10 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         executeHooksSuccess = true;
     }
 
-    /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
-    /// @dev Property: accumulatorCostBasis decrease by the exact amounts requested when fulfilling redemptions
     /// @dev Property: superVaultStrategy does not incur loss on fulfillment
     function superVaultStrategy_fulfillRedeemRequests(
         ISuperVaultStrategy.FulfillArgs memory args
     ) public updateGhostsWithOpType(OpType.FULFILL) {
-        address[] memory controllers = args.controllers;
-        (
-            uint256 sumAccumulatorSharesBefore,
-            uint256 sumAccumulatorCostBasisBefore
-        ) = _sumSuperVaultValsForControllers(controllers);
-        uint256 totalSharesBefore = superVault.totalSupply();
-        uint256 assetBalanceBefore = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
         uint256 summedExpectedAssets;
         for (uint256 i; i < args.expectedAssetsOrSharesOut.length; i++) {
             summedExpectedAssets += args.expectedAssetsOrSharesOut[i];
@@ -389,26 +377,10 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         // no need to prank because called as admin address(this)
         superVaultStrategy.fulfillRedeemRequests(args);
 
-        (
-            uint256 sumAccumulatorSharesAfter,
-            uint256 sumAccumulatorCostBasisAfter
-        ) = _sumSuperVaultValsForControllers(controllers);
-        uint256 totalSharesAfter = superVault.totalSupply();
         uint256 assetBalanceAfter = MockERC20(superVault.asset()).balanceOf(
             address(superVaultStrategy)
         );
 
-        eq(
-            sumAccumulatorSharesBefore - sumAccumulatorSharesAfter,
-            totalSharesBefore - totalSharesAfter,
-            "accumulatorShares decreases by the exact amounts requested when fulfilling redemptions"
-        );
-        // asset balance should increase
-        eq(
-            assetBalanceAfter - assetBalanceBefore,
-            sumAccumulatorCostBasisBefore - sumAccumulatorCostBasisAfter,
-            "accumulatorCostBasis decreases by the exact amounts requested when fulfilling redemptions"
-        );
         gte(
             assetBalanceAfter,
             summedExpectedAssets,

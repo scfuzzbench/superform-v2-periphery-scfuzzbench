@@ -23,8 +23,8 @@
 | `property_maxDepositZeroWhenPaused` | `maxDeposit` should be 0 when strategy is paused |  | ✅ |  |
 | `property_accumulatorSharesSolvency` | SUM(accumulatorShares) doesn't change on `SuperVault` share transfers |  | ✅ |  |
 | `property_accumulatorCostBasisSolvency` | SUM(accumulatorCostBasis) doesn't change on `SuperVault` share transfers |  | ✅ |  |
-| `superVaultStrategy_fulfillRedeemRequests` | `accumulatorShares` decreases by the exact amounts requested when fulfilling redemptions |  | ✅ |  |
-| `superVaultStrategy_fulfillRedeemRequests` | `accumulatorCostBasis` decrease by the exact amounts requested when fulfilling redemptions |  | ✅ |  |
+| `property_accumulatorSharesDecreaseOnFulfill` | `accumulatorShares` decreases by the exact amounts requested when fulfilling redemptions |  | ✅ |  |
+| `property_accumulatorCostBasisDecreasesOnFulfill` | `accumulatorCostBasis` decreases by the exact amounts requested when fulfilling redemptions |  | ✅ |  |
 | `property_cannotClaimMoreThanRequested` | user cannot claim more assets than requested in redemption |  | ✅ |  |
 | `property_x` | PPS updates with a difference that exceeds maxPPSSlippage must revert |  |  |  |
 | `property_cancelDoesntChangeTotalSupply` | `cancelRedeem()` should never alter the supply of SuperVault tokens (calculated by summing user share balances) |  | ✅ |  |
