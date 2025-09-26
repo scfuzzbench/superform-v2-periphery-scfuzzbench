@@ -365,7 +365,6 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         executeHooksSuccess = true;
     }
 
-    /// @dev Property: redemptions only burn the requested amount of shares (exact check)
     /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
     /// @dev Property: accumulatorCostBasis decrease by the exact amounts requested when fulfilling redemptions
     /// @dev Property: superVaultStrategy does not incur loss on fulfillment
