@@ -3151,8 +3151,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVaultStrategy_fulfillRedeemRequests_clamped(1);
 
         // fails for both of these properties
-        property_accumulatorSharesDecreaseOnFulfill();
-        // property_accumulatorCostBasisDecreasesOnFulfill();
+        property_accumulatorSharesDecreaseOnFulfill_exact();
+        // property_accumulatorCostBasisDecreasesOnFulfill_exact();
     }
 
     // NOTE: optimization tests in optimize_previewMintAssetsGreater and optimize_previewDepositAssetsGreater
