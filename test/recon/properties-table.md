@@ -55,6 +55,7 @@
 | 51 | `property_comparePreviewDepositAndConvertToShares` | convertToShares is >= previewDepositShares (equivalent without fees) |  | ✅ |  |
 | 52 | `property_lossSocialization` | SUM(accumulatorCostBasis) <= balance of superVaultStrategy and deposited yield strategies |  | ✅ |  |
 | 53 | `superVaultStrategy_fulfillRedeemRequests` | superVaultStrategy does not incur loss on fulfillment | this should catch any issues related to loss on withdrawal from a yield strategy | ✅ |  |
+redeeming maxRedeem shouldn't revert | | ✅ |  |
 
 ## SuperVaultAggregator 
 | # | Property | Description | Comments | Implemented | Tested |

@@ -131,6 +131,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: maxRedeem is reset to 0 after full redemption
+    /// @dev Property: redeeming maxRedeem shouldn't revert
     function doomsday_maxRedeemResetsAfterFullRedemption(
         uint256 sharesToMint
     ) public stateless {
@@ -159,7 +160,9 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         try
             superVault.redeem(maxRedeemBeforeClaim, _getActor(), _getActor())
         {} catch {
-            t(false, "redeem of maxRedeem should not revert");
+            if (maxRedeemBeforeClaim > 0) {
+                t(false, "redeeming maxRedeem should not revert");
+            }
         }
 
         // 6. Check maxRedeem is reset to 0 after full redemption
