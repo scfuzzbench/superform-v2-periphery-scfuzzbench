@@ -78,6 +78,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             });
 
         // Process each hook
+        uint256 totalAmountToDeposit;
         for (uint256 i = 0; i < numHooks; i++) {
             // Convert integer to enum (will wrap around if > max enum value)
             HookType hookType = HookType(hookTypeInts[i] % 17); // 17 is the total number of hooks
@@ -103,12 +104,15 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             executeArgs.expectedAssetsOrSharesOut[i] = clampedAmount;
             executeArgs.globalProofs[i] = new bytes32[](1);
             executeArgs.strategyProofs[i] = new bytes32[](1);
+
+            totalAmountToDeposit += clampedAmount;
         }
+
+        // Check that amount to be invested is less than the claimable assets so that it doesn't reinvest and prevent users from claiming
+        if (_claimableMoreThanInvested(totalAmountToDeposit)) return;
 
         // Execute all hooks
         this.superVaultStrategy_executeHooks{value: msg.value}(executeArgs);
-
-        executeHooksClampedSuccess = true;
     }
 
     function _getHookAddressAndCalldata(
@@ -471,6 +475,31 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             sumAccumulatorCostBasis += superVaultStrategy
                 .getSuperVaultState(controllers[i])
                 .accumulatorCostBasis;
+        }
+    }
+
+    function _claimableMoreThanInvested(
+        uint256 totalAmountToDeposit
+    ) internal returns (bool) {
+        address[] memory actors = _getActors();
+        uint256 totalClaimable;
+        for (uint256 i; i < actors.length; i++) {
+            uint256 claimableRedemptions = superVault.claimableRedeemRequest(
+                0,
+                actors[i]
+            );
+            uint256 claimableRedemptionsAsAssets = superVault.convertToAssets(
+                claimableRedemptions
+            );
+            totalClaimable += claimableRedemptionsAsAssets;
+        }
+
+        // have less to claim than the amount being deposited, deposit can go ahead
+        if (totalClaimable < totalAmountToDeposit) {
+            return false;
+        } else {
+            // have more to claim than the amount being deposited, stop the deposit or else it'll falsely make the strategy insolvent
+            return true;
         }
     }
 }
