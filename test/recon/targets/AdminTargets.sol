@@ -6,6 +6,7 @@ import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
 import {vm} from "@chimera/Hevm.sol";
 import {Panic} from "@recon/Panic.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
+import {console2} from "forge-std/Test.sol";
 
 // System dependencies
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
@@ -494,12 +495,21 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             totalClaimable += claimableRedemptionsAsAssets;
         }
 
-        // have less to claim than the amount being deposited, deposit can go ahead
-        if (totalClaimable < totalAmountToDeposit) {
-            return false;
-        } else {
-            // have more to claim than the amount being deposited, stop the deposit or else it'll falsely make the strategy insolvent
+        uint256 currentStrategyBalance = MockERC20(superVault.asset())
+            .balanceOf(address(superVaultStrategy));
+
+        // Don't allow investing more than the claimable amount
+        if (totalAmountToDeposit > totalClaimable) {
             return true;
         }
+
+        // Ensure strategy has sufficient assets remaining after investment to cover claimable amounts
+        uint256 remainingStrategyBalance = currentStrategyBalance -
+            totalAmountToDeposit;
+        if (remainingStrategyBalance < totalClaimable) {
+            return true;
+        }
+
+        return false;
     }
 }
