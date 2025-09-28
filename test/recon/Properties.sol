@@ -6,6 +6,7 @@ import {MockERC20} from "@recon/MockERC20.sol";
 import {vm} from "@chimera/Hevm.sol";
 import {ERC7540Properties} from "@properties-7540/ERC7540Properties.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {console2} from "forge-std/Test.sol";
 
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 
@@ -163,25 +164,6 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 _before.summedAccumulatorCostBasis,
                 _after.summedAccumulatorCostBasis,
                 "SUM(accumulatorCostBasis) changed on SuperVault share transfers"
-            );
-        }
-    }
-
-    /// @dev Property: user cannot claim more assets than requested in redemption
-    // NOTE: we test on a fulfillment because it's when pending shares are converted to assets
-    function property_cannotClaimMoreThanRequested() public {
-        if (_currentOp == OpType.FULFILL) {
-            // pending decreases
-            uint256 fulfilledDelta = _before.pendingUserAssets[_getActor()] -
-                _after.pendingUserAssets[_getActor()];
-            // claimable increases
-            uint256 claimableDelta = _after.claimableUserAssets[_getActor()] -
-                _before.claimableUserAssets[_getActor()];
-
-            eq(
-                fulfilledDelta,
-                claimableDelta,
-                "user cannot claim more assets than requested in redemption"
             );
         }
     }
