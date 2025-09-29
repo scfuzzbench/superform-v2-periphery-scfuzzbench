@@ -10,6 +10,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Deposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Deposit4626VaultHook.sol";
 import {ApproveAndDeposit4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/ApproveAndDeposit4626VaultHook.sol";
 import {Redeem4626VaultHook} from "lib/v2-core/src/hooks/vaults/4626/Redeem4626VaultHook.sol";
+import {ISuperGovernor, FeeType} from "src/interfaces/ISuperGovernor.sol";
 
 import {IECDSAPPSOracle} from "src/interfaces/oracles/IECDSAPPSOracle.sol";
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
@@ -21,7 +22,7 @@ import {TargetFunctions} from "./TargetFunctions.sol";
 import {MockERC4626Tester} from "./mocks/MockERC4626Tester.sol";
 import {YieldSourceType} from "./managers/YieldManager.sol";
 
-// forge test --match-contract CryticToFoundry -vv 
+// forge test --match-contract CryticToFoundry -vv
 contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     function setUp() public {
         setup();
@@ -265,24 +266,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         ) = doomsday_depositWithdrawSymmetrical(2);
     }
 
-    // forge test --match-test test_property_accumulatorCostBasisDecreasesOnFulfill_exact_4 -vvv
-    // NOTE: see issue: https://github.com/Recon-Fuzz/superform-review/issues/62
-    function test_property_accumulatorCostBasisDecreasesOnFulfill_exact_4()
-        public
-    {
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(4);
-
-        superVault_requestRedeem_clamped(2);
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
-
-        property_accumulatorCostBasisDecreasesOnFulfill_exact();
-    }
-
     // forge test --match-test test_property_accumulatorSharesDecreaseOnFulfill_exact_6 -vvv
     // NOTE: see issue: https://github.com/Recon-Fuzz/superform-review/issues/62
     function test_property_accumulatorSharesDecreaseOnFulfill_exact_6() public {
@@ -330,142 +313,144 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         superVaultStrategy_fulfillRedeemRequests_clamped(1);
     }
 
-    // forge test --match-test test_property_cannotClaimMoreThanRequested_7 -vvv
-    function test_property_cannotClaimMoreThanRequested_7() public {
-        yieldSource_switchToERC7540();
-
-        yieldSource_requestDeposit(
-            8616906,
-            0x0000000000000000000000000000000000000000,
-            0x0000000000000000000000000000000000000000
-        );
+    // forge test --match-test test_superVault_redeem_7 -vvv
+    function test_superVault_redeem_7() public {
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
 
         superVaultStrategy_manageYieldSource_clamped(0);
 
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(3);
-
-        superVault_requestRedeem_clamped(1);
-
-        vm.warp(block.timestamp + 8);
-
-        vm.roll(block.number + 1);
-
-        ECDSAPPSOracle_updatePPS_clamped(9503502215146482837753511068127696);
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(
-            5501579550656042409636344372107849321740751506606700742288510609591
-        );
-
-        property_cannotClaimMoreThanRequested();
-    }
-
-    // forge test --match-test test_superVault_redeem_8 -vvv
-    function test_superVault_redeem_8() public {
-        yieldSource_switchToERC7540();
-
-        vm.warp(block.timestamp + 8);
-
-        vm.roll(block.number + 1);
-
-        yieldSource_requestDeposit(
-            37422342,
-            0x0000000000000000000000000000000000000000,
-            0x0000000000000000000000000000000000000000
-        );
-
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(3);
-
-        superVault_requestRedeem_clamped(1);
-
-        ECDSAPPSOracle_updatePPS_clamped(
-            10241041856774121637243436432855956630
-        );
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(
-            119487584237291520077915309340878726113598552029889577645003954986935645
-        );
-
-        superVault_redeem(
-            1621662639352598063612172921302957799070007186874723160963480623777477
-        );
-    }
-
-    // forge test --match-test test_property_avgPPSMonotonicity_9 -vvv
-    function test_property_avgPPSMonotonicity_9() public {
-        vm.warp(block.timestamp + 5);
-
-        vm.roll(block.number + 14);
-
-        yieldSource_switchToERC7540();
-
-        yieldSource_requestDeposit(
-            8921178,
-            0x0000000000000000000000000000000000000000,
-            0x0000000000000000000000000000000000000000
-        );
-
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(3);
-
-        superVault_requestRedeem_clamped(1);
-
-        ECDSAPPSOracle_updatePPS_clamped(
-            45845253815616555281696212901098761360
-        );
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(
-            4053143071719082657954430188458694905635087616798151173776727151
-        );
-
-        property_avgPPSMonotonicity();
-    }
-
-    // forge test --match-test test_property_accumulatorCostBasisDecreasesOnFulfill_with_tolerance_10 -vvv
-    function test_property_accumulatorCostBasisDecreasesOnFulfill_with_tolerance_10()
-        public
-    {
-        yieldSource_switchToERC7540();
+        superVault_deposit(2);
 
         vm.warp(block.timestamp + 5);
 
         vm.roll(block.number + 1);
 
-        yieldSource_requestDeposit(
-            16301672,
-            0x0000000000000000000000000000000000000000,
-            0x0000000000000000000000000000000000000000
-        );
-
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(3);
-
         superVault_requestRedeem_clamped(1);
 
+        console2.log("price before: %e", superVaultStrategy.getStoredPPS());
         ECDSAPPSOracle_updatePPS_clamped(
-            416554647924732242635711889150995356787
+            1444867979276057160025867155929543172595885788623704073633756549908877603528
         );
         console2.log(
-            "PPS: %e",
-            uint256(416554647924732242635711889150995356787)
+            "price after: %e",
+            superVaultStrategy.getStoredPPS() / 1e18
+        );
+        console2.log("uint88 max: %e", type(uint88).max);
+
+        yieldSource_simulateGain(16331982);
+
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        superVault_redeem(
+            3545828913032973376745291833460689430358553977498753678092653926509955
+        );
+    }
+
+    // forge test --match-test test_doomsday_allUsersCanRedeem_9 -vvv
+    function test_doomsday_allUsersCanRedeem_9() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+        superVault_deposit(3);
+
+        // Time delay: 5 seconds Block delay: 1
+        vm.warp(block.timestamp + 5);
+        vm.roll(block.number + 1);
+
+        superVault_requestRedeem_clamped(2);
+        ECDSAPPSOracle_updatePPS_clamped(
+            9320504895243615085225396559992523398860920652524151006431471807578417
+        );
+        yieldSource_simulateGain(325076);
+        superVaultStrategy_fulfillRedeemRequests_clamped(2);
+
+        uint256[] memory hookTypes = new uint256[](1);
+        hookTypes[
+            0
+        ] = 4729689556898063238393822096407759716827207368140679563236174818045595764054;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 8201632728374255258148623956880033657806200687347644349;
+        bool[] memory usePrevAmounts = new bool[](1);
+        usePrevAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypes,
+            amounts,
+            usePrevAmounts
+        );
+        doomsday_allUsersCanRedeem();
+    }
+
+    // forge test --match-test test_property_superVaultStrategySolvency_11 -vvv
+    function test_property_superVaultStrategySolvency_11() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+        superVault_deposit(2);
+        superVault_requestRedeem_clamped(1);
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        uint256[] memory hookTypes = new uint256[](1);
+        hookTypes[0] = 27653577;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 12079250118338547037798040541261519698465894585477304077;
+        bool[] memory usePrevAmounts = new bool[](1);
+        usePrevAmounts[0] = false;
+
+        superVaultStrategy_executeHooks_clamped(
+            hookTypes,
+            amounts,
+            usePrevAmounts
+        );
+        property_superVaultStrategySolvency();
+    }
+
+    // forge test --match-test test_doomsday_maxWithdrawResetsAfterFullWithdrawal_17 -vvv
+    function test_doomsday_maxWithdrawResetsAfterFullWithdrawal_17() public {
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVault_deposit(3);
+
+        superVault_requestRedeem_clamped(1);
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            700960855099362077226925743595804258294593977845093495232344554
         );
 
-        superVaultStrategy_fulfillRedeemRequests_clamped(
-            6841891271383735487883722206916706564966063127928059888733370729
+        yieldSource_simulateGain(973782);
+
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        superVault_requestRedeem_clamped(1);
+
+        doomsday_maxWithdrawResetsAfterFullWithdrawal(988620);
+    }
+
+    // forge test --match-test test_doomsday_mintRedeemSymmetrical_6 -vvv
+    function test_doomsday_mintRedeemSymmetrical_6() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            893250029380653568623780066441443881670086486436756102557863845932909
         );
 
-        property_accumulatorCostBasisDecreasesOnFulfill_with_tolerance();
+        yieldSource_simulateGain(99585);
+
+        switchActor(1);
+
+        doomsday_mintRedeemSymmetrical(1);
     }
 
     /// Optimization tests
@@ -534,70 +519,80 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         property_naivePPSDoesntChangeOnRedeemOrWithdraw();
     }
 
-    // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_ -vvv 
-function test_property_naivePPSDoesntChangeOnDepositOrMint_() public {
+    // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_ -vvv
+    function test_property_naivePPSDoesntChangeOnDepositOrMint_() public {
+        superVault_deposit(2);
 
-    superVault_deposit(2);
+        yieldSource_simulateGain(1);
 
-    yieldSource_simulateGain(1);
+        superVault_mint(1);
 
-    superVault_mint(1);
+        property_naivePPSDoesntChangeOnDepositOrMint();
+    }
 
-    property_naivePPSDoesntChangeOnDepositOrMint();
+    // forge test --match-test test_property_previewEquivalenceFromAssets_ -vvv
+    function test_property_previewEquivalenceFromAssets_() public {
+        superVaultStrategy_proposeVaultFeeConfigUpdate(
+            0,
+            10000,
+            0x00000000000000000000000000000000DeaDBeef
+        );
 
- }
+        vm.warp(block.timestamp + 577107);
 
-// forge test --match-test test_property_previewEquivalenceFromAssets_ -vvv 
-function test_property_previewEquivalenceFromAssets_() public {
+        vm.roll(block.number + 1);
 
-    superVaultStrategy_proposeVaultFeeConfigUpdate(0,10000,0x00000000000000000000000000000000DeaDBeef);
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 27732);
+        superVaultStrategy_executeVaultFeeConfigUpdate();
 
-    vm.warp(block.timestamp + 577107);
+        property_previewEquivalenceFromAssets(1);
+    }
 
-    vm.roll(block.number + 1);
+    // forge test --match-test test_property_previewEquivalenceFromShares_ -vvv
+    function test_property_previewEquivalenceFromShares_() public {
+        vm.warp(block.timestamp + 5);
 
-    vm.roll(block.number + 1);
-    vm.warp(block.timestamp + 27732);
-    superVaultStrategy_executeVaultFeeConfigUpdate();
+        vm.roll(block.number + 1);
 
-    property_previewEquivalenceFromAssets(1);
+        ECDSAPPSOracle_updatePPS_clamped(100000); /// @audit Something dangerous tied to how prices work!?
 
- }
+        property_previewEquivalenceFromShares(1);
+    }
 
-// forge test --match-test test_property_previewEquivalenceFromShares_ -vvv 
-function test_property_previewEquivalenceFromShares_() public {
+    // forge test --match-test test_property_comparePreviewMintAndConvertToAssets_ -vvv
+    function test_property_comparePreviewMintAndConvertToAssets_() public {
+        superVaultStrategy_proposeVaultFeeConfigUpdate(
+            0,
+            10000,
+            0x00000000000000000000000000000000DeaDBeef
+        );
 
-    vm.warp(block.timestamp + 5);
+        vm.warp(block.timestamp + 604912);
 
-    vm.roll(block.number + 1);
+        vm.roll(block.number + 1);
 
-    ECDSAPPSOracle_updatePPS_clamped(100000); /// @audit Something dangerous tied to how prices work!?
+        superVaultStrategy_executeVaultFeeConfigUpdate();
 
-    property_previewEquivalenceFromShares(1);
-
- }
-
-// forge test --match-test test_property_comparePreviewMintAndConvertToAssets_ -vvv 
-function test_property_comparePreviewMintAndConvertToAssets_() public {
-
-    superVaultStrategy_proposeVaultFeeConfigUpdate(0,10000,0x00000000000000000000000000000000DeaDBeef);
-
-    vm.warp(block.timestamp + 604912);
-
-    vm.roll(block.number + 1);
-
-    superVaultStrategy_executeVaultFeeConfigUpdate();
-
-    property_comparePreviewMintAndConvertToAssets(1);
-
- }
+        property_comparePreviewMintAndConvertToAssets(1);
+    }
 
     /// @dev Test: Multi-actor deposit, withdrawal request, loss simulation, and distribution validation
     function test_multiActorDepositWithdrawLossDistribution() public {
-        console2.log("Assets in Strategy B4", MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy)));
-        console2.log("Shares in vault B4", MockERC20(_getYieldSource()).balanceOf(address(superVaultStrategy)));
-        console2.log("Max Redeem B4", MockERC4626Tester(_getYieldSource()).maxRedeem(address(superVaultStrategy)));
-
+        console2.log(
+            "Assets in Strategy B4",
+            MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy))
+        );
+        console2.log(
+            "Shares in vault B4",
+            MockERC20(_getYieldSource()).balanceOf(address(superVaultStrategy))
+        );
+        console2.log(
+            "Max Redeem B4",
+            MockERC4626Tester(_getYieldSource()).maxRedeem(
+                address(superVaultStrategy)
+            )
+        );
 
         // Deposit
         superVault_deposit(1000e18);
@@ -614,16 +609,33 @@ function test_property_comparePreviewMintAndConvertToAssets_() public {
         hookTypeInts[0] = 0; // ApproveAndDeposit4626
 
         uint256[] memory amountsToInvest = new uint256[](1);
-        amountsToInvest[0] = MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy));
+        amountsToInvest[0] = MockERC20(superVault.asset()).balanceOf(
+            address(superVaultStrategy)
+        );
 
         bool[] memory usePrevAmounts = new bool[](1);
         usePrevAmounts[0] = false;
 
-        superVaultStrategy_executeHooks_clamped(hookTypeInts, amountsToInvest, usePrevAmounts);
+        superVaultStrategy_executeHooks_clamped(
+            hookTypeInts,
+            amountsToInvest,
+            usePrevAmounts
+        );
 
-        console2.log("Assets in Strategy", MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy)));
-        console2.log("Shares in vault", MockERC20(_getYieldSource()).balanceOf(address(superVaultStrategy)));
-        console2.log("Max Redeem", MockERC4626Tester(_getYieldSource()).maxRedeem(address(superVaultStrategy)));
+        console2.log(
+            "Assets in Strategy",
+            MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy))
+        );
+        console2.log(
+            "Shares in vault",
+            MockERC20(_getYieldSource()).balanceOf(address(superVaultStrategy))
+        );
+        console2.log(
+            "Max Redeem",
+            MockERC4626Tester(_getYieldSource()).maxRedeem(
+                address(superVaultStrategy)
+            )
+        );
 
         // // Set loss on withdraw for ERC4626
         MockERC4626Tester(_getYieldSource()).setLossOnWithdraw(1000);
@@ -633,12 +645,15 @@ function test_property_comparePreviewMintAndConvertToAssets_() public {
         switchActor(1);
         superVault_requestRedeem_clamped(superVault.balanceOf(_getActor()));
 
-        
         switchActor(0);
-        superVaultStrategy_fulfillRedeemRequests_clamped(superVaultStrategy.pendingRedeemRequest(_getActor()));
+        superVaultStrategy_fulfillRedeemRequests_clamped(
+            superVaultStrategy.pendingRedeemRequest(_getActor())
+        );
         console2.log("pendingRedeemRequest", "0");
         switchActor(1);
-        superVaultStrategy_fulfillRedeemRequests_clamped(superVaultStrategy.pendingRedeemRequest(_getActor()));
+        superVaultStrategy_fulfillRedeemRequests_clamped(
+            superVaultStrategy.pendingRedeemRequest(_getActor())
+        );
         console2.log("pendingRedeemRequest", "1");
         switchActor(0);
 
@@ -649,7 +664,10 @@ function test_property_comparePreviewMintAndConvertToAssets_() public {
         }
 
         console2.log("Max Withdraw Acc", maxWithdrawAcc);
-        console2.log("Strategy Balance Solvency", MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy)));
+        console2.log(
+            "Strategy Balance Solvency",
+            MockERC20(superVault.asset()).balanceOf(address(superVaultStrategy))
+        );
 
         // Show the revert
         console2.log("Max Withdraw", superVault.maxWithdraw(_getActor()));
@@ -659,7 +677,5 @@ function test_property_comparePreviewMintAndConvertToAssets_() public {
         superVault_withdraw(superVault.maxWithdraw(_getActor()));
 
         // Check if solvent / insolvent due to cached PPS
-
     }
-
 }
