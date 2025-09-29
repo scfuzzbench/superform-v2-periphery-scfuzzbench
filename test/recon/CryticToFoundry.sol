@@ -282,6 +282,67 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         property_accumulatorSharesDecreaseOnFulfill_exact();
     }
 
+    // forge test --match-test test_doomsday_maxWithdrawResetsAfterFullWithdrawal_17 -vvv
+    // NOTE: see issue here: https://github.com/Recon-Fuzz/superform-review/issues/66
+    function test_doomsday_maxWithdrawResetsAfterFullWithdrawal_17() public {
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVault_deposit(3);
+
+        superVault_requestRedeem_clamped(1);
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            700960855099362077226925743595804258294593977845093495232344554
+        );
+
+        yieldSource_simulateGain(973782);
+
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        superVault_requestRedeem_clamped(1);
+
+        doomsday_maxWithdrawResetsAfterFullWithdrawal(988620);
+    }
+
+    // forge test --match-test test_property_sumOfClaimable_5 -vvv
+    function test_property_sumOfClaimable_5() public {
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        superVault_deposit(3);
+
+        superVault_requestRedeem_clamped(1);
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            700960855099362077226925743595804258294593977845093495232344554
+        );
+
+        yieldSource_simulateGain(973782);
+
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        superVault_requestRedeem_clamped(1);
+
+        superVaultStrategy_fulfillRedeemRequests_clamped(1);
+
+        property_sumOfClaimable();
+    }
+
     /// To Triage
 
     // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_1 -vvv
@@ -403,37 +464,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         property_superVaultStrategySolvency();
     }
 
-    // forge test --match-test test_doomsday_maxWithdrawResetsAfterFullWithdrawal_17 -vvv
-    function test_doomsday_maxWithdrawResetsAfterFullWithdrawal_17() public {
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVault_deposit(3);
-
-        superVault_requestRedeem_clamped(1);
-
-        vm.warp(block.timestamp + 5);
-
-        vm.roll(block.number + 1);
-
-        ECDSAPPSOracle_updatePPS_clamped(
-            700960855099362077226925743595804258294593977845093495232344554
-        );
-
-        yieldSource_simulateGain(973782);
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
-
-        superVault_requestRedeem_clamped(1);
-
-        doomsday_maxWithdrawResetsAfterFullWithdrawal(988620);
-    }
-
-    // forge test --match-test test_doomsday_mintRedeemSymmetrical_6 -vvv
-    function test_doomsday_mintRedeemSymmetrical_6() public {
+    // forge test --match-test test_doomsday_mintRedeemSymmetrical_5 -vvv
+    function test_doomsday_mintRedeemSymmetrical_5() public {
         superVaultStrategy_manageYieldSource_clamped(0);
 
         yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
