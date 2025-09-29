@@ -28,6 +28,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property: naive PPS doesn't change on deposit/mint
+    // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price
     // function property_naivePPSDoesntChangeOnDepositOrMint() public {
     //     if (
     //         (_currentOp == OpType.ADD) && _before.naivePPS != 0 // price starts as zero when no shares minted
@@ -41,6 +42,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     // }
 
     /// @dev Property: naive PPS doesn't change on redeem/withdraw
+    // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price
     // function property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
     //     if (
     //         (_currentOp == OpType.REMOVE) && _before.naivePPS != 0 // price starts as zero when no shares minted
