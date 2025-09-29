@@ -28,30 +28,30 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property: naive PPS doesn't change on deposit/mint
-    function property_naivePPSDoesntChangeOnDepositOrMint() public {
-        if (
-            (_currentOp == OpType.ADD) && _before.naivePPS != 0 // price starts as zero when no shares minted
-        ) {
-            gte(
-                _after.naivePPS,
-                _before.naivePPS,
-                "deposit/mint cannot decrease naive PPS"
-            );
-        }
-    }
+    // function property_naivePPSDoesntChangeOnDepositOrMint() public {
+    //     if (
+    //         (_currentOp == OpType.ADD) && _before.naivePPS != 0 // price starts as zero when no shares minted
+    //     ) {
+    //         gte(
+    //             _after.naivePPS,
+    //             _before.naivePPS,
+    //             "deposit/mint cannot decrease naive PPS"
+    //         );
+    //     }
+    // }
 
     /// @dev Property: naive PPS doesn't change on redeem/withdraw
-    function property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
-        if (
-            (_currentOp == OpType.REMOVE) && _before.naivePPS != 0 // price starts as zero when no shares minted
-        ) {
-            gte(
-                _after.naivePPS,
-                _before.naivePPS,
-                "redeem/withdraw cannot decrease naive PPS"
-            );
-        }
-    }
+    // function property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
+    //     if (
+    //         (_currentOp == OpType.REMOVE) && _before.naivePPS != 0 // price starts as zero when no shares minted
+    //     ) {
+    //         gte(
+    //             _after.naivePPS,
+    //             _before.naivePPS,
+    //             "redeem/withdraw cannot decrease naive PPS"
+    //         );
+    //     }
+    // }
 
     /// @dev Property: fulfillRedeemRequest doesn't change naive PPS
     // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price

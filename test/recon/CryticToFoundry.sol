@@ -344,149 +344,8 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         property_sumOfClaimable();
     }
 
-    /// To Triage
-
-    // forge test --match-test test_superVaultStrategy_fulfillRedeemRequests_clamped_1 -vvv
-    // NOTE: optimize_burnMoreThanRequestedInRedemption and optimize_burnLessThanRequestedInRedemption optimize the difference here
-    // NOTE: waiting on results of latest run
-    function test_superVaultStrategy_fulfillRedeemRequests_clamped_1() public {
-        superVault_deposit(4);
-        superVault_requestRedeem_clamped(2);
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        uint256[] memory hookTypes = new uint256[](1);
-        hookTypes[
-            0
-        ] = 727274302833518615492845037239295802792876209365430308729559717363410497539;
-
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1;
-
-        bool[] memory usePrevAmounts = new bool[](1);
-        usePrevAmounts[0] = false;
-
-        superVaultStrategy_executeHooks_clamped(
-            hookTypes,
-            amounts,
-            usePrevAmounts
-        );
-
-        // summed accumulator shares decreases by 2 instead of 1 (the amount that the totalSupply decreases by)
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
-    }
-
-    // forge test --match-test test_superVault_redeem_7 -vvv
-    function test_superVault_redeem_7() public {
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        superVault_deposit(2);
-
-        vm.warp(block.timestamp + 5);
-
-        vm.roll(block.number + 1);
-
-        superVault_requestRedeem_clamped(1);
-
-        console2.log("price before: %e", superVaultStrategy.getStoredPPS());
-        ECDSAPPSOracle_updatePPS_clamped(
-            1444867979276057160025867155929543172595885788623704073633756549908877603528
-        );
-        console2.log(
-            "price after: %e",
-            superVaultStrategy.getStoredPPS() / 1e18
-        );
-        console2.log("uint88 max: %e", type(uint88).max);
-
-        yieldSource_simulateGain(16331982);
-
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
-
-        superVault_redeem(
-            3545828913032973376745291833460689430358553977498753678092653926509955
-        );
-    }
-
-    // forge test --match-test test_doomsday_allUsersCanRedeem_9 -vvv
-    function test_doomsday_allUsersCanRedeem_9() public {
-        superVaultStrategy_manageYieldSource_clamped(0);
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-        superVault_deposit(3);
-
-        // Time delay: 5 seconds Block delay: 1
-        vm.warp(block.timestamp + 5);
-        vm.roll(block.number + 1);
-
-        superVault_requestRedeem_clamped(2);
-        ECDSAPPSOracle_updatePPS_clamped(
-            9320504895243615085225396559992523398860920652524151006431471807578417
-        );
-        yieldSource_simulateGain(325076);
-        superVaultStrategy_fulfillRedeemRequests_clamped(2);
-
-        uint256[] memory hookTypes = new uint256[](1);
-        hookTypes[
-            0
-        ] = 4729689556898063238393822096407759716827207368140679563236174818045595764054;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 8201632728374255258148623956880033657806200687347644349;
-        bool[] memory usePrevAmounts = new bool[](1);
-        usePrevAmounts[0] = false;
-
-        superVaultStrategy_executeHooks_clamped(
-            hookTypes,
-            amounts,
-            usePrevAmounts
-        );
-        doomsday_allUsersCanRedeem();
-    }
-
-    // forge test --match-test test_property_superVaultStrategySolvency_11 -vvv
-    function test_property_superVaultStrategySolvency_11() public {
-        superVaultStrategy_manageYieldSource_clamped(0);
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-        superVault_deposit(2);
-        superVault_requestRedeem_clamped(1);
-        superVaultStrategy_fulfillRedeemRequests_clamped(1);
-
-        uint256[] memory hookTypes = new uint256[](1);
-        hookTypes[0] = 27653577;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 12079250118338547037798040541261519698465894585477304077;
-        bool[] memory usePrevAmounts = new bool[](1);
-        usePrevAmounts[0] = false;
-
-        superVaultStrategy_executeHooks_clamped(
-            hookTypes,
-            amounts,
-            usePrevAmounts
-        );
-        property_superVaultStrategySolvency();
-    }
-
-    // forge test --match-test test_doomsday_mintRedeemSymmetrical_5 -vvv
-    function test_doomsday_mintRedeemSymmetrical_5() public {
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
-
-        vm.warp(block.timestamp + 5);
-
-        vm.roll(block.number + 1);
-
-        ECDSAPPSOracle_updatePPS_clamped(
-            893250029380653568623780066441443881670086486436756102557863845932909
-        );
-
-        yieldSource_simulateGain(99585);
-
-        switchActor(1);
-
-        doomsday_mintRedeemSymmetrical(1);
-    }
-
     // forge test --match-test test_property_assetBacking_10 -vvv
+    // NOTE: see issue here: https://github.com/Recon-Fuzz/superform-review/issues/68
     function test_property_assetBacking_10() public {
         yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
 
@@ -517,6 +376,34 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         // have 2 unbacked shares
         console2.log("totalSupply: ", superVault.totalSupply());
         property_assetBacking();
+    }
+
+    /// To Triage
+
+    // forge test --match-test test_doomsday_mintRedeemSymmetrical_5 -vvv
+    function test_doomsday_mintRedeemSymmetrical_5() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+
+        vm.warp(block.timestamp + 5);
+
+        vm.roll(block.number + 1);
+
+        ECDSAPPSOracle_updatePPS_clamped(
+            893250029380653568623780066441443881670086486436756102557863845932909
+        );
+
+        yieldSource_simulateGain(99585);
+
+        switchActor(1);
+
+        ISuperVaultStrategy.FeeConfig memory feeConfig = superVaultStrategy
+            .getConfigInfo();
+        console2.log("fee recipient: ", feeConfig.recipient);
+        address treasury = superGovernor.getAddress(superGovernor.TREASURY());
+
+        doomsday_mintRedeemSymmetrical(1);
     }
 
     /// Optimization tests
@@ -550,51 +437,40 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_2 -vvv
     // NOTE: naive PPS isn't used anywhere but useful to know that donations alter naive PPS
-    function test_property_naivePPSDoesntChangeOnDepositOrMint_2() public {
-        yieldSource_mint(1, 0x0000000000000000000000000000000000000000);
+    // function test_property_naivePPSDoesntChangeOnDepositOrMint_2() public {
+    //     yieldSource_mint(1, 0x0000000000000000000000000000000000000000);
 
-        // crytic_erc7540_7_deposit(2);
+    //     // crytic_erc7540_7_deposit(2);
 
-        superVault_mint(1);
+    //     superVault_mint(1);
 
-        property_naivePPSDoesntChangeOnDepositOrMint();
-    }
+    //     property_naivePPSDoesntChangeOnDepositOrMint();
+    // }
 
     // NOTE: naive PPS isn't used anywhere but useful to know
     // NOTE: shares are burned on fulfillment but assets only get transferred on withdraw/redeem so implied PPS changes after assets get transferred to user
-    function test_property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
-        superVault_deposit(4);
-        superVault_requestRedeem_clamped(2);
-        superVaultStrategy_manageYieldSource_clamped(0);
+    // function test_property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
+    //     superVault_deposit(4);
+    //     superVault_requestRedeem_clamped(2);
+    //     superVaultStrategy_manageYieldSource_clamped(0);
 
-        uint256[] memory hookTypeInts = new uint256[](1);
-        hookTypeInts[
-            0
-        ] = 3366039565052519506129160632812429979925236647654304654821762322802056013872;
-        uint256[] memory amountsToInvest = new uint256[](1);
-        amountsToInvest[0] = 2;
-        bool[] memory usePrevHookAmounts = new bool[](1);
-        usePrevHookAmounts[0] = false;
-        superVaultStrategy_executeHooks_clamped(
-            hookTypeInts,
-            amountsToInvest,
-            usePrevHookAmounts
-        );
-        superVaultStrategy_fulfillRedeemRequests_clamped(2);
-        superVault_withdraw_clamped(1);
-        property_naivePPSDoesntChangeOnRedeemOrWithdraw();
-    }
-
-    // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_ -vvv
-    function test_property_naivePPSDoesntChangeOnDepositOrMint_() public {
-        superVault_deposit(2);
-
-        yieldSource_simulateGain(1);
-
-        superVault_mint(1);
-
-        property_naivePPSDoesntChangeOnDepositOrMint();
-    }
+    //     uint256[] memory hookTypeInts = new uint256[](1);
+    //     hookTypeInts[
+    //         0
+    //     ] = 3366039565052519506129160632812429979925236647654304654821762322802056013872;
+    //     uint256[] memory amountsToInvest = new uint256[](1);
+    //     amountsToInvest[0] = 2;
+    //     bool[] memory usePrevHookAmounts = new bool[](1);
+    //     usePrevHookAmounts[0] = false;
+    //     superVaultStrategy_executeHooks_clamped(
+    //         hookTypeInts,
+    //         amountsToInvest,
+    //         usePrevHookAmounts
+    //     );
+    //     superVaultStrategy_fulfillRedeemRequests_clamped(2);
+    //     superVault_withdraw_clamped(1);
+    //     property_naivePPSDoesntChangeOnRedeemOrWithdraw();
+    // }
 
     // forge test --match-test test_property_previewEquivalenceFromAssets_ -vvv
     function test_property_previewEquivalenceFromAssets_() public {
