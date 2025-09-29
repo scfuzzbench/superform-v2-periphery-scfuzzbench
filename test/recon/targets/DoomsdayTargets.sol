@@ -182,9 +182,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         // 5. Claim the full redemption
         vm.prank(_getActor());
-        try
-            superVault.redeem(maxRedeemBeforeClaim, _getActor(), _getActor())
-
+        try superVault.redeem(maxRedeemBeforeClaim, _getActor(), _getActor()) {
             // 6. Check maxRedeem is reset to 0 after full redemption
             uint256 maxRedeemAfterClaim = superVault.maxRedeem(_getActor());
             eq(
@@ -192,7 +190,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 0,
                 "maxRedeem should be reset to 0 after full redemption"
             );
-        {} catch {
+        } catch {
             if (maxRedeemBeforeClaim > 0) {
                 t(false, "redeeming maxRedeem should not revert");
             }
@@ -224,9 +222,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         // 5. Withdraw the exact amount returned by maxWithdraw
         vm.prank(_getActor());
-        try
-            superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor())
-        {
+        try superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor()) {
             // 6. Check maxWithdraw is reset to 0 after full withdrawal
             uint256 maxWithdrawAfter = superVault.maxWithdraw(_getActor());
             eq(
