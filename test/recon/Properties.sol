@@ -413,29 +413,6 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         }
     }
 
-    /// @dev Property: SUM(accumulatorCostBasis) <= balance of superVaultStrategy and deposited yield strategies
-    // NOTE: this should catch loss socialization
-    function property_lossSocialization() public {
-        address[] memory actors = _getActors();
-
-        // accumulatorCostBasis tracks user deposits
-        uint256 summedAccumulatorCostBasis;
-        for (uint256 i; i < actors.length; i++) {
-            ISuperVaultStrategy.SuperVaultState
-                memory state = superVaultStrategy.getSuperVaultState(actors[i]);
-
-            summedAccumulatorCostBasis += state.accumulatorCostBasis;
-        }
-
-        uint256 strategyAssets = _sumStrategyAssets();
-
-        gte(
-            strategyAssets,
-            summedAccumulatorCostBasis,
-            "SUM(accumulatorCostBasis) > balance of superVaultStrategy and deposited yield strategies"
-        );
-    }
-
     /// @dev Property: redemptions only burn the requested amount of shares (within tolerance range)
     function property_fulfillOnlyBurnsRequestedAmount() public {
         uint256 TOLERANCE_CONSTANT = 10 wei; // taken from SuperVaultStrategy

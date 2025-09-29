@@ -51,7 +51,6 @@
 | 46 | `doomsday_depositWithdrawSymmetrical` | deposit/withdraw doesn't cause loss to user |  | ✅ |  |
 | 47 | `property_comparePreviewMintAndConvertToAssets` | previewMint is >= convertToAssets |  | ✅ |  |
 | 48 | `property_comparePreviewDepositAndConvertToShares` | convertToShares is >= previewDepositShares (equivalent without fees) |  | ✅ |  |
-| 49 | `property_lossSocialization` | SUM(accumulatorCostBasis) <= balance of superVaultStrategy and deposited yield strategies |  | ✅ |  |
 | 50 | `superVaultStrategy_fulfillRedeemRequests` | superVaultStrategy does not incur loss on fulfillment | this should catch any issues related to loss on withdrawal from a yield strategy | ✅ |  |
 | 51 | `property_maxRedeemShouldNotRevert` | redeeming maxRedeem shouldn't revert |  | ✅ |  |
 

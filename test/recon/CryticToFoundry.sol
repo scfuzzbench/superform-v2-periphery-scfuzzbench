@@ -313,6 +313,7 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     }
 
     // forge test --match-test test_property_sumOfClaimable_5 -vvv
+    // NOTE: see issue here: https://github.com/Recon-Fuzz/superform-review/issues/67
     function test_property_sumOfClaimable_5() public {
         yieldSource_mint(1, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
 
