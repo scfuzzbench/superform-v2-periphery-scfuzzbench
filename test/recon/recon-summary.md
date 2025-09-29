@@ -20,3 +20,10 @@ After running Echidna for 100 million+ runs the following issues were discovered
 2. An optimization test adressing the issue outlined [here](https://github.com/Recon-Fuzz/superform-review/issues/34) would be valuable in helping to determine the maximum possible impact of rounding down in the cost basis ratio calculation. From manual review and modeling in excel it seems like the impact is limited but an optimization test would give greater insight, the primary difficulty is in determining how to implement the optimization.
 3. Checking `redeem`/`withdraw` never revert due to underflow. In the currently handler setup these can easily revert due to overflow with large share values and a high price. This would therefore be best tested with a stateless fuzz test to determine that it doesn't revert due to underflow for valid values.
 4. Identifying the source of `maxWithdraw` issue [here](https://github.com/Recon-Fuzz/superform-review/issues/66) would allow determining if this poses real risk of loss of funds or is only an inconsistent calculation issue. 
+
+## Admin Mistakes
+
+The following identify issues that an admin can make that lead to breaking system properties:
+
+1. After a redemption is fulfilled and the funds are transferred to the `SuperVaultStrategy` from the yield strategy in which they were invested in an admin can prevent users calling `withdraw`/`redeem` by reinvesting the funds via `executeHooks`. This leaves users with a claimable amount but no way to claim it unless the admin calls `executeHooks` again to transfer funds back to the `SuperVaultStrategy`. For this reason the `_claimableMoreThanInvested` function checks the amount `superVaultStrategy_executeHooks_clamped` can deposit into a yield strategy, otherwise a significant number of properties break.
+2. If an admin fulfills a redemption at a high price it can lock in insolvency. See the issue [here](https://github.com/Recon-Fuzz/superform-review/issues/67) 
