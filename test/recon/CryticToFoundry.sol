@@ -84,17 +84,22 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         property_previewEquivalenceFromShares(1);
     }
 
-    // forge test --match-test test_doomsday_mintRedeemSymmetrical_4 -vvv
-    // NOTE: requires admin hasn't called executeHooks to deposit into strategy yet but still fulfills
+    // forge test --match-test test_doomsday_mintRedeemSymmetrical_5 -vvv
     // NOTE: see issue: https://github.com/Recon-Fuzz/superform-review/issues/61
-    // NOTE: only breaks by < 10 wei, so to reproduce need to remove TOLERANCE value from doomsday test
-    function test_doomsday_mintRedeemSymmetrical_4() public {
+    function test_doomsday_mintRedeemSymmetrical_5() public {
         superVaultStrategy_manageYieldSource_clamped(0);
 
-        switchActor(1);
-        yieldSource_mint(5, 0xc3C1658B1e3b9e017030807d0C50895456FD2379);
+        yieldSource_mint(1, 0x0000000000000000000000000000000000000000);
 
-        doomsday_mintRedeemSymmetrical(1);
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 5);
+        ECDSAPPSOracle_updatePPS_clamped(
+            45875423970713493951589436881765514280565129916122376120788407117094766
+        );
+
+        yieldSource_simulateGain(157404);
+
+        doomsday_mintRedeemSymmetrical(2);
     }
 
     // forge test --match-test test_property_accumulatorSharesDecreaseOnFulfill_exact_6 -vvv
@@ -213,23 +218,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
     }
 
     /// To Triage
-
-    // forge test --match-test test_doomsday_mintRedeemSymmetrical_5 -vvv
-    function test_doomsday_mintRedeemSymmetrical_5() public {
-        superVaultStrategy_manageYieldSource_clamped(0);
-
-        yieldSource_mint(1, 0x0000000000000000000000000000000000000000);
-
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + 5);
-        ECDSAPPSOracle_updatePPS_clamped(
-            45875423970713493951589436881765514280565129916122376120788407117094766
-        );
-
-        yieldSource_simulateGain(157404);
-
-        doomsday_mintRedeemSymmetrical(2);
-    }
 
     /// Gotchas
 
