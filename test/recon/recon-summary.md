@@ -13,6 +13,7 @@ After running Echidna for 100 million+ runs the following issues were discovered
 5. [Attempting to withdraw `maxWithdraw` reverts](https://github.com/Recon-Fuzz/superform-review/issues/66)
 6. [Insolvency in `SuperVaultStrategy`](https://github.com/Recon-Fuzz/superform-review/issues/67)
 7. [Unbacked shares remain on withdrawal](https://github.com/Recon-Fuzz/superform-review/issues/68)
+8. [Users can lose value on mint/redeem](https://github.com/Recon-Fuzz/superform-review/issues/70)
 
 ## Recommendations
 
@@ -34,4 +35,5 @@ The following properties would be good candidates for live monitoring to ensure 
 - `property_superVaultStrategySolvency`
 - `crytic_erc7540_7_withdraw`
 - `crytic_erc7540_7_redeem`
-- `property_assetBacking` 
+- `property_assetBacking`
+- `doomsday_mintRedeemSymmetrical`
