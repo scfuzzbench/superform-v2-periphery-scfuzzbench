@@ -214,6 +214,23 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
 
     /// To Triage
 
+    // forge test --match-test test_doomsday_mintRedeemSymmetrical_5 -vvv
+    function test_doomsday_mintRedeemSymmetrical_5() public {
+        superVaultStrategy_manageYieldSource_clamped(0);
+
+        yieldSource_mint(1, 0x0000000000000000000000000000000000000000);
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 5);
+        ECDSAPPSOracle_updatePPS_clamped(
+            45875423970713493951589436881765514280565129916122376120788407117094766
+        );
+
+        yieldSource_simulateGain(157404);
+
+        doomsday_mintRedeemSymmetrical(2);
+    }
+
     /// Gotchas
 
     // forge test --match-test test_property_naivePPSDoesntChangeOnDepositOrMint_2 -vvv
