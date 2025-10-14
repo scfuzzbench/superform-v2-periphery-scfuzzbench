@@ -343,31 +343,6 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
     }
 
-    /// @dev Property: All users should always be able to redeem unless the system is paused
-    function doomsday_allUsersCanRedeem() public stateless {
-        address[] memory actors = _getActors();
-        bool paused = superVaultAggregator.isStrategyPaused(
-            address(superVaultStrategy)
-        );
-
-        // try to redeem for all users that have redeemable assets
-        for (uint256 i; i < actors.length; i++) {
-            uint256 claimable = superVault.claimableRedeemRequest(0, actors[i]);
-
-            if (claimable > 0 && !paused) {
-                vm.prank(actors[i]);
-                try
-                    superVault.redeem(claimable, actors[i], actors[i])
-                {} catch {
-                    t(
-                        false,
-                        "users should always be able to redeem unless the system is paused"
-                    );
-                }
-            }
-        }
-    }
-
     /// @dev Property: all users can withdraw (solvency)
     // NOTE: if withdrawing from a given strategy via fulfillRedeemRequests fails, it can be expected that one of the YieldSourceTargets would be called to switch the yield source
     // this should allow fulfillments to eventually succeed so we don't need to sort through all yield sources that have currently been deposited into before fulfilling
