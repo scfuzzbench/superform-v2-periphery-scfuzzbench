@@ -375,8 +375,11 @@ abstract contract YieldSourceTargets is BaseTargetFunctions, Properties {
 
         if (currentType == YieldSourceType.ERC4626) {
             MockERC4626Tester(yieldSource).setLossOnWithdraw(lossOnWithdraw);
+        } else if (currentType == YieldSourceType.ERC5115) {
+            MockERC5115Tester(yieldSource).setLossOnWithdraw(lossOnWithdraw);
+        } else if (currentType == YieldSourceType.ERC7540) {
+            MockERC7540Tester(yieldSource).setLossOnWithdraw(lossOnWithdraw);
         }
-        // Note: ERC5115 and ERC7540 don't have setLossOnWithdraw function
     }
 
     /// Yield source management functions ///

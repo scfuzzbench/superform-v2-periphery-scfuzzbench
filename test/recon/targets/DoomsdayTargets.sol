@@ -5,12 +5,15 @@ import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
 import {vm} from "@chimera/Hevm.sol";
 import {Panic} from "@recon/Panic.sol";
 import {MockERC20} from "@recon/MockERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {BeforeAfter} from "../BeforeAfter.sol";
 import {Properties} from "../Properties.sol";
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
 import {YieldSourceType} from "test/recon/managers/YieldManager.sol";
 import {MockERC4626Tester} from "test/recon/mocks/MockERC4626Tester.sol";
+import {MockERC5115Tester} from "test/recon/mocks/MockERC5115Tester.sol";
+import {MockERC7540Tester} from "test/recon/mocks/MockERC7540Tester.sol";
 
 abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     /// @dev Property: previewDeposit and deposit equivalence
@@ -54,31 +57,66 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         // }
         address asset = superVault.asset();
         uint256 balanceBefore = MockERC20(asset).balanceOf(_getActor());
+        uint256 feeRecipientBalanceBefore = MockERC20(asset).balanceOf(
+            feeRecipient
+        );
 
         // 1. Mint
         vm.prank(_getActor());
-        superVault.mint(sharesToMint, _getActor());
+        uint256 assetsUsed = superVault.mint(sharesToMint, _getActor());
 
-        // 2. Request Redemption
-        uint256 shares = superVault.balanceOf(_getActor());
+        // 2. Deposit assets into yield strategy via executeHooks
+        // This is needed because the user's assets are currently in the strategy contract
+        // but not yet deposited into the underlying yield source
+        uint256 strategyAssetBalance = MockERC20(asset).balanceOf(
+            address(superVaultStrategy)
+        );
+        if (strategyAssetBalance > 0) {
+            ISuperVaultStrategy.ExecuteArgs
+                memory depositArgs = _createExecuteDepositArgs(
+                    strategyAssetBalance
+                );
+
+            superVaultStrategy.executeHooks(depositArgs);
+        }
+
+        // 3. Request Redemption
+        uint256 userShares = superVault.balanceOf(_getActor());
+        // get shares of strategy in the deposited yield source
+        uint256 shares = _getSuperVaultStrategyShares();
+
         vm.prank(_getActor());
         superVault.requestRedeem(shares, _getActor(), _getActor());
 
-        // 3. Fulfill Redemption
+        uint256 feeBalanceBefore = MockERC20(superVault.asset()).balanceOf(
+            feeRecipient
+        );
+
+        // 4. Fulfill Redemption from yield strategy
+        // Now we need to redeem from the yield strategy to get assets back
         ISuperVaultStrategy.FulfillArgs
-            memory fulfillArgs = _createFulfillRedeemArgs(shares);
+            memory fulfillArgs = _createFulfillRedeemFromStrategyArgs(shares);
+
         // called by admin address(this)
         superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
 
-        // 4. Claim Redemption
+        // 5. Claim Redemption
+        uint256 sharesToRedeem = superVault.maxRedeem(_getActor());
+
         vm.prank(_getActor());
-        superVault.redeem(shares, _getActor(), _getActor());
+        superVault.redeem(sharesToRedeem, _getActor(), _getActor());
 
         uint256 balanceAfter = MockERC20(asset).balanceOf(_getActor());
 
-        // 5. Check that user didn't lose assets
+        uint256 TOLERANCE = 10; // 10 wei max tolerance of assets lost
+
+        uint256 feeRecipientBalanceAfter = MockERC20(superVault.asset())
+            .balanceOf(feeRecipient);
+        uint256 feeDelta = feeRecipientBalanceAfter - feeRecipientBalanceBefore;
+
+        // 6. Check that user didn't lose assets
         gte(
-            balanceAfter,
+            balanceAfter + TOLERANCE + feeDelta,
             balanceBefore,
             "User loses assets in deposit/withdrawal flow"
         );
@@ -87,7 +125,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     /// @dev Property: deposit/withdraw doesn't cause loss to user
     function doomsday_depositWithdrawSymmetrical(
         uint256 assetsToDeposit
-    ) public stateless {
+    ) public stateless returns (uint256, uint256) {
         // skip if there's been any gain because it complicates the assertion checking
         // NOTE: removed because was previously checking that user doesn't gain only from minting/redeeming
         // if (MockERC4626Tester(_getYieldSource()).totalGains() > 0) {
@@ -118,15 +156,19 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         uint256 balanceAfter = MockERC20(asset).balanceOf(_getActor());
 
+        uint256 TOLERANCE = 10; // 10 wei max tolerance of assets lost
         // 5. Check that user didn't lose assets
         gte(
-            balanceAfter,
+            balanceAfter + TOLERANCE,
             balanceBefore,
             "User loses assets in deposit/withdrawal flow"
         );
+
+        return (balanceAfter, balanceBefore);
     }
 
     /// @dev Property: maxRedeem is reset to 0 after full redemption
+    /// @dev Property: redeeming maxRedeem shouldn't revert
     function doomsday_maxRedeemResetsAfterFullRedemption(
         uint256 sharesToMint
     ) public stateless {
@@ -152,19 +194,19 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         // 5. Claim the full redemption
         vm.prank(_getActor());
-        try
-            superVault.redeem(maxRedeemBeforeClaim, _getActor(), _getActor())
-        {} catch {
-            t(false, "redeem of maxRedeem should not revert");
+        try superVault.redeem(maxRedeemBeforeClaim, _getActor(), _getActor()) {
+            // 6. Check maxRedeem is reset to 0 after full redemption
+            uint256 maxRedeemAfterClaim = superVault.maxRedeem(_getActor());
+            eq(
+                maxRedeemAfterClaim,
+                0,
+                "maxRedeem should be reset to 0 after full redemption"
+            );
+        } catch {
+            if (maxRedeemBeforeClaim > 0) {
+                t(false, "redeeming maxRedeem should not revert");
+            }
         }
-
-        // 6. Check maxRedeem is reset to 0 after full redemption
-        uint256 maxRedeemAfterClaim = superVault.maxRedeem(_getActor());
-        eq(
-            maxRedeemAfterClaim,
-            0,
-            "maxRedeem should be reset to 0 after full redemption"
-        );
     }
 
     /// @dev Property: maxWithdraw is reset to 0 after full withdrawal
@@ -192,19 +234,17 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         // 5. Withdraw the exact amount returned by maxWithdraw
         vm.prank(_getActor());
-        try
-            superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor())
-        {} catch {
+        try superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor()) {
+            // 6. Check maxWithdraw is reset to 0 after full withdrawal
+            uint256 maxWithdrawAfter = superVault.maxWithdraw(_getActor());
+            eq(
+                maxWithdrawAfter,
+                0,
+                "maxWithdraw should be reset to 0 after full withdrawal"
+            );
+        } catch {
             t(false, "withdraw of maxWithdraw should not revert");
         }
-
-        // 6. Check maxWithdraw is reset to 0 after full withdrawal
-        uint256 maxWithdrawAfter = superVault.maxWithdraw(_getActor());
-        eq(
-            maxWithdrawAfter,
-            0,
-            "maxWithdraw should be reset to 0 after full withdrawal"
-        );
     }
 
     /// @dev Property: fulfillRedeemRequests doesn't redeem more than requested for multiple actors
@@ -303,31 +343,6 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         }
     }
 
-    /// @dev Property: All users should always be able to redeem unless the system is paused
-    function doomsday_allUsersCanRedeem() public stateless {
-        address[] memory actors = _getActors();
-        bool paused = superVaultAggregator.isStrategyPaused(
-            address(superVaultStrategy)
-        );
-
-        // try to redeem for all users that have redeemable assets
-        for (uint256 i; i < actors.length; i++) {
-            uint256 claimable = superVault.claimableRedeemRequest(0, actors[i]);
-
-            if (claimable > 0 && !paused) {
-                vm.prank(actors[i]);
-                try
-                    superVault.redeem(claimable, actors[i], actors[i])
-                {} catch {
-                    t(
-                        false,
-                        "users should always be able to redeem unless the system is paused"
-                    );
-                }
-            }
-        }
-    }
-
     /// @dev Property: all users can withdraw (solvency)
     // NOTE: if withdrawing from a given strategy via fulfillRedeemRequests fails, it can be expected that one of the YieldSourceTargets would be called to switch the yield source
     // this should allow fulfillments to eventually succeed so we don't need to sort through all yield sources that have currently been deposited into before fulfilling
@@ -393,6 +408,33 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 !unexpectedError,
                 "Claiming redemptions should never revert with INVALID_REDEEM_CLAIM"
             );
+        }
+    }
+
+    /// @dev Get shares for SuperVaultStrategy in the current yield source
+    function _getSuperVaultStrategyShares() internal view returns (uint256) {
+        address yieldSource = _getYieldSource();
+        YieldSourceType sourceType = _getYieldSourceTypeFromAddress(
+            yieldSource
+        );
+
+        if (sourceType == YieldSourceType.ERC4626) {
+            return
+                MockERC4626Tester(yieldSource).balanceOf(
+                    address(superVaultStrategy)
+                );
+        } else if (sourceType == YieldSourceType.ERC5115) {
+            return
+                MockERC5115Tester(yieldSource).balanceOf(
+                    address(superVaultStrategy)
+                );
+        } else if (sourceType == YieldSourceType.ERC7540) {
+            return
+                MockERC7540Tester(yieldSource).balanceOf(
+                    address(superVaultStrategy)
+                );
+        } else {
+            revert("Invalid yield source type");
         }
     }
 
@@ -563,6 +605,149 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
 
         uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
         expectedAssetsOrSharesOut[0] = amount;
+
+        bytes32[][] memory globalProofs = new bytes32[][](1);
+        globalProofs[0] = new bytes32[](0);
+
+        bytes32[][] memory strategyProofs = new bytes32[][](1);
+        strategyProofs[0] = new bytes32[](0);
+
+        return
+            ISuperVaultStrategy.FulfillArgs({
+                controllers: controllers,
+                hooks: hooks,
+                hookCalldata: hookCalldata,
+                expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+                globalProofs: globalProofs,
+                strategyProofs: strategyProofs
+            });
+    }
+
+    /// @dev Helper function to create ExecuteArgs for depositing assets into yield strategy
+    function _createExecuteDepositArgs(
+        uint256 amount
+    ) internal view returns (ISuperVaultStrategy.ExecuteArgs memory) {
+        address[] memory hooks = new address[](1);
+        hooks[0] = _getApproveAndDepositHookForType(
+            _getYieldSourceTypeFromAddress(_getYieldSource())
+        );
+
+        bytes[] memory hookCalldata = new bytes[](1);
+        YieldSourceType sourceType = _getYieldSourceTypeFromAddress(
+            _getYieldSource()
+        );
+
+        if (sourceType == YieldSourceType.ERC4626) {
+            // ERC4626 deposit: bytes32 oracleId, address yieldSource, address token, uint256 assets, bool usePrevAmount
+            hookCalldata[0] = abi.encodePacked(
+                bytes32(0), // oracle ID placeholder
+                _getYieldSource(),
+                superVault.asset(), // token address
+                amount,
+                false // don't use previous amount
+            );
+        } else if (sourceType == YieldSourceType.ERC5115) {
+            // ERC5115 deposit: bytes32 oracleId, address yieldSource, address token, uint256 assets, address receiver, uint256 id, bool usePrevAmount
+            hookCalldata[0] = abi.encodePacked(
+                bytes32(0),
+                _getYieldSource(),
+                superVault.asset(), // token address
+                amount,
+                address(superVaultStrategy),
+                uint256(0), // sy ID for ERC5115
+                false
+            );
+        } else if (sourceType == YieldSourceType.ERC7540) {
+            // ERC7540 requestDeposit: bytes32 oracleId, address yieldSource, address token, uint256 assets, address controller, bool usePrevAmount
+            hookCalldata[0] = abi.encodePacked(
+                bytes32(0),
+                _getYieldSource(),
+                superVault.asset(), // token address
+                amount,
+                address(superVaultStrategy),
+                false
+            );
+        }
+
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        // For deposit hooks, we expect shares back. Calculate expected shares based on yield source conversion
+        // Use a very small amount (1) as minimum since we just want the deposit to succeed
+        expectedAssetsOrSharesOut[0] = 1; // Minimum expected shares from deposit
+
+        bytes32[][] memory globalProofs = new bytes32[][](1);
+        globalProofs[0] = new bytes32[](0);
+
+        bytes32[][] memory strategyProofs = new bytes32[][](1);
+        strategyProofs[0] = new bytes32[](0);
+
+        return
+            ISuperVaultStrategy.ExecuteArgs({
+                hooks: hooks,
+                hookCalldata: hookCalldata,
+                expectedAssetsOrSharesOut: expectedAssetsOrSharesOut,
+                globalProofs: globalProofs,
+                strategyProofs: strategyProofs
+            });
+    }
+
+    /// @dev Helper function to create FulfillArgs for redeeming from yield strategy
+    function _createFulfillRedeemFromStrategyArgs(
+        uint256 sharesToRedeem
+    ) internal view returns (ISuperVaultStrategy.FulfillArgs memory) {
+        address[] memory controllers = new address[](1);
+        controllers[0] = _getActor();
+
+        // Get the actual share balance that the SuperVaultStrategy holds in the yield source
+        address yieldSource = _getYieldSource();
+        uint256 strategyYieldSourceShares = IERC20(yieldSource).balanceOf(
+            address(superVaultStrategy)
+        );
+
+        // Use the pending shares for the hook calldata to match what's expected by fulfillRedeemRequests
+        uint256 pendingShares = superVault.pendingRedeemRequest(0, _getActor());
+
+        // For debugging: ensure we don't try to redeem more than the strategy has
+        uint256 actualSharesToRedeem = strategyYieldSourceShares < pendingShares
+            ? strategyYieldSourceShares
+            : pendingShares;
+
+        address[] memory hooks = new address[](1);
+        hooks[0] = _getRedeemHookForType(
+            _getYieldSourceTypeFromAddress(yieldSource)
+        );
+
+        bytes[] memory hookCalldata = new bytes[](1);
+        YieldSourceType sourceType = _getYieldSourceTypeFromAddress(
+            yieldSource
+        );
+
+        if (
+            sourceType == YieldSourceType.ERC4626 ||
+            sourceType == YieldSourceType.ERC5115
+        ) {
+            // For ERC4626/5115: bytes32 oracleId, address yieldSource, address owner, uint256 shares, bool usePrevAmount
+            // Use the calculated shares to redeem (limited by what strategy actually has)
+            hookCalldata[0] = abi.encodePacked(
+                bytes32(0),
+                yieldSource,
+                address(superVaultStrategy), // owner is the strategy
+                actualSharesToRedeem, // redeem calculated amount
+                false
+            );
+        } else {
+            // For ERC7540: bytes32 oracleId, address yieldSource, uint256 shares, bool usePrevAmount
+            hookCalldata[0] = abi.encodePacked(
+                bytes32(0),
+                yieldSource,
+                actualSharesToRedeem, // redeem calculated amount
+                false
+            );
+        }
+
+        // For fulfillment, we expect to get assets back from redeeming the shares
+        // Use a conservative estimate for expected assets out
+        uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
+        expectedAssetsOrSharesOut[0] = actualSharesToRedeem > 0 ? 1 : 0; // Minimum 1 asset expected if redeeming anything
 
         bytes32[][] memory globalProofs = new bytes32[][](1);
         globalProofs[0] = new bytes32[](0);

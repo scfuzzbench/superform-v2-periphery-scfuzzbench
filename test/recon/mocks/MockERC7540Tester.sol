@@ -106,34 +106,6 @@ abstract contract ERC7575 is MockERC20 {
         _mint(receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
-
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public virtual returns (uint256 shares) {
-        shares = previewWithdraw(assets);
-        if (msg.sender != owner) {
-            allowance[owner][msg.sender] -= shares;
-        }
-        _burn(owner, shares);
-        asset.transfer(receiver, assets);
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public virtual returns (uint256 assets) {
-        assets = previewRedeem(shares);
-        if (msg.sender != owner) {
-            allowance[owner][msg.sender] -= shares;
-        }
-        _burn(owner, shares);
-        asset.transfer(receiver, assets);
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
 }
 
 contract MockERC7540Tester is ERC7575, IERC165 {
@@ -185,6 +157,7 @@ contract MockERC7540Tester is ERC7575, IERC165 {
     uint256 private constant MAX_BPS = 10000;
     uint256 public totalLosses;
     uint256 public totalGains;
+    uint256 public lossOnWithdraw;
 
     constructor(address _asset) ERC7575(MockERC20(_asset)) {}
 
@@ -299,6 +272,38 @@ contract MockERC7540Tester is ERC7575, IERC165 {
 
         // Fallback to synchronous deposit if no matching request
         return super.deposit(assets, receiver);
+    }
+
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public returns (uint256 shares) {
+        shares = previewWithdraw(assets);
+        if (msg.sender != owner) {
+            allowance[owner][msg.sender] -= shares;
+        }
+        _burn(owner, shares);
+        uint256 lossyAssets = assets - ((assets * lossOnWithdraw) / MAX_BPS);
+
+        asset.transfer(receiver, lossyAssets);
+        emit Withdraw(msg.sender, receiver, owner, lossyAssets, shares);
+    }
+
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public returns (uint256 assets) {
+        assets = previewRedeem(shares);
+        if (msg.sender != owner) {
+            allowance[owner][msg.sender] -= shares;
+        }
+        _burn(owner, shares);
+        uint256 lossyAssets = assets - ((assets * lossOnWithdraw) / MAX_BPS);
+
+        asset.transfer(receiver, lossyAssets);
+        emit Withdraw(msg.sender, receiver, owner, lossyAssets, shares);
     }
 
     // Async Redeem Flow
@@ -442,6 +447,12 @@ contract MockERC7540Tester is ERC7575, IERC165 {
     function simulateLoss(uint256 lossAmount) external {
         MockERC20(asset).transfer(address(0xbeef), lossAmount);
         totalLosses += lossAmount;
+    }
+
+    /// @dev Set the loss on withdraw as percentage of the assets being withdrawn
+    function setLossOnWithdraw(uint256 _lossOnWithdraw) public {
+        _lossOnWithdraw %= MAX_BPS + 1; // clamp to ensure we set a max of 100%
+        lossOnWithdraw = _lossOnWithdraw;
     }
 
     /// @notice ERC165 interface detection

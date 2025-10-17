@@ -36,8 +36,8 @@ abstract contract SuperVaultAggregatorTargets is
         uint256 managementFeeBps
     ) public {
         // Clamp values to reasonable ranges
-        minUpdateInterval = minUpdateInterval % 3600; // Max 1 hour
-        maxStaleness = (maxStaleness % 86400) + 300; // Between 5 minutes and 1 day
+        minUpdateInterval = minUpdateInterval % 3601; // Max 1 hour
+        maxStaleness = (maxStaleness % 86400) + 301; // Between 5 minutes and 1 day
         performanceFeeBps = performanceFeeBps % 9001; // Max 90%
         managementFeeBps = managementFeeBps % 5001; // Max 50%
 

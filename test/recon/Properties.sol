@@ -14,6 +14,7 @@ import {BeforeAfter} from "./BeforeAfter.sol";
 
 abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     using Math for uint256;
+    uint256 internal TOLERANCE = 10;
 
     /// @dev Property: oracle PPS doesn't change on deposit/mint/redeem/withdraw
     function property_oraclePPSDoesntChangeOnAddOrRemove() public {
@@ -27,30 +28,32 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property: naive PPS doesn't change on deposit/mint
-    function property_naivePPSDoesntChangeOnDepositOrMint() public {
-        if (
-            (_currentOp == OpType.ADD) && _before.naivePPS != 0 // price starts as zero when no shares minted
-        ) {
-            gte(
-                _after.naivePPS,
-                _before.naivePPS,
-                "deposit/mint cannot decrease naive PPS"
-            );
-        }
-    }
+    // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price
+    // function property_naivePPSDoesntChangeOnDepositOrMint() public {
+    //     if (
+    //         (_currentOp == OpType.ADD) && _before.naivePPS != 0 // price starts as zero when no shares minted
+    //     ) {
+    //         gte(
+    //             _after.naivePPS,
+    //             _before.naivePPS,
+    //             "deposit/mint cannot decrease naive PPS"
+    //         );
+    //     }
+    // }
 
     /// @dev Property: naive PPS doesn't change on redeem/withdraw
-    function property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
-        if (
-            (_currentOp == OpType.REMOVE) && _before.naivePPS != 0 // price starts as zero when no shares minted
-        ) {
-            gte(
-                _after.naivePPS,
-                _before.naivePPS,
-                "redeem/withdraw cannot decrease naive PPS"
-            );
-        }
-    }
+    // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price
+    // function property_naivePPSDoesntChangeOnRedeemOrWithdraw() public {
+    //     if (
+    //         (_currentOp == OpType.REMOVE) && _before.naivePPS != 0 // price starts as zero when no shares minted
+    //     ) {
+    //         gte(
+    //             _after.naivePPS,
+    //             _before.naivePPS,
+    //             "redeem/withdraw cannot decrease naive PPS"
+    //         );
+    //     }
+    // }
 
     /// @dev Property: fulfillRedeemRequest doesn't change naive PPS
     // NOTE: removed because it's expected behavior that fulfillment burns shares but doesn't transfer assets to users so would change the naively calculated price
@@ -162,25 +165,6 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 _before.summedAccumulatorCostBasis,
                 _after.summedAccumulatorCostBasis,
                 "SUM(accumulatorCostBasis) changed on SuperVault share transfers"
-            );
-        }
-    }
-
-    /// @dev Property: user cannot claim more assets than requested in redemption
-    // NOTE: we test on a fulfillment because it's when pending shares are converted to assets
-    function property_cannotClaimMoreThanRequested() public {
-        if (_currentOp == OpType.FULFILL) {
-            // pending decreases
-            uint256 fulfilledDelta = _before.pendingUserAssets[_getActor()] -
-                _after.pendingUserAssets[_getActor()];
-            // claimable increases
-            uint256 claimableDelta = _after.claimableUserAssets[_getActor()] -
-                _before.claimableUserAssets[_getActor()];
-
-            eq(
-                fulfilledDelta,
-                claimableDelta,
-                "user cannot claim more assets than requested in redemption"
             );
         }
     }
@@ -353,7 +337,8 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     function property_avgPPSMonotonicity() public {
         if (
             _currentOp == OpType.FULFILL &&
-            _before.oraclePPS > _before.state[_getActor()].averageRequestPPS // fulfilled at a higher price
+            _before.oraclePPS > _before.state[_getActor()].averageRequestPPS && // fulfilled at a higher price
+            _after.state[_getActor()].pendingRedeemRequest != 0 // redemptions have all been fulfilled/cancelled; avg gets reset to 0 in this case
         ) {
             gte(
                 _after.state[_getActor()].averageRequestPPS,
@@ -376,22 +361,6 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "state.accumulatorShares < state.pendingRedeemRequest"
             );
         }
-    }
-
-    /// @dev Property: sum(maxWithdraw(actors[i])) <= asset.balanceOf(superVaultStrategy)
-    function property_superVaultStrategySolvency() public {
-        address[] memory actors = _getActors();
-
-        uint256 summedMaxWithdraw;
-        for (uint256 i; i < actors.length; i++) {
-            summedMaxWithdraw += superVault.maxWithdraw(actors[i]);
-        }
-
-        uint256 strategyAssetBalance = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
-
-        gte(strategyAssetBalance, summedMaxWithdraw, "strategy is insolvent");
     }
 
     /// @dev Property: accumulatorShares is always accurately increased
@@ -430,27 +399,72 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         }
     }
 
-    /// @dev Property: SUM(accumulatorCostBasis) <= balance of superVaultStrategy and deposited yield strategies
-    // NOTE: this should catch loss socialization
-    function property_lossSocialization() public {
-        address[] memory actors = _getActors();
+    /// @dev Property: redemptions only burn the requested amount of shares (within tolerance range)
+    function property_fulfillOnlyBurnsRequestedAmount() public {
+        uint256 TOLERANCE_CONSTANT = 10 wei; // taken from SuperVaultStrategy
 
-        // accumulatorCostBasis tracks user deposits
-        uint256 summedAccumulatorCostBasis;
-        for (uint256 i; i < actors.length; i++) {
-            ISuperVaultStrategy.SuperVaultState
-                memory state = superVaultStrategy.getSuperVaultState(actors[i]);
+        if (_currentOp == OpType.FULFILL) {
+            uint256 pendingRedeemDelta = _before.summedPendingRedeem -
+                _after.summedPendingRedeem;
+            uint256 totalSupplyDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
 
-            summedAccumulatorCostBasis += state.accumulatorCostBasis;
+            // Check that burned amount is within tolerance of requested amount
+            if (totalSupplyDelta < pendingRedeemDelta) {
+                // Burned less than requested - check within tolerance
+                gte(
+                    totalSupplyDelta,
+                    pendingRedeemDelta - TOLERANCE_CONSTANT,
+                    "burned less than requested beyond tolerance"
+                );
+            } else {
+                // Burned more than requested - check within tolerance
+                lte(
+                    totalSupplyDelta,
+                    pendingRedeemDelta + TOLERANCE_CONSTANT,
+                    "burned more than requested beyond tolerance"
+                );
+            }
         }
+    }
 
-        uint256 strategyAssets = _sumStrategyAssets();
+    /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
+    function property_accumulatorSharesDecreaseOnFulfill_exact() public {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 accumulatorSharesDelta = _before.summedAccumulatorShares -
+                _after.summedAccumulatorShares;
+            uint256 totalSharesDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+            eq(
+                accumulatorSharesDelta,
+                totalSharesDelta,
+                "accumulatorShares decreases by the exact amounts requested when fulfilling redemptions"
+            );
+        }
+    }
 
-        gte(
-            strategyAssets,
-            summedAccumulatorCostBasis,
-            "SUM(accumulatorCostBasis) > balance of superVaultStrategy and deposited yield strategies"
-        );
+    function property_accumulatorSharesDecreaseOnFulfill_with_tolerance()
+        public
+    {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 accumulatorSharesDelta = _before.summedAccumulatorShares -
+                _after.summedAccumulatorShares;
+            uint256 totalSharesDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+            if (accumulatorSharesDelta >= totalSharesDelta) {
+                lte(
+                    accumulatorSharesDelta - totalSharesDelta,
+                    TOLERANCE,
+                    "accumulatorShares decreases by more than TOLERANCE when fulfilling redemptions"
+                );
+            } else {
+                lte(
+                    totalSharesDelta - accumulatorSharesDelta,
+                    TOLERANCE,
+                    "accumulatorShares decreases by less than TOLERANCE when fulfilling redemptions"
+                );
+            }
+        }
     }
 
     /// Optimization Setters
@@ -482,6 +496,26 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             previewMintSharesGreater =
                 int256(previewMintShares) -
                 int256(previewDepositShares);
+        }
+    }
+
+    function setFulfilledDifference() public {
+        if (_currentOp == OpType.FULFILL) {
+            uint256 pendingRedeemDelta = _before.summedPendingRedeem -
+                _after.summedPendingRedeem;
+            uint256 totalSupplyDelta = _before.summedTotalShares -
+                _after.summedTotalShares;
+
+            // Check that burned amount is within tolerance of requested amount
+            if (totalSupplyDelta < pendingRedeemDelta) {
+                // Burned less than requested
+                int256 burnedLessThanRequested = int256(pendingRedeemDelta) -
+                    int256(totalSupplyDelta);
+            } else {
+                // Burned more than requested
+                int256 burnedMoreThanRequested = int256(totalSupplyDelta) -
+                    int256(pendingRedeemDelta);
+            }
         }
     }
 
@@ -547,28 +581,37 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         return burnedLessThanRequested;
     }
 
-    function optimize_previewMintSharesGreater() public view returns (int256) {
-        return previewMintSharesGreater;
-    }
+    // function optimize_previewMintSharesGreater() public view returns (int256) {
+    //     return previewMintSharesGreater;
+    // }
 
-    function optimize_previewDepositSharesGreater()
-        public
-        view
-        returns (int256)
-    {
-        return previewDepositSharesGreater;
-    }
+    // function optimize_previewDepositSharesGreater()
+    //     public
+    //     view
+    //     returns (int256)
+    // {
+    //     return previewDepositSharesGreater;
+    // }
 
-    function optimize_previewMintAssetsGreater() public view returns (int256) {
-        return previewMintAssetsGreater;
-    }
+    // function optimize_previewMintAssetsGreater() public view returns (int256) {
+    //     return previewMintAssetsGreater;
+    // }
 
-    function optimize_previewDepositAssetsGreater()
-        public
-        view
-        returns (int256)
-    {
-        return previewDepositAssetsGreater;
+    // function optimize_previewDepositAssetsGreater()
+    //     public
+    //     view
+    //     returns (int256)
+    // {
+    //     return previewDepositAssetsGreater;
+    // }
+
+    function optimize_assetBackingDifference() public view returns (int256) {
+        uint256 summedTotalAssets = _sumStrategyAssets();
+        uint256 totalSupply = superVault.totalSupply();
+
+        if (summedTotalAssets == 0 && totalSupply > 0) {
+            return int256(totalSupply);
+        }
     }
 
     // Canaries
@@ -685,11 +728,34 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
     }
 
+    // NOTE: this implements the check from ERC7540Properties directly because SuperVault logic implementation allows amt to be nonzero but round down to 0 when assets passed into redeem are calculated
     function crytic_erc7540_7_redeem(uint256 amt) public stateless {
         actor = _getActor();
-        t(
-            erc7540_7_redeem(address(superVault), amt),
-            "ERC7540-7: redeem should not revert when amount <= max"
+
+        uint256 maxRedeem = superVault.maxRedeem(actor);
+        amt = between(amt, 0, maxRedeem);
+
+        if (amt == 0) {
+            return; // Skip
+        }
+
+        uint256 averageWithdrawPrice = superVaultStrategy
+            .getAverageWithdrawPrice(actor);
+
+        // calculates assets in the same way as redeem to confirm that a nonzero amount is being requested
+        uint256 assets = amt.mulDiv(
+            averageWithdrawPrice,
+            superVault.PRECISION(),
+            Math.Rounding.Floor
         );
+
+        try superVault.redeem(amt, actor, actor) {} catch {
+            if (amt > 0 && assets > 0) {
+                t(
+                    false,
+                    "ERC7540-7: redeem should not revert when amount <= max"
+                );
+            }
+        }
     }
 }

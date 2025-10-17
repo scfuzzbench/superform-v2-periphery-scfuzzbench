@@ -48,7 +48,7 @@ abstract contract OracleTargets is BaseTargetFunctions, Properties {
     }
 
     function ECDSAPPSOracle_updatePPS_clamped(uint256 pps) public {
-        pps %= (100_000_000 * 1e18); // clamp to a reasonable max price
+        pps %= (100_000_000 * 1e18) + 1; // clamp to a reasonable max price
 
         address[] memory strategies = new address[](1);
         strategies[0] = address(superVaultStrategy);

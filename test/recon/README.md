@@ -10,7 +10,8 @@ The setup also deploys three yield sources using the `YieldManager` which deploy
 
 All hooks are currenlty deployed in the `Setup` contract and can be fetched for the currently set yield source using `_getApproveAndDepositHookForType` and `_getRedeemHookForType`. Hook validation is currently bypassed by using the `UnsafeSuperVaultAggregator` which inherits from the `SuperVaultAggregator` to always return true when hooks need to be verified.
 
-Any functions related to modifying hook roots have been removed from the set of target functions because the hook bypassing of the hook validation step makes testing these waste fuzzing calls.   
+Any functions related to modifying hook roots have been removed from the set of target functions because the hook bypassing of the hook validation step makes testing these waste fuzzing calls.
+
 
 ## Findings 
 

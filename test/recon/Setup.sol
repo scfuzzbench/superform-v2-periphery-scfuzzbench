@@ -62,6 +62,7 @@ abstract contract Setup is
     // Configuration constants
     uint8 internal constant DECIMALS = 18;
     address asset;
+    address feeRecipient = address(0xbeef);
 
     // Core contracts
     SuperGovernor superGovernor;
@@ -192,7 +193,7 @@ abstract contract Setup is
             address(this), // governor role
             address(this), // bankManager role
             address(this), // gasManager role
-            address(this), // treasury
+            feeRecipient, // treasury
             address(this) // prover
         );
 
@@ -250,7 +251,7 @@ abstract contract Setup is
                 feeConfig: ISuperVaultStrategy.FeeConfig({
                     performanceFeeBps: 1000, // 10% performance fee
                     managementFeeBps: 100, // 1% management fee
-                    recipient: address(this)
+                    recipient: feeRecipient
                 })
             });
 

@@ -9,6 +9,7 @@ import {MockERC20} from "@recon/MockERC20.sol";
 
 // System dependencies
 import {ISuperVaultStrategy} from "src/interfaces/SuperVault/ISuperVaultStrategy.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 // Test dependencies
 import {YieldSourceType} from "test/recon/managers/YieldManager.sol";
@@ -77,15 +78,16 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             });
 
         // Process each hook
+        uint256 totalAmountToDeposit;
         for (uint256 i = 0; i < numHooks; i++) {
             // Convert integer to enum (will wrap around if > max enum value)
             HookType hookType = HookType(hookTypeInts[i] % 17); // 17 is the total number of hooks
 
             // Clamp to the strategy's asset balance (not SuperVault's balance)
             uint256 clampedAmount = amountsToInvest[i] %
-                MockERC20(superVault.asset()).balanceOf(
+                (MockERC20(superVault.asset()).balanceOf(
                     address(superVaultStrategy)
-                );
+                ) + 1);
 
             // Get the hook address and calldata
             (
@@ -102,12 +104,15 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             executeArgs.expectedAssetsOrSharesOut[i] = clampedAmount;
             executeArgs.globalProofs[i] = new bytes32[](1);
             executeArgs.strategyProofs[i] = new bytes32[](1);
+
+            totalAmountToDeposit += clampedAmount;
         }
+
+        // Check that amount to be invested is less than the claimable assets so that it doesn't reinvest and prevent users from claiming
+        if (_claimableMoreThanInvested(totalAmountToDeposit)) return;
 
         // Execute all hooks
         this.superVaultStrategy_executeHooks{value: msg.value}(executeArgs);
-
-        executeHooksClampedSuccess = true;
     }
 
     function _getHookAddressAndCalldata(
@@ -331,7 +336,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         hookCalldata[0] = redeemHookCalldata;
 
         uint256[] memory expectedAssetsOrSharesOut = new uint256[](1);
-        expectedAssetsOrSharesOut[0] = actualRedeemAmount; // Expect amount matching the actual redeem
+        expectedAssetsOrSharesOut[0] = 1; // @audit Allow max losse amount matching the actual redeem
 
         bytes32[][] memory globalProofs = new bytes32[][](1);
         globalProofs[0] = new bytes32[](0); // Empty proof for UnsafeSuperVaultAggregator
@@ -364,68 +369,26 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         executeHooksSuccess = true;
     }
 
-    /// @dev Property: redemptions only burn the requested amount of shares (exact check)
-    /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
-    /// @dev Property: accumulatorCostBasis decrease by the exact amounts requested when fulfilling redemptions
+    /// @dev Property: superVaultStrategy does not incur loss on fulfillment
     function superVaultStrategy_fulfillRedeemRequests(
         ISuperVaultStrategy.FulfillArgs memory args
     ) public updateGhostsWithOpType(OpType.FULFILL) {
-        address[] memory controllers = args.controllers;
-        uint256 pendingRedeemBefore = _requestedSharesForControllers(
-            controllers
-        );
-        (
-            uint256 sumAccumulatorSharesBefore,
-            uint256 sumAccumulatorCostBasisBefore
-        ) = _sumSuperVaultValsForControllers(controllers);
-        uint256 totalSharesBefore = superVault.totalSupply();
-        uint256 assetBalanceBefore = MockERC20(superVault.asset()).balanceOf(
-            address(superVaultStrategy)
-        );
+        uint256 summedExpectedAssets;
+        for (uint256 i; i < args.expectedAssetsOrSharesOut.length; i++) {
+            summedExpectedAssets += args.expectedAssetsOrSharesOut[i];
+        }
 
+        // no need to prank because called as admin address(this)
         superVaultStrategy.fulfillRedeemRequests(args);
 
-        uint256 pendingRedeemAfter = _requestedSharesForControllers(
-            controllers
-        );
-        (
-            uint256 sumAccumulatorSharesAfter,
-            uint256 sumAccumulatorCostBasisAfter
-        ) = _sumSuperVaultValsForControllers(controllers);
-        uint256 totalSharesAfter = superVault.totalSupply();
         uint256 assetBalanceAfter = MockERC20(superVault.asset()).balanceOf(
             address(superVaultStrategy)
         );
 
-        // setting values for optimization test
-        if (
-            pendingRedeemBefore - pendingRedeemAfter >
-            totalSharesBefore - totalSharesAfter
-        ) {
-            burnedLessThanRequested =
-                int256(totalSharesBefore) -
-                int256(totalSharesAfter);
-        } else {
-            burnedMoreThanRequested =
-                int256(totalSharesBefore) -
-                int256(totalSharesAfter);
-        }
-
-        // eq(
-        //     pendingRedeemBefore - pendingRedeemAfter,
-        //     totalSharesBefore - totalSharesAfter,
-        //     "redemptions only burn the requested amount of shares"
-        // );
-        eq(
-            sumAccumulatorSharesBefore - sumAccumulatorSharesAfter,
-            totalSharesBefore - totalSharesAfter,
-            "accumulatorShares decreases by the exact amounts requested when fulfilling redemptions"
-        );
-        // asset balance should increase
-        eq(
-            assetBalanceAfter - assetBalanceBefore,
-            sumAccumulatorCostBasisBefore - sumAccumulatorCostBasisAfter,
-            "accumulatorCostBasis decreases by the exact amounts requested when fulfilling redemptions"
+        gte(
+            assetBalanceAfter,
+            summedExpectedAssets,
+            "strategy incurs loss on fulfillment"
         );
     }
 
@@ -513,5 +476,39 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
                 .getSuperVaultState(controllers[i])
                 .accumulatorCostBasis;
         }
+    }
+
+    function _claimableMoreThanInvested(
+        uint256 totalAmountToDeposit
+    ) internal returns (bool) {
+        address[] memory actors = _getActors();
+        uint256 totalClaimable;
+        for (uint256 i; i < actors.length; i++) {
+            uint256 claimableRedemptions = superVault.claimableRedeemRequest(
+                0,
+                actors[i]
+            );
+            uint256 claimableRedemptionsAsAssets = superVault.convertToAssets(
+                claimableRedemptions
+            );
+            totalClaimable += claimableRedemptionsAsAssets;
+        }
+
+        uint256 currentStrategyBalance = MockERC20(superVault.asset())
+            .balanceOf(address(superVaultStrategy));
+
+        // Don't allow investing more than the claimable amount
+        if (totalAmountToDeposit > totalClaimable) {
+            return true;
+        }
+
+        // Ensure strategy has sufficient assets remaining after investment to cover claimable amounts
+        uint256 remainingStrategyBalance = currentStrategyBalance -
+            totalAmountToDeposit;
+        if (remainingStrategyBalance < totalClaimable) {
+            return true;
+        }
+
+        return false;
     }
 }

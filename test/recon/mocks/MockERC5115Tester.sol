@@ -57,27 +57,6 @@ abstract contract ERC5115 is MockERC20 {
         );
     }
 
-    function redeem(
-        address receiver,
-        uint256 amountSharesToRedeem,
-        address tokenOut,
-        uint256 minTokenOut,
-        bool burnFromInternalBalance
-    ) public virtual returns (uint256 amountTokenOut) {
-        amountTokenOut = previewRedeem(tokenOut, amountSharesToRedeem);
-
-        _burn(msg.sender, amountSharesToRedeem);
-        MockERC20(tokenOut).transfer(receiver, amountTokenOut);
-
-        emit Redeem(
-            msg.sender,
-            receiver,
-            tokenOut,
-            amountSharesToRedeem,
-            amountTokenOut
-        );
-    }
-
     function exchangeRate() public view virtual returns (uint256) {
         uint256 supply = totalSupply;
         if (supply == 0) return 1e18;
@@ -133,6 +112,7 @@ contract MockERC5115Tester is ERC5115 {
     RevertType public revertBehaviour;
     uint256 public totalLosses;
     uint256 public totalGains;
+    uint256 public lossOnWithdraw;
     uint256 public MAX_BPS = 10_000;
 
     constructor(address _yieldToken) ERC5115(MockERC20(_yieldToken)) {}
@@ -161,16 +141,21 @@ contract MockERC5115Tester is ERC5115 {
         address tokenOut,
         uint256 minTokenOut,
         bool burnFromInternalBalance
-    ) public override returns (uint256 amountTokenOut) {
-        _performRevertBehaviour(revertBehaviour);
-        return
-            super.redeem(
-                receiver,
-                amountSharesToRedeem,
-                tokenOut,
-                minTokenOut,
-                burnFromInternalBalance
-            );
+    ) public virtual returns (uint256 amountTokenOut) {
+        amountTokenOut = previewRedeem(tokenOut, amountSharesToRedeem);
+
+        _burn(msg.sender, amountSharesToRedeem);
+        uint256 lossyAmountTokenOut = amountTokenOut -
+            ((amountTokenOut * lossOnWithdraw) / MAX_BPS);
+        MockERC20(tokenOut).transfer(receiver, lossyAmountTokenOut);
+
+        emit Redeem(
+            msg.sender,
+            receiver,
+            tokenOut,
+            amountSharesToRedeem,
+            amountTokenOut
+        );
     }
 
     function _performRevertBehaviour(RevertType action) internal pure {
@@ -218,6 +203,12 @@ contract MockERC5115Tester is ERC5115 {
             gainAmount
         );
         totalGains += gainAmount;
+    }
+
+    /// @dev Set the loss on withdraw as percentage of the assets being withdrawn
+    function setLossOnWithdraw(uint256 _lossOnWithdraw) public {
+        _lossOnWithdraw %= MAX_BPS + 1; // clamp to ensure we set a max of 100%
+        lossOnWithdraw = _lossOnWithdraw;
     }
 
     function increaseYield(uint256 increasePercentageFP4) public {

@@ -34,7 +34,7 @@ abstract contract SuperVaultStrategyTargets is BaseTargetFunctions, Properties {
         uint256 operation,
         uint256 amount
     ) public {
-        operation %= 6; // clamp by the possible operation types in the enum
+        operation %= 7; // clamp by the possible operation types in the enum
         superVaultStrategy_handleOperations7540(
             ISuperVaultStrategy.Operation(operation),
             _getActor(),
