@@ -19,3 +19,34 @@
 [submodule "lib/halmos-cheatcodes"]
 	path = lib/halmos-cheatcodes
 	url = https://github.com/a16z/halmos-cheatcodes
+[submodule "lib/account-abstraction"]
+	path = lib/account-abstraction
+	url = https://github.com/kopy-kat/account-abstraction.git
+	branch = develop
+[submodule "lib/prb-math"]
+	path = lib/prb-math
+	url = https://github.com/PaulRBerg/prb-math.git
+[submodule "lib/erc4337-validation"]
+	path = lib/erc4337-validation
+	url = https://github.com/rhinestonewtf/erc4337-validation.git
+[submodule "lib/solarray"]
+	path = lib/solarray
+	url = https://github.com/sablier-labs/solarray.git
+[submodule "lib/checknsignatures"]
+	path = lib/checknsignatures
+	url = https://github.com/rhinestonewtf/checknsignatures.git
+[submodule "lib/sentinellist"]
+	path = lib/sentinellist
+	url = https://github.com/rhinestonewtf/sentinellist.git
+[submodule "lib/composability"]
+	path = lib/composability
+	url = https://github.com/bcnmy/composability.git
+[submodule "lib/erc7739-validator"]
+	path = lib/erc7739-validator
+	url = https://github.com/erc7579/erc7739Validator.git
+[submodule "lib/erc7579"]
+	path = lib/erc7579
+	url = https://github.com/erc7579/erc7579-implementation.git
+[submodule "lib/account-abstraction-v0.6"]
+	path = lib/account-abstraction-v0.6
+	url = https://github.com/eth-infinitism/account-abstraction.git
