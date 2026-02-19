@@ -16,6 +16,23 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     using Math for uint256;
     uint256 internal TOLERANCE = 10;
 
+    // `!!!`-prefixed reasons are tracked by Foundry's assertion-failure shim in
+    // `CryticToFoundry` so handler assertion failures are surfaced as invariants.
+    string constant ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT =
+        "!!! redeeming maxRedeem should not revert";
+    string constant ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT =
+        "!!! withdraw of maxWithdraw should not revert";
+    string constant ASSERTION_PRIMARY_MANAGER_ALWAYS_CHANGEABLE =
+        "!!! Primary manager should always be changeable if not paused";
+    string constant ASSERTION_ALL_USERS_CAN_WITHDRAW_WHEN_UNPAUSED =
+        "!!! users should always be able to withdraw unless the system is paused";
+    string constant ASSERTION_REDEEM_SHOULD_NOT_REVERT_INVALID_REDEEM_CLAIM =
+        "!!! Claiming redemptions should never revert with INVALID_REDEEM_CLAIM";
+    string constant ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER =
+        "!!! _update should never revert in transfer";
+    string constant ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM =
+        "!!! _update should never revert in transferFrom";
+
     /// @dev Property: oracle PPS doesn't change on deposit/mint/redeem/withdraw
     function property_oraclePPSDoesntChangeOnAddOrRemove() public {
         if (_currentOp == OpType.ADD || _currentOp == OpType.REMOVE) {

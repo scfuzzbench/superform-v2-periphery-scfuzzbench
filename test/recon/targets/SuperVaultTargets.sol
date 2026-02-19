@@ -207,7 +207,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                 err,
                 "ERC20InsufficientBalance(address,uint256,uint256)"
             );
-            t(expectedError, "_update should never revert in transfer");
+            t(expectedError, ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER);
         }
     }
 
@@ -235,7 +235,10 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     err,
                     "ERC20InsufficientAllowance(address,uint256,uint256)"
                 );
-            t(expectedError, "_update should never revert in transferFrom");
+            t(
+                expectedError,
+                ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM
+            );
         }
     }
 

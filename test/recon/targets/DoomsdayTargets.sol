@@ -204,7 +204,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             );
         } catch {
             if (maxRedeemBeforeClaim > 0) {
-                t(false, "redeeming maxRedeem should not revert");
+                t(false, ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT);
             }
         }
     }
@@ -243,7 +243,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 "maxWithdraw should be reset to 0 after full withdrawal"
             );
         } catch {
-            t(false, "withdraw of maxWithdraw should not revert");
+            t(false, ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT);
         }
     }
 
@@ -338,7 +338,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             expectedError = checkError(err, "MANAGER_TAKEOVERS_FROZEN()"); // custom error
             t(
                 !expectedError,
-                "Primary manager should always be changeable if not paused"
+                ASSERTION_PRIMARY_MANAGER_ALWAYS_CHANGEABLE
             );
         }
     }
@@ -389,7 +389,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                     // if user can't maxWithdraw there's most likely an insolvency issue related to the TOLERANCE_CONSTANT
                     t(
                         false,
-                        "users should always be able to withdraw unless the system is paused"
+                        ASSERTION_ALL_USERS_CAN_WITHDRAW_WHEN_UNPAUSED
                     );
                 }
             }
@@ -406,7 +406,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             bool unexpectedError = checkError(err, "INVALID_REDEEM_CLAIM()");
             t(
                 !unexpectedError,
-                "Claiming redemptions should never revert with INVALID_REDEEM_CLAIM"
+                ASSERTION_REDEEM_SHOULD_NOT_REVERT_INVALID_REDEEM_CLAIM
             );
         }
     }
