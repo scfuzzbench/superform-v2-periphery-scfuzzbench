@@ -388,7 +388,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         gte(
             assetBalanceAfter,
             summedExpectedAssets,
-            "strategy incurs loss on fulfillment"
+            ASSERTION_STRATEGY_NO_LOSS_ON_FULFILLMENT
         );
     }
 

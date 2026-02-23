@@ -22,16 +22,70 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         "!!! redeeming maxRedeem should not revert";
     string constant ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT =
         "!!! withdraw of maxWithdraw should not revert";
+    string constant ASSERTION_PREVIEW_DEPOSIT_EQUIVALENCE =
+        "!!! previewDeposit and deposit equivalence";
+    string constant ASSERTION_PREVIEW_MINT_EQUIVALENCE =
+        "!!! previewMint and mint equivalence";
+    string constant ASSERTION_MINT_REDEEM_SYMMETRICAL =
+        "!!! user loses assets in mint/redeem flow";
+    string constant ASSERTION_DEPOSIT_WITHDRAW_SYMMETRICAL =
+        "!!! user loses assets in deposit/withdraw flow";
+    string constant ASSERTION_MAX_REDEEM_RESETS_AFTER_FULL_REDEMPTION =
+        "!!! maxRedeem should be reset to 0 after full redemption";
+    string constant ASSERTION_MAX_WITHDRAW_RESETS_AFTER_FULL_WITHDRAWAL =
+        "!!! maxWithdraw should be reset to 0 after full withdrawal";
+    string constant ASSERTION_FULFILL_DOESNT_OVER_REDEEM_MULTIPLE_ACTORS =
+        "!!! total shares redeemed must not exceed sum of requested shares";
     string constant ASSERTION_PRIMARY_MANAGER_ALWAYS_CHANGEABLE =
         "!!! Primary manager should always be changeable if not paused";
     string constant ASSERTION_ALL_USERS_CAN_WITHDRAW_WHEN_UNPAUSED =
         "!!! users should always be able to withdraw unless the system is paused";
+    string constant ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO =
+        "!!! pendingRedeemRequests should be 0 after cancelling a redemption";
+    string constant ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO =
+        "!!! averageRequestPPS should be 0 after cancelling a redemption";
+    string constant ASSERTION_CANCEL_REDEEM_NO_OVERPAY =
+        "!!! user should not receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem";
+    string constant ASSERTION_PREVIEW_DEPOSIT_MATCHES_EXECUTION =
+        "!!! previewDeposit returns the correct amount compared to executing a deposit";
+    string constant ASSERTION_PREVIEW_MINT_MATCHES_EXECUTION =
+        "!!! previewMint returns the correct amount compared to executing a mint";
+    string constant ASSERTION_TRANSFER_SHARES_CONSERVED =
+        "!!! shares are lost on transfer";
+    string constant ASSERTION_TRANSFER_COST_BASIS_CONSERVED =
+        "!!! cost basis is lost on transfer";
     string constant ASSERTION_REDEEM_SHOULD_NOT_REVERT_INVALID_REDEEM_CLAIM =
         "!!! Claiming redemptions should never revert with INVALID_REDEEM_CLAIM";
     string constant ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER =
         "!!! _update should never revert in transfer";
     string constant ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM =
         "!!! _update should never revert in transferFrom";
+    string constant ASSERTION_STRATEGY_NO_LOSS_ON_FULFILLMENT =
+        "!!! strategy incurs loss on fulfillment";
+    string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_SHARES =
+        "!!! previewMint and previewDeposit equivalence (from shares)";
+    string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS =
+        "!!! previewMint and previewDeposit equivalence under (from assets)";
+    string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_OVER_FROM_ASSETS =
+        "!!! previewMint and previewDeposit equivalence over (from assets)";
+    string constant ASSERTION_GLOBAL_PREVIEW_MINT_GTE_CONVERT_TO_ASSETS =
+        "!!! previewMint is >= convertToAssets";
+    string constant ASSERTION_GLOBAL_CONVERT_TO_SHARES_GTE_PREVIEW_DEPOSIT =
+        "!!! convertToShares is >= previewDepositShares (equivalent without fees)";
+    string constant ASSERTION_ERC7540_4_DEPOSIT =
+        "!!! ERC7540-4: deposit with more than max should revert";
+    string constant ASSERTION_ERC7540_4_MINT =
+        "!!! ERC7540-4: mint with more than max should revert";
+    string constant ASSERTION_ERC7540_4_WITHDRAW =
+        "!!! ERC7540-4: withdraw with more than max should revert";
+    string constant ASSERTION_ERC7540_4_REDEEM =
+        "!!! ERC7540-4: redeem with more than max should revert";
+    string constant ASSERTION_ERC7540_5 =
+        "!!! ERC7540-5: requestRedeem should revert if insufficient share balance";
+    string constant ASSERTION_ERC7540_7_WITHDRAW =
+        "!!! ERC7540-7: withdraw should not revert when amount <= max";
+    string constant ASSERTION_ERC7540_7_REDEEM =
+        "!!! ERC7540-7: redeem should not revert when amount <= max";
     string constant ASSERTION_CANARY =
         "!!! canary assertion";
     string constant INVARIANT_CANARY_GLOBAL_INVARIANT_FAILURE =
@@ -256,7 +310,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             eq(
                 shares,
                 previewDepositShares,
-                "previewMint and previewDeposit equivalence (from shares)"
+                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_SHARES
             );
         }
     }
@@ -276,13 +330,13 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             gte(
                 assets,
                 previewMintAssets_under,
-                "previewMint and previewDeposit equivalence under (from assets)"
+                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS
             );
 
             lte(
                 assets,
                 previewMintAssets_over,
-                "previewMint and previewDeposit equivalence over (from assets)"
+                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_OVER_FROM_ASSETS
             );
         }
     }
@@ -296,7 +350,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         gte(
             previewMintAssets,
             convertToAssets,
-            "previewMint is >= convertToAssets"
+            ASSERTION_GLOBAL_PREVIEW_MINT_GTE_CONVERT_TO_ASSETS
         );
     }
 
@@ -309,7 +363,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         gte(
             convertToShares,
             previewDepositShares,
-            "convertToShares is higher than or equal to previewDepositShares (equivalent without fees)"
+            ASSERTION_GLOBAL_CONVERT_TO_SHARES_GTE_PREVIEW_DEPOSIT
         );
     }
 
@@ -682,7 +736,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         actor = _getActor();
         t(
             erc7540_4_deposit(address(superVault), amt),
-            "ERC7540-4: deposit with more than max should revert"
+            ASSERTION_ERC7540_4_DEPOSIT
         );
     }
 
@@ -690,7 +744,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         actor = _getActor();
         t(
             erc7540_4_mint(address(superVault), amt),
-            "ERC7540-4: mint with more than max should revert"
+            ASSERTION_ERC7540_4_MINT
         );
     }
 
@@ -698,7 +752,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         actor = _getActor();
         t(
             erc7540_4_withdraw(address(superVault), amt),
-            "ERC7540-4: withdraw with more than max should revert"
+            ASSERTION_ERC7540_4_WITHDRAW
         );
     }
 
@@ -706,7 +760,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         actor = _getActor();
         t(
             erc7540_4_redeem(address(superVault), amt),
-            "ERC7540-4: redeem with more than max should revert"
+            ASSERTION_ERC7540_4_REDEEM
         );
     }
 
@@ -715,7 +769,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         actor = _getActor();
         t(
             erc7540_5(address(superVault), address(superVault), shares),
-            "ERC7540-5: requestRedeem should revert if insufficient share balance"
+            ASSERTION_ERC7540_5
         );
     }
 
@@ -752,7 +806,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         actor = _getActor();
         t(
             erc7540_7_withdraw(address(superVault), amt),
-            "ERC7540-7: withdraw should not revert when amount <= max"
+            ASSERTION_ERC7540_7_WITHDRAW
         );
     }
 
@@ -781,7 +835,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             if (amt > 0 && assets > 0) {
                 t(
                     false,
-                    "ERC7540-7: redeem should not revert when amount <= max"
+                    ASSERTION_ERC7540_7_REDEEM
                 );
             }
         }

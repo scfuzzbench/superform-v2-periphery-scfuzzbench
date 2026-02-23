@@ -83,17 +83,17 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             pendingRedeemRequestsAfter,
             0,
-            "pendingRedeemRequests should be 0 after cancelling a redemption"
+            ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO
         );
         eq(
             averageRequestPPS,
             0,
-            "averageRequestPPS should be 0 after cancelling a redemption"
+            ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO
         );
         lte(
             balanceAfter - balanceBefore,
             pendingRedeemRequestsAsAssets,
-            "user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem"
+            ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
     }
 
@@ -109,7 +109,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             previewShares,
             shares,
-            "previewDeposit returns the correct amounts compared to executing a deposit"
+            ASSERTION_PREVIEW_DEPOSIT_MATCHES_EXECUTION
         );
     }
 
@@ -125,7 +125,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             assets,
             previewMint,
-            "previewMint returns the correct amounts compared to executing a mint"
+            ASSERTION_PREVIEW_MINT_MATCHES_EXECUTION
         );
     }
 
@@ -192,14 +192,14 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     stateSenderAfter.accumulatorShares,
                 stateRecipientAfter.accumulatorShares -
                     stateRecipientBefore.accumulatorShares,
-                "shares are lost on transfer"
+                ASSERTION_TRANSFER_SHARES_CONSERVED
             );
             eq(
                 stateSenderBefore.accumulatorCostBasis -
                     stateSenderAfter.accumulatorCostBasis,
                 stateRecipientAfter.accumulatorCostBasis -
                     stateRecipientBefore.accumulatorCostBasis,
-                "cost basis is lost on transfer"
+                ASSERTION_TRANSFER_COST_BASIS_CONSERVED
             );
         } catch (bytes memory err) {
             bool expectedError;

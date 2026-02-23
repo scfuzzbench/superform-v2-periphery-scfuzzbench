@@ -28,7 +28,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         eq(
             previewDepositShares,
             sharesActualDeposit,
-            "previewDeposit and deposit equivalence"
+            ASSERTION_PREVIEW_DEPOSIT_EQUIVALENCE
         );
     }
 
@@ -42,7 +42,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         eq(
             previewMintAssets,
             assetsActualMint,
-            "previewMint and mint equivalence"
+            ASSERTION_PREVIEW_MINT_EQUIVALENCE
         );
     }
 
@@ -118,7 +118,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         gte(
             balanceAfter + TOLERANCE + feeDelta,
             balanceBefore,
-            "User loses assets in deposit/withdrawal flow"
+            ASSERTION_MINT_REDEEM_SYMMETRICAL
         );
     }
 
@@ -161,7 +161,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         gte(
             balanceAfter + TOLERANCE,
             balanceBefore,
-            "User loses assets in deposit/withdrawal flow"
+            ASSERTION_DEPOSIT_WITHDRAW_SYMMETRICAL
         );
 
         return (balanceAfter, balanceBefore);
@@ -200,7 +200,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             eq(
                 maxRedeemAfterClaim,
                 0,
-                "maxRedeem should be reset to 0 after full redemption"
+                ASSERTION_MAX_REDEEM_RESETS_AFTER_FULL_REDEMPTION
             );
         } catch {
             if (maxRedeemBeforeClaim > 0) {
@@ -240,7 +240,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             eq(
                 maxWithdrawAfter,
                 0,
-                "maxWithdraw should be reset to 0 after full withdrawal"
+                ASSERTION_MAX_WITHDRAW_RESETS_AFTER_FULL_WITHDRAWAL
             );
         } catch {
             t(false, ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT);
@@ -320,7 +320,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
         lte(
             totalPendingBefore - totalPendingAfter,
             totalRequestedShares,
-            "Total shares redeemed must not exceed sum of requested shares"
+            ASSERTION_FULFILL_DOESNT_OVER_REDEEM_MULTIPLE_ACTORS
         );
     }
 
