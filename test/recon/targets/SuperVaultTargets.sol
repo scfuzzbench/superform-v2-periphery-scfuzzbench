@@ -47,112 +47,54 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         superVault.burnShares(amount);
     }
 
-    struct CancelRedeemContext {
-        uint256 pendingRedeemRequestsAsAssets;
-        uint256 pendingRedeemRequestsAfter;
-        uint256 averageRequestPPS;
-        uint256 balanceBefore;
-        uint256 balanceAfter;
-    }
-
-    struct TransferContext {
-        bool success;
-        bool expectedError;
-        uint256 senderAccumulatorSharesDelta;
-        uint256 recipientAccumulatorSharesDelta;
-        uint256 senderAccumulatorCostBasisDelta;
-        uint256 recipientAccumulatorCostBasisDelta;
-    }
-
-    function _executeCancelRedeem()
-        internal
-        returns (CancelRedeemContext memory context)
+    /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
+    /// @dev Property: averageRequestPPS should be 0 after a user calls cancelRedeem
+    /// @dev Property: user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem
+    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO()
+        public
+        updateGhostsWithOpType(OpType.CANCEL)
     {
         uint256 pendingRedeemRequestsBefore = superVault.pendingRedeemRequest(
             0,
             _getActor()
         );
-        context.pendingRedeemRequestsAsAssets = superVault.convertToAssets(
+        uint256 pendingRedeemRequestsAsAssets = superVault.convertToAssets(
             pendingRedeemRequestsBefore
         );
-        context.balanceBefore = MockERC20(superVault.asset()).balanceOf(
+        uint256 balanceBefore = MockERC20(superVault.asset()).balanceOf(
             _getActor()
         );
 
         vm.prank(_getActor());
         superVault.cancelRedeem(_getActor());
 
-        context.pendingRedeemRequestsAfter = superVault.pendingRedeemRequest(
+        uint256 pendingRedeemRequestsAfter = superVault.pendingRedeemRequest(
             0,
             _getActor()
         );
-        context.averageRequestPPS = superVaultStrategy
+        uint256 averageRequestPPS = superVaultStrategy
             .getSuperVaultState(_getActor())
             .averageRequestPPS;
-        context.balanceAfter = MockERC20(superVault.asset()).balanceOf(
+        uint256 balanceAfter = MockERC20(superVault.asset()).balanceOf(
             _getActor()
         );
-    }
 
-    /// @dev Action: cancel a pending redemption request for the current actor.
-    function superVault_cancelRedeem()
-        public
-        updateGhostsWithOpType(OpType.CANCEL)
-    {
-        _executeCancelRedeem();
-    }
-
-    /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
-    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO()
-        public
-        updateGhostsWithOpType(OpType.CANCEL)
-    {
-        CancelRedeemContext memory context = _executeCancelRedeem();
-
+        // Checks
         eq(
-            context.pendingRedeemRequestsAfter,
+            pendingRedeemRequestsAfter,
             0,
             ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO
         );
-    }
-
-    /// @dev Property: averageRequestPPS should be 0 after a user calls cancelRedeem
-    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO()
-        public
-        updateGhostsWithOpType(OpType.CANCEL)
-    {
-        CancelRedeemContext memory context = _executeCancelRedeem();
-
         eq(
-            context.averageRequestPPS,
+            averageRequestPPS,
             0,
             ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO
         );
-    }
-
-    /// @dev Property: user should not receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem
-    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_NO_OVERPAY()
-        public
-        updateGhostsWithOpType(OpType.CANCEL)
-    {
-        CancelRedeemContext memory context = _executeCancelRedeem();
-        uint256 refundedAssets = context.balanceAfter > context.balanceBefore
-            ? context.balanceAfter - context.balanceBefore
-            : 0;
-
         lte(
-            refundedAssets,
-            context.pendingRedeemRequestsAsAssets,
+            balanceAfter - balanceBefore,
+            pendingRedeemRequestsAsAssets,
             ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
-    }
-
-    /// @dev Action: deposit assets for the current actor.
-    function superVault_deposit(
-        uint256 assets
-    ) public updateGhostsWithOpType(OpType.ADD) {
-        vm.prank(_getActor());
-        superVault.deposit(assets, _getActor());
     }
 
     /// @dev Property: previewDeposit returns the correct amounts compared to executing a deposit
@@ -169,14 +111,6 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
             shares,
             ASSERTION_PREVIEW_DEPOSIT_MATCHES_EXECUTION
         );
-    }
-
-    /// @dev Action: mint shares for the current actor.
-    function superVault_mint(
-        uint256 shares
-    ) public updateGhostsWithOpType(OpType.ADD) {
-        vm.prank(_getActor());
-        superVault.mint(shares, _getActor());
     }
 
     /// @dev Property: previewMint returns the correct amounts compared to executing a mint
@@ -225,10 +159,14 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         superVault.setOperator(operator, approved);
     }
 
-    function _executeTransfer(
+    /// @dev Propery: _update should never revert
+    /// @dev Property: Transfers of shares should transfer the exact amount of accumulatorShares to the recipient
+    /// @dev Property: Transfers of shares should transfer the exact amount of accumulatorCostBasis to the recipient
+    // NOTE: _update only gets called on transfer of Vault shares
+    function superVault_transfer_ASSERTION_TRANSFER_SHARES_CONSERVED(
         uint256 entropy,
         uint256 value
-    ) internal returns (TransferContext memory context) {
+    ) public updateGhostsWithOpType(OpType.TRANSFER) {
         address to = _getRandomActor(entropy);
         ISuperVaultStrategy.SuperVaultState
             memory stateSenderBefore = superVaultStrategy.getSuperVaultState(
@@ -241,7 +179,6 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
 
         vm.prank(_getActor());
         try superVault.transfer(to, value) {
-            context.success = true;
             ISuperVaultStrategy.SuperVaultState
                 memory stateSenderAfter = superVaultStrategy.getSuperVaultState(
                     _getActor()
@@ -250,89 +187,45 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                 memory stateRecipientAfter = superVaultStrategy
                     .getSuperVaultState(to);
 
-            context.senderAccumulatorSharesDelta =
+            eq(
                 stateSenderBefore.accumulatorShares -
-                stateSenderAfter.accumulatorShares;
-            context.recipientAccumulatorSharesDelta =
+                    stateSenderAfter.accumulatorShares,
                 stateRecipientAfter.accumulatorShares -
-                stateRecipientBefore.accumulatorShares;
-            context.senderAccumulatorCostBasisDelta =
+                    stateRecipientBefore.accumulatorShares,
+                ASSERTION_TRANSFER_SHARES_CONSERVED
+            );
+            eq(
                 stateSenderBefore.accumulatorCostBasis -
-                stateSenderAfter.accumulatorCostBasis;
-            context.recipientAccumulatorCostBasisDelta =
+                    stateSenderAfter.accumulatorCostBasis,
                 stateRecipientAfter.accumulatorCostBasis -
-                stateRecipientBefore.accumulatorCostBasis;
+                    stateRecipientBefore.accumulatorCostBasis,
+                ASSERTION_TRANSFER_COST_BASIS_CONSERVED
+            );
         } catch (bytes memory err) {
-            context.expectedError = checkError(
+            bool expectedError;
+            expectedError = checkError(
                 err,
                 "ERC20InsufficientBalance(address,uint256,uint256)"
             );
+            t(expectedError, ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER);
         }
     }
 
-    /// @dev Action: transfer shares from the current actor to a random actor.
-    function superVault_transfer(
-        uint256 entropy,
-        uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) {
-        _executeTransfer(entropy, value);
-    }
-
-    /// @dev Property: transfers of shares should transfer the exact amount of accumulatorShares to the recipient.
-    function superVault_transfer_ASSERTION_TRANSFER_SHARES_CONSERVED(
-        uint256 entropy,
-        uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) {
-        TransferContext memory context = _executeTransfer(entropy, value);
-        if (context.success) {
-            eq(
-                context.senderAccumulatorSharesDelta,
-                context.recipientAccumulatorSharesDelta,
-                ASSERTION_TRANSFER_SHARES_CONSERVED
-            );
-        }
-    }
-
-    /// @dev Property: transfers of shares should transfer the exact amount of accumulatorCostBasis to the recipient.
-    function superVault_transfer_ASSERTION_TRANSFER_COST_BASIS_CONSERVED(
-        uint256 entropy,
-        uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) {
-        TransferContext memory context = _executeTransfer(entropy, value);
-        if (context.success) {
-            eq(
-                context.senderAccumulatorCostBasisDelta,
-                context.recipientAccumulatorCostBasisDelta,
-                ASSERTION_TRANSFER_COST_BASIS_CONSERVED
-            );
-        }
-    }
-
-    /// @dev Property: _update should never revert in transfer unless balance is insufficient.
-    function superVault_transfer_ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER(
-        uint256 entropy,
-        uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) {
-        TransferContext memory context = _executeTransfer(entropy, value);
-        if (!context.success) {
-            t(context.expectedError, ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER);
-        }
-    }
-
-    function _executeTransferFrom(
+    /// @dev Propery: _update should never revert
+    // NOTE: _update only gets called on transfer of Vault shares
+    function superVault_transferFrom_ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM(
         uint256 entropyFrom,
         uint256 entropyTo,
         uint256 value
-    ) internal returns (bool success, bool expectedError) {
+    ) public updateGhostsWithOpType(OpType.TRANSFER) {
         address from = _getRandomActor(entropyFrom);
         address to = _getRandomActor(entropyTo);
 
         vm.prank(_getActor());
-        try superVault.transferFrom(from, to, value) {
-            success = true;
-        } catch (
+        try superVault.transferFrom(from, to, value) {} catch (
             bytes memory err
         ) {
+            bool expectedError;
             expectedError =
                 checkError(
                     err,
@@ -342,30 +235,6 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     err,
                     "ERC20InsufficientAllowance(address,uint256,uint256)"
                 );
-        }
-    }
-
-    /// @dev Action: transfer shares on behalf of another actor.
-    function superVault_transferFrom(
-        uint256 entropyFrom,
-        uint256 entropyTo,
-        uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) {
-        _executeTransferFrom(entropyFrom, entropyTo, value);
-    }
-
-    /// @dev Property: _update should never revert in transferFrom unless balance/allowance is insufficient.
-    function superVault_transferFrom_ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM(
-        uint256 entropyFrom,
-        uint256 entropyTo,
-        uint256 value
-    ) public updateGhostsWithOpType(OpType.TRANSFER) {
-        (bool success, bool expectedError) = _executeTransferFrom(
-            entropyFrom,
-            entropyTo,
-            value
-        );
-        if (!success) {
             t(
                 expectedError,
                 ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM

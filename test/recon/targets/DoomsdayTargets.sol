@@ -33,9 +33,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: previewMint and mint equivalence
-    function doomsday_previewMintEquivalence_ASSERTION_PREVIEW_MINT_EQUIVALENCE(
-        uint256 shares
-    ) public stateless {
+    function doomsday_previewMintEquivalence_ASSERTION_PREVIEW_MINT_EQUIVALENCE(uint256 shares) public stateless {
         uint256 previewMintAssets = superVault.previewMint(shares);
 
         vm.prank(_getActor());
@@ -204,29 +202,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 0,
                 ASSERTION_MAX_REDEEM_RESETS_AFTER_FULL_REDEMPTION
             );
-        } catch {}
-    }
-
-    /// @dev Property: redeeming maxRedeem shouldn't revert
-    function doomsday_maxRedeemResetsAfterFullRedemption_ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT(
-        uint256 sharesToMint
-    ) public stateless {
-        vm.prank(_getActor());
-        superVault.mint(sharesToMint, _getActor());
-
-        uint256 shares = superVault.balanceOf(_getActor());
-
-        vm.prank(_getActor());
-        superVault.requestRedeem(shares, _getActor(), _getActor());
-
-        ISuperVaultStrategy.FulfillArgs
-            memory fulfillArgs = _createFulfillRedeemArgs(shares);
-        superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
-
-        uint256 maxRedeemBeforeClaim = superVault.maxRedeem(_getActor());
-
-        vm.prank(_getActor());
-        try superVault.redeem(maxRedeemBeforeClaim, _getActor(), _getActor()) {} catch {
+        } catch {
             if (maxRedeemBeforeClaim > 0) {
                 t(false, ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT);
             }
@@ -266,32 +242,8 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 0,
                 ASSERTION_MAX_WITHDRAW_RESETS_AFTER_FULL_WITHDRAWAL
             );
-        } catch {}
-    }
-
-    /// @dev Property: withdrawing maxWithdraw shouldn't revert
-    function doomsday_maxWithdrawResetsAfterFullWithdrawal_ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT(
-        uint256 assetsToDeposit
-    ) public stateless {
-        vm.prank(_getActor());
-        superVault.deposit(assetsToDeposit, _getActor());
-
-        uint256 shares = superVault.balanceOf(_getActor());
-
-        vm.prank(_getActor());
-        superVault.requestRedeem(shares, _getActor(), _getActor());
-
-        ISuperVaultStrategy.FulfillArgs
-            memory fulfillArgs = _createFulfillRedeemArgs(shares);
-        superVaultStrategy.fulfillRedeemRequests(fulfillArgs);
-
-        uint256 maxWithdrawBefore = superVault.maxWithdraw(_getActor());
-
-        vm.prank(_getActor());
-        try superVault.withdraw(maxWithdrawBefore, _getActor(), _getActor()) {} catch {
-            if (maxWithdrawBefore > 0) {
-                t(false, ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT);
-            }
+        } catch {
+            t(false, ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT);
         }
     }
 
@@ -373,10 +325,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: primary manager can always be replaced by governance via `changePrimaryManager`
-    function doomsday_primaryManagerAlwaysChangeable_ASSERTION_PRIMARY_MANAGER_ALWAYS_CHANGEABLE()
-        public
-        stateless
-    {
+    function doomsday_primaryManagerAlwaysChangeable_ASSERTION_PRIMARY_MANAGER_ALWAYS_CHANGEABLE() public stateless {
         address strategy = address(superVaultStrategy);
         address newManager = _getActor();
 
@@ -397,10 +346,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
     /// @dev Property: all users can withdraw (solvency)
     // NOTE: if withdrawing from a given strategy via fulfillRedeemRequests fails, it can be expected that one of the YieldSourceTargets would be called to switch the yield source
     // this should allow fulfillments to eventually succeed so we don't need to sort through all yield sources that have currently been deposited into before fulfilling
-    function doomsday_allUsersCanWithdraw_ASSERTION_ALL_USERS_CAN_WITHDRAW_WHEN_UNPAUSED()
-        public
-        stateless
-    {
+    function doomsday_allUsersCanWithdraw_ASSERTION_ALL_USERS_CAN_WITHDRAW_WHEN_UNPAUSED() public stateless {
         address[] memory actors = _getActors();
         bool paused = superVaultAggregator.isStrategyPaused(
             address(superVaultStrategy)
