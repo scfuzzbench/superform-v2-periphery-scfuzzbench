@@ -92,7 +92,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         "Canary invariant";
 
     /// @dev Property: oracle PPS doesn't change on deposit/mint/redeem/withdraw
-    function invariant_oraclePPSDoesntChangeOnAddOrRemove() public {
+    function invariant_oraclePPSDoesntChangeOnAddOrRemove() public returns (bool) {
         if (_currentOp == OpType.ADD || _currentOp == OpType.REMOVE) {
             eq(
                 _before.oraclePPS,
@@ -100,6 +100,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "deposit/withdrawal changes oracle PPS"
             );
         }
+        return true;
     }
 
     /// @dev Property: naive PPS doesn't change on deposit/mint
@@ -143,7 +144,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     // }
 
     /// @dev Property: maxRedeem and maxWithdraw should always be equivalent
-    function invariant_maxRedeemMaxWithdrawSymmetry() public {
+    function invariant_maxRedeemMaxWithdrawSymmetry() public returns (bool) {
         uint256 maxWithdraw = superVault.maxWithdraw(_getActor());
         // convertToShares uses current price instead of avg from fulfillment
         uint256 withdrawPrice = superVaultStrategy.getAverageWithdrawPrice(
@@ -158,10 +159,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         uint256 maxRedeem = superVault.maxRedeem(_getActor());
 
         eq(maxWithdrawAsShares, maxRedeem, "maxWithdrawAsShares != maxRedeem");
+        return true;
     }
 
     /// @dev Property: requestRedeem should never reduce SuperVault shares
-    function invariant_totalSharesDontDecreaseOnRedemptionRequest() public {
+    function invariant_totalSharesDontDecreaseOnRedemptionRequest() public returns (bool) {
         if (_currentOp == OpType.REQUEST) {
             eq(
                 _before.summedTotalShares,
@@ -169,16 +171,18 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "requestRedeem should never reduce SuperVault shares"
             );
         }
+        return true;
     }
 
     /// @dev Property: `SuperVault::totalSupply` == SUM(user balances) + balanceOf(escrow)
-    function invariant_shareSolvency() public {
+    function invariant_shareSolvency() public returns (bool) {
         uint256 sumOfShares = _sumTotalShares();
         eq(superVault.totalSupply(), sumOfShares, "vault shares are insolvent");
+        return true;
     }
 
     /// @dev Property: balanceOf(escrow) >= SUM(controllers.pendingRedeemRequest)
-    function invariant_escrowBalance() public {
+    function invariant_escrowBalance() public returns (bool) {
         address[] memory actors = _getActors();
 
         uint256 escrowBalance = superVault.balanceOf(address(superVaultEscrow));
@@ -192,10 +196,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             pendingActorShares,
             "balanceOf(escrow) < SUM(controllers.pendingRedeemRequest)"
         );
+        return true;
     }
 
     /// @dev Property: maxMint should be 0 when aggregator is paused
-    function invariant_maxMintZeroWhenPaused() public {
+    function invariant_maxMintZeroWhenPaused() public returns (bool) {
         bool paused = superVaultAggregator.isStrategyPaused(
             address(superVaultStrategy)
         );
@@ -204,10 +209,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         if (paused) {
             eq(maxMint, 0, "actor has nonzero maxMint when strategy is paused");
         }
+        return true;
     }
 
     /// @dev Property: maxDeposit should be 0 when strategy is paused
-    function invariant_maxDepositZeroWhenPaused() public {
+    function invariant_maxDepositZeroWhenPaused() public returns (bool) {
         bool paused = superVaultAggregator.isStrategyPaused(
             address(superVaultStrategy)
         );
@@ -220,10 +226,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "actor has nonzero maxDeposit when strategy is paused"
             );
         }
+        return true;
     }
 
     /// @dev Property: SUM(accumulatorShares) doesn't change on SuperVault share transfers
-    function invariant_accumulatorSharesSolvency() public {
+    function invariant_accumulatorSharesSolvency() public returns (bool) {
         if (_currentOp == OpType.TRANSFER) {
             eq(
                 _before.summedAccumulatorShares,
@@ -231,10 +238,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "SUM(accumulatorShares) changed on SuperVault share transfers"
             );
         }
+        return true;
     }
 
     /// @dev Property: SUM(accumulatorCostBasis) doesn't change on SuperVault share transfers
-    function invariant_accumulatorCostBasisSolvency() public {
+    function invariant_accumulatorCostBasisSolvency() public returns (bool) {
         if (_currentOp == OpType.TRANSFER) {
             eq(
                 _before.summedAccumulatorCostBasis,
@@ -242,10 +250,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "SUM(accumulatorCostBasis) changed on SuperVault share transfers"
             );
         }
+        return true;
     }
 
     /// @dev Property: cancelRedeem should never alter the supply of SuperVault tokens
-    function invariant_cancelDoesntChangeTotalSupply() public {
+    function invariant_cancelDoesntChangeTotalSupply() public returns (bool) {
         if (_currentOp == OpType.CANCEL) {
             eq(
                 _before.summedTotalShares,
@@ -253,10 +262,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "cancelRedeem should never alter the supply of SuperVault tokens"
             );
         }
+        return true;
     }
 
     /// @dev Property: if totalSupply > 0, then totalAssets > 0
-    function invariant_assetBacking() public {
+    function invariant_assetBacking() public returns (bool) {
         uint256 summedTotalAssets = _sumStrategyAssets();
 
         if (superVault.totalSupply() > 0) {
@@ -266,10 +276,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "if totalSupply > 0, then totalAssets > 0"
             );
         }
+        return true;
     }
 
     /// @dev Property: SUM(shares) * PPS == totalAssets
-    function invariant_totalAssets() public {
+    function invariant_totalAssets() public returns (bool) {
         uint256 totalShares = _sumTotalShares();
         uint256 pps = superVaultAggregator.getPPS(address(superVaultStrategy));
         uint256 implicitTotalAssets = (totalShares * pps) /
@@ -281,10 +292,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             vaultTotalAssets,
             "totalShares * pps != totalAssets"
         );
+        return true;
     }
 
     /// @dev Property: When a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease
-    function invariant_avgPPSDoesntDecrease() public {
+    function invariant_avgPPSDoesntDecrease() public returns (bool) {
         uint256 currentPrice = _before.oraclePPS;
         uint256 beforeAvgPPS = _before.state[_getActor()].averageRequestPPS;
         uint256 afterAvgPPS = _after.state[_getActor()].averageRequestPPS;
@@ -296,6 +308,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "when a user requests a redemption and the PPS is >= the user PPS, user averageRequestPPS must not decrease"
             );
         }
+        return true;
     }
 
     /// @dev Property: previewMint and previewDeposit equivalence (from shares)
@@ -370,7 +383,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     // NOTE: Withdrawal properties are more nuanced, as we should ensure that no gain can be had and that losses are imputed to the controller receiving the assets
 
     /// @dev Property: After all redemptions are processed, the sum of all claimable is <= balance available
-    function invariant_sumOfClaimable() public {
+    function invariant_sumOfClaimable() public returns (bool) {
         address[] memory actors = _getActors();
 
         uint256 sumPending;
@@ -392,10 +405,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "sum of all claimable is > balance available"
             );
         }
+        return true;
     }
 
     /// @dev Property: If the sum of assets in SuperVaultStrategy and yield strategies is 0, maxWithdraw should be 0
-    function invariant_sumOfAssetsMaxWithdrawable() public {
+    function invariant_sumOfAssetsMaxWithdrawable() public returns (bool) {
         uint256 summedTotalAssets = _sumStrategyAssets();
 
         if (summedTotalAssets == 0) {
@@ -406,10 +420,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "if sum of assets in SuperVaultStrategy and yield strategies is 0, maxWithdraw should be 0"
             );
         }
+        return true;
     }
 
     /// @dev Property: averageWithdrawPrice should never decrease when new redemptions are fulfilled at a higher PPS
-    function invariant_avgPPSMonotonicity() public {
+    function invariant_avgPPSMonotonicity() public returns (bool) {
         if (
             _currentOp == OpType.FULFILL &&
             _before.oraclePPS > _before.state[_getActor()].averageRequestPPS && // fulfilled at a higher price
@@ -421,10 +436,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "averageWithdrawPrice should not decrease when fulfilled at a higher PPS"
             );
         }
+        return true;
     }
 
     /// @dev Property: state.accumulatorShares >= superVaultState[controllers[i]].pendingRedeemRequest for each user
-    function invariant_accumulatorSharesGtPendingRequests() public {
+    function invariant_accumulatorSharesGtPendingRequests() public returns (bool) {
         address[] memory actors = _getActors();
 
         for (uint256 i; i < actors.length; i++) {
@@ -436,10 +452,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "state.accumulatorShares < state.pendingRedeemRequest"
             );
         }
+        return true;
     }
 
     /// @dev Property: accumulatorShares is always accurately increased
-    function invariant_accumulatorSharesIncrease() public {
+    function invariant_accumulatorSharesIncrease() public returns (bool) {
         if (_currentOp == OpType.ADD) {
             uint256 accumulatorSharesBefore = _before
                 .state[_getActor()]
@@ -455,10 +472,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "accumulatorShares is always accurately updated"
             );
         }
+        return true;
     }
 
     /// @dev Property: accumulatorCostBasis is always accurately increased
-    function invariant_accumulatorCostBasisIncrease() public {
+    function invariant_accumulatorCostBasisIncrease() public returns (bool) {
         if (_currentOp == OpType.ADD) {
             uint256 accumulatorCostBasisBefore = _before
                 .state[_getActor()]
@@ -472,10 +490,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "accumulatorShares is always accurately updated"
             );
         }
+        return true;
     }
 
     /// @dev Property: redemptions only burn the requested amount of shares (within tolerance range)
-    function invariant_fulfillOnlyBurnsRequestedAmount() public {
+    function invariant_fulfillOnlyBurnsRequestedAmount() public returns (bool) {
         uint256 TOLERANCE_CONSTANT = 10 wei; // taken from SuperVaultStrategy
 
         if (_currentOp == OpType.FULFILL) {
@@ -501,10 +520,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 );
             }
         }
+        return true;
     }
 
     /// @dev Property: accumulatorShares decreases by the exact amounts requested when fulfilling redemptions
-    function invariant_accumulatorSharesDecreaseOnFulfill_exact() public {
+    function invariant_accumulatorSharesDecreaseOnFulfill_exact() public returns (bool) {
         if (_currentOp == OpType.FULFILL) {
             uint256 accumulatorSharesDelta = _before.summedAccumulatorShares -
                 _after.summedAccumulatorShares;
@@ -516,10 +536,11 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 "accumulatorShares decreases by the exact amounts requested when fulfilling redemptions"
             );
         }
+        return true;
     }
 
     function invariant_accumulatorSharesDecreaseOnFulfill_with_tolerance()
-        public
+        public returns (bool)
     {
         if (_currentOp == OpType.FULFILL) {
             uint256 accumulatorSharesDelta = _before.summedAccumulatorShares -
@@ -540,6 +561,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
                 );
             }
         }
+        return true;
     }
 
     /// Optimization Setters
@@ -699,36 +721,39 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     /// @dev Canary global invariant expected to fail immediately.
     function invariant_canary() public returns (bool) {
         t(false, INVARIANT_CANARY_GLOBAL_INVARIANT_FAILURE);
-        return false;
+        return true;
     }
 
     // ERC7540 Properties from erc7540-reusable-properties
 
     /// @dev Property 7540-1: convertToAssets(totalSupply) == totalAssets unless price is 0.0
-    function invariant_erc7540_1() public stateless {
+    function invariant_erc7540_1() public stateless returns (bool) {
         actor = _getActor();
         t(
             erc7540_1(address(superVault)),
             "ERC7540-1: convertToAssets(totalSupply) == totalAssets failed"
         );
+        return true;
     }
 
     /// @dev Property 7540-2: convertToShares(totalAssets) == totalSupply unless price is 0.0
-    function invariant_erc7540_2() public stateless {
+    function invariant_erc7540_2() public stateless returns (bool) {
         actor = _getActor();
         t(
             erc7540_2(address(superVault)),
             "ERC7540-2: convertToShares(totalAssets) == totalSupply failed"
         );
+        return true;
     }
 
     /// @dev Property 7540-3: max* never reverts
-    function invariant_erc7540_3() public stateless {
+    function invariant_erc7540_3() public stateless returns (bool) {
         actor = _getActor();
         t(
             erc7540_3(address(superVault)),
             "ERC7540-3: max* functions should never revert"
         );
+        return true;
     }
 
     /// @dev Property 7540-4: claiming more than max always reverts
