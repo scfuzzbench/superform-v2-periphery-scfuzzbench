@@ -112,30 +112,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         assertTrue(!assertionFailures[reason], reason);
     }
 
-    function invariant_assertion_failure_doomsday_maxRedeemResetsAfterFullRedemption_ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT()
-        public
-        returns (bool)
-    {
-        assertTrue(
-            !assertionFailures[ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT],
-            ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT
-        );
-        return true;
-    }
-
-    function invariant_assertion_failure_doomsday_maxWithdrawResetsAfterFullWithdrawal_ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT()
-        public
-        returns (bool)
-    {
-        assertTrue(
-            !assertionFailures[
-                ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT
-            ],
-            ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT
-        );
-        return true;
-    }
-
     function invariant_assertion_failure_doomsday_primaryManagerAlwaysChangeable_ASSERTION_PRIMARY_MANAGER_ALWAYS_CHANGEABLE()
         public
         returns (bool)
@@ -167,17 +143,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
                 ASSERTION_REDEEM_SHOULD_NOT_REVERT_INVALID_REDEEM_CLAIM
             ],
             ASSERTION_REDEEM_SHOULD_NOT_REVERT_INVALID_REDEEM_CLAIM
-        );
-        return true;
-    }
-
-    function invariant_assertion_failure_superVault_transfer_ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER()
-        public
-        returns (bool)
-    {
-        assertTrue(
-            !assertionFailures[ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER],
-            ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER
         );
         return true;
     }
@@ -257,22 +222,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         return true;
     }
 
-    function invariant_assertion_failure_superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO()
-        public
-        returns (bool)
-    {
-        _assertNoAssertionFailure(ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO);
-        return true;
-    }
-
-    function invariant_assertion_failure_superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO()
-        public
-        returns (bool)
-    {
-        _assertNoAssertionFailure(ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO);
-        return true;
-    }
-
     function invariant_assertion_failure_superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_NO_OVERPAY()
         public
         returns (bool)
@@ -305,14 +254,6 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         return true;
     }
 
-    function invariant_assertion_failure_superVault_transfer_ASSERTION_TRANSFER_COST_BASIS_CONSERVED()
-        public
-        returns (bool)
-    {
-        _assertNoAssertionFailure(ASSERTION_TRANSFER_COST_BASIS_CONSERVED);
-        return true;
-    }
-
     function invariant_assertion_failure_superVaultStrategy_fulfillRedeemRequests_ASSERTION_STRATEGY_NO_LOSS_ON_FULFILLMENT()
         public
         returns (bool)
@@ -329,22 +270,12 @@ contract CryticToFoundry is Test, TargetFunctions, FoundryAsserts {
         return true;
     }
 
-    function invariant_assertion_failure_global_previewEquivalenceFromAssets_ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS()
+    function invariant_assertion_failure_global_previewEquivalenceFromAssets_ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_ASSETS()
         public
         returns (bool)
     {
         _assertNoAssertionFailure(
-            ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS
-        );
-        return true;
-    }
-
-    function invariant_assertion_failure_global_previewEquivalenceFromAssets_ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_OVER_FROM_ASSETS()
-        public
-        returns (bool)
-    {
-        _assertNoAssertionFailure(
-            ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_OVER_FROM_ASSETS
+            ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_ASSETS
         );
         return true;
     }

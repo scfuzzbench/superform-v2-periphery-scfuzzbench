@@ -204,7 +204,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
             );
         } catch {
             if (maxRedeemBeforeClaim > 0) {
-                t(false, ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT);
+                t(false, ASSERTION_MAX_REDEEM_RESETS_AFTER_FULL_REDEMPTION);
             }
         }
     }
@@ -243,7 +243,7 @@ abstract contract DoomsdayTargets is BaseTargetFunctions, Properties {
                 ASSERTION_MAX_WITHDRAW_RESETS_AFTER_FULL_WITHDRAWAL
             );
         } catch {
-            t(false, ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT);
+            t(false, ASSERTION_MAX_WITHDRAW_RESETS_AFTER_FULL_WITHDRAWAL);
         }
     }
 

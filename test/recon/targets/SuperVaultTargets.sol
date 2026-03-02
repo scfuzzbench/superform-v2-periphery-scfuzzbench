@@ -50,7 +50,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
     /// @dev Property: averageRequestPPS should be 0 after a user calls cancelRedeem
     /// @dev Property: user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem
-    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO()
+    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_NO_OVERPAY()
         public
         updateGhostsWithOpType(OpType.CANCEL)
     {
@@ -83,12 +83,12 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             pendingRedeemRequestsAfter,
             0,
-            ASSERTION_CANCEL_REDEEM_PENDING_REQUEST_ZERO
+            ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
         eq(
             averageRequestPPS,
             0,
-            ASSERTION_CANCEL_REDEEM_AVG_REQUEST_PPS_ZERO
+            ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
         lte(
             balanceAfter - balanceBefore,
@@ -199,7 +199,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     stateSenderAfter.accumulatorCostBasis,
                 stateRecipientAfter.accumulatorCostBasis -
                     stateRecipientBefore.accumulatorCostBasis,
-                ASSERTION_TRANSFER_COST_BASIS_CONSERVED
+                ASSERTION_TRANSFER_SHARES_CONSERVED
             );
         } catch (bytes memory err) {
             bool expectedError;
@@ -207,7 +207,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                 err,
                 "ERC20InsufficientBalance(address,uint256,uint256)"
             );
-            t(expectedError, ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER);
+            t(expectedError, ASSERTION_TRANSFER_SHARES_CONSERVED);
         }
     }
 

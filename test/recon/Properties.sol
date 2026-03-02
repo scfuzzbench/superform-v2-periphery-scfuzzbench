@@ -64,10 +64,8 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         "!!! strategy incurs loss on fulfillment";
     string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_SHARES =
         "!!! previewMint and previewDeposit equivalence (from shares)";
-    string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS =
-        "!!! previewMint and previewDeposit equivalence under (from assets)";
-    string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_OVER_FROM_ASSETS =
-        "!!! previewMint and previewDeposit equivalence over (from assets)";
+    string constant ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_ASSETS =
+        "!!! previewMint and previewDeposit equivalence (from assets)";
     string constant ASSERTION_GLOBAL_PREVIEW_MINT_GTE_CONVERT_TO_ASSETS =
         "!!! previewMint is >= convertToAssets";
     string constant ASSERTION_GLOBAL_CONVERT_TO_SHARES_GTE_PREVIEW_DEPOSIT =
@@ -329,7 +327,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property: previewMint and previewDeposit equivalence (from assets)
-    function global_previewEquivalenceFromAssets_ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS(uint256 assets) public {
+    function global_previewEquivalenceFromAssets_ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_ASSETS(uint256 assets) public {
         uint256 previewDepositShares = superVault.previewDeposit(assets);
         uint256 previewMintAssets_under = superVault.previewMint(
             previewDepositShares
@@ -343,13 +341,13 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
             gte(
                 assets,
                 previewMintAssets_under,
-                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_UNDER_FROM_ASSETS
+                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_ASSETS
             );
 
             lte(
                 assets,
                 previewMintAssets_over,
-                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_OVER_FROM_ASSETS
+                ASSERTION_GLOBAL_PREVIEW_EQUIVALENCE_FROM_ASSETS
             );
         }
     }
