@@ -3,7 +3,6 @@
 [profile.default]
 cache_path = "cache"
 auto_detect_solc = false
-bytecode_hash = "none"
 fuzz = { runs = 10 }
 gas_reports = ["*"]
 optimizer = true
