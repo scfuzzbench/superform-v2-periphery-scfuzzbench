@@ -725,7 +725,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     // ERC7540 Properties from erc7540-reusable-properties
 
     /// @dev Property 7540-1: convertToAssets(totalSupply) == totalAssets unless price is 0.0
-    function invariant_erc7540_1() public stateless returns (bool) {
+    function invariant_erc7540_1() public returns (bool) {
         actor = _getActor();
         t(
             erc7540_1(address(superVault)),
@@ -735,7 +735,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property 7540-2: convertToShares(totalAssets) == totalSupply unless price is 0.0
-    function invariant_erc7540_2() public stateless returns (bool) {
+    function invariant_erc7540_2() public returns (bool) {
         actor = _getActor();
         t(
             erc7540_2(address(superVault)),
@@ -745,7 +745,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property 7540-3: max* never reverts
-    function invariant_erc7540_3() public stateless returns (bool) {
+    function invariant_erc7540_3() public returns (bool) {
         actor = _getActor();
         t(
             erc7540_3(address(superVault)),
@@ -755,7 +755,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property 7540-4: claiming more than max always reverts
-    function global_erc7540_4_deposit_ASSERTION_ERC7540_4_DEPOSIT(uint256 amt) public stateless {
+    function global_erc7540_4_deposit_ASSERTION_ERC7540_4_DEPOSIT(uint256 amt) public {
         actor = _getActor();
         t(
             erc7540_4_deposit(address(superVault), amt),
@@ -763,7 +763,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
     }
 
-    function global_erc7540_4_mint_ASSERTION_ERC7540_4_MINT(uint256 amt) public stateless {
+    function global_erc7540_4_mint_ASSERTION_ERC7540_4_MINT(uint256 amt) public {
         actor = _getActor();
         t(
             erc7540_4_mint(address(superVault), amt),
@@ -771,7 +771,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
     }
 
-    function global_erc7540_4_withdraw_ASSERTION_ERC7540_4_WITHDRAW(uint256 amt) public stateless {
+    function global_erc7540_4_withdraw_ASSERTION_ERC7540_4_WITHDRAW(uint256 amt) public {
         actor = _getActor();
         t(
             erc7540_4_withdraw(address(superVault), amt),
@@ -779,7 +779,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
         );
     }
 
-    function global_erc7540_4_redeem_ASSERTION_ERC7540_4_REDEEM(uint256 amt) public stateless {
+    function global_erc7540_4_redeem_ASSERTION_ERC7540_4_REDEEM(uint256 amt) public {
         actor = _getActor();
         t(
             erc7540_4_redeem(address(superVault), amt),
@@ -788,7 +788,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     /// @dev Property 7540-5: requestRedeem reverts if the share balance is less than amount
-    function global_erc7540_5_ASSERTION_ERC7540_5(uint256 shares) public stateless {
+    function global_erc7540_5_ASSERTION_ERC7540_5(uint256 shares) public {
         actor = _getActor();
         t(
             erc7540_5(address(superVault), address(superVault), shares),
@@ -825,7 +825,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     //     );
     // }
 
-    function global_erc7540_7_withdraw_ASSERTION_ERC7540_7_WITHDRAW(uint256 amt) public stateless {
+    function global_erc7540_7_withdraw_ASSERTION_ERC7540_7_WITHDRAW(uint256 amt) public {
         actor = _getActor();
         t(
             erc7540_7_withdraw(address(superVault), amt),
@@ -834,7 +834,7 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     }
 
     // NOTE: this implements the check from ERC7540Properties directly because SuperVault logic implementation allows amt to be nonzero but round down to 0 when assets passed into redeem are calculated
-    function global_erc7540_7_redeem_ASSERTION_ERC7540_7_REDEEM(uint256 amt) public stateless {
+    function global_erc7540_7_redeem_ASSERTION_ERC7540_7_REDEEM(uint256 amt) public {
         actor = _getActor();
 
         uint256 maxRedeem = superVault.maxRedeem(actor);
