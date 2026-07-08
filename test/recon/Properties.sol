@@ -16,8 +16,10 @@ abstract contract Properties is BeforeAfter, Asserts, ERC7540Properties {
     using Math for uint256;
     uint256 internal TOLERANCE = 10;
 
-    // `!!!`-prefixed reasons are tracked by Foundry's assertion-failure shim in
-    // `CryticToFoundry` so handler assertion failures are surfaced as invariants.
+    // `!!!`-prefixed reasons are load-bearing for cross-fuzzer bug dedup in the analysis
+    // pipeline. Handler assertion failures surface natively on every fuzzer: as Panic(0x01)
+    // under echidna/medusa/recon and as recorded assertion failures under Foundry
+    // (`assertions_revert = false`, upstream handler-bug reporting).
     string constant ASSERTION_REDEEM_MAX_REDEEM_SHOULD_NOT_REVERT =
         "!!! redeeming maxRedeem should not revert";
     string constant ASSERTION_WITHDRAW_MAX_WITHDRAW_SHOULD_NOT_REVERT =
