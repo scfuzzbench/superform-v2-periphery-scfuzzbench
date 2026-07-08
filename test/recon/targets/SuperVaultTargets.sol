@@ -50,7 +50,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     /// @dev Property: pendingRedeemRequest should be 0 after a user calls cancelRedeem
     /// @dev Property: averageRequestPPS should be 0 after a user calls cancelRedeem
     /// @dev Property: user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem
-    function superVault_cancelRedeem()
+    function superVault_cancelRedeem_ASSERTION_CANCEL_REDEEM_NO_OVERPAY()
         public
         updateGhostsWithOpType(OpType.CANCEL)
     {
@@ -83,22 +83,22 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             pendingRedeemRequestsAfter,
             0,
-            "pendingRedeemRequests should be 0 after cancelling a redemption"
+            ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
         eq(
             averageRequestPPS,
             0,
-            "averageRequestPPS should be 0 after cancelling a redemption"
+            ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
         lte(
             balanceAfter - balanceBefore,
             pendingRedeemRequestsAsAssets,
-            "user shouldn't receive more than convertToAssets(pendingRedeemRequest) after cancelRedeem"
+            ASSERTION_CANCEL_REDEEM_NO_OVERPAY
         );
     }
 
     /// @dev Property: previewDeposit returns the correct amounts compared to executing a deposit
-    function superVault_deposit(
+    function superVault_deposit_ASSERTION_PREVIEW_DEPOSIT_MATCHES_EXECUTION(
         uint256 assets
     ) public updateGhostsWithOpType(OpType.ADD) {
         uint256 previewShares = superVault.previewDeposit(assets);
@@ -109,12 +109,12 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             previewShares,
             shares,
-            "previewDeposit returns the correct amounts compared to executing a deposit"
+            ASSERTION_PREVIEW_DEPOSIT_MATCHES_EXECUTION
         );
     }
 
     /// @dev Property: previewMint returns the correct amounts compared to executing a mint
-    function superVault_mint(
+    function superVault_mint_ASSERTION_PREVIEW_MINT_MATCHES_EXECUTION(
         uint256 shares
     ) public updateGhostsWithOpType(OpType.ADD) {
         uint256 previewMint = superVault.previewMint(shares);
@@ -125,7 +125,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
         eq(
             assets,
             previewMint,
-            "previewMint returns the correct amounts compared to executing a mint"
+            ASSERTION_PREVIEW_MINT_MATCHES_EXECUTION
         );
     }
 
@@ -163,7 +163,7 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
     /// @dev Property: Transfers of shares should transfer the exact amount of accumulatorShares to the recipient
     /// @dev Property: Transfers of shares should transfer the exact amount of accumulatorCostBasis to the recipient
     // NOTE: _update only gets called on transfer of Vault shares
-    function superVault_transfer(
+    function superVault_transfer_ASSERTION_TRANSFER_SHARES_CONSERVED(
         uint256 entropy,
         uint256 value
     ) public updateGhostsWithOpType(OpType.TRANSFER) {
@@ -192,14 +192,14 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     stateSenderAfter.accumulatorShares,
                 stateRecipientAfter.accumulatorShares -
                     stateRecipientBefore.accumulatorShares,
-                "shares are lost on transfer"
+                ASSERTION_TRANSFER_SHARES_CONSERVED
             );
             eq(
                 stateSenderBefore.accumulatorCostBasis -
                     stateSenderAfter.accumulatorCostBasis,
                 stateRecipientAfter.accumulatorCostBasis -
                     stateRecipientBefore.accumulatorCostBasis,
-                "cost basis is lost on transfer"
+                ASSERTION_TRANSFER_SHARES_CONSERVED
             );
         } catch (bytes memory err) {
             bool expectedError;
@@ -207,13 +207,13 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                 err,
                 "ERC20InsufficientBalance(address,uint256,uint256)"
             );
-            t(expectedError, "_update should never revert in transfer");
+            t(expectedError, ASSERTION_TRANSFER_SHARES_CONSERVED);
         }
     }
 
     /// @dev Propery: _update should never revert
     // NOTE: _update only gets called on transfer of Vault shares
-    function superVault_transferFrom(
+    function superVault_transferFrom_ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM(
         uint256 entropyFrom,
         uint256 entropyTo,
         uint256 value
@@ -235,7 +235,10 @@ abstract contract SuperVaultTargets is BaseTargetFunctions, Properties {
                     err,
                     "ERC20InsufficientAllowance(address,uint256,uint256)"
                 );
-            t(expectedError, "_update should never revert in transferFrom");
+            t(
+                expectedError,
+                ASSERTION_UPDATE_SHOULD_NOT_REVERT_TRANSFER_FROM
+            );
         }
     }
 

@@ -356,7 +356,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
             });
 
         // Execute the function
-        superVaultStrategy_fulfillRedeemRequests(fulfillArgs);
+        superVaultStrategy_fulfillRedeemRequests_ASSERTION_STRATEGY_NO_LOSS_ON_FULFILLMENT(fulfillArgs);
     }
 
     /// AUTO GENERATED TARGET FUNCTIONS - WARNING: DO NOT DELETE OR MODIFY THIS LINE ///
@@ -370,7 +370,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
     }
 
     /// @dev Property: superVaultStrategy does not incur loss on fulfillment
-    function superVaultStrategy_fulfillRedeemRequests(
+    function superVaultStrategy_fulfillRedeemRequests_ASSERTION_STRATEGY_NO_LOSS_ON_FULFILLMENT(
         ISuperVaultStrategy.FulfillArgs memory args
     ) public updateGhostsWithOpType(OpType.FULFILL) {
         uint256 summedExpectedAssets;
@@ -388,7 +388,7 @@ abstract contract AdminTargets is BaseTargetFunctions, Properties {
         gte(
             assetBalanceAfter,
             summedExpectedAssets,
-            "strategy incurs loss on fulfillment"
+            ASSERTION_STRATEGY_NO_LOSS_ON_FULFILLMENT
         );
     }
 

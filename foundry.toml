@@ -1,9 +1,9 @@
 # Full reference https://github.com/foundry-rs/foundry/tree/master/crates/config
 
 [profile.default]
+assertions_revert = false
 cache_path = "cache"
 auto_detect_solc = false
-bytecode_hash = "none"
 fuzz = { runs = 10 }
 gas_reports = ["*"]
 optimizer = true
@@ -25,10 +25,11 @@ remappings = [
   "@recon/=lib/setup-helpers/src/",
   "excessivelySafeCall/=lib/v2-core/lib/ExcessivelySafeCall/src/",
   "modulekit/=lib/v2-core/lib/modulekit/src/",
-  "@prb/math/=lib/v2-core/lib/modulekit/node_modules/@prb/math/src/",
+  "@prb/math/=lib/prb-math/src/",
   "@solady/=lib/v2-core/lib/solady/",
-  "@account-abstraction/=lib/v2-core/lib/modulekit/node_modules/account-abstraction/contracts/",
-  "@ERC4337/=lib/v2-core/lib/modulekit/node_modules/@ERC4337/",
+  "@account-abstraction/=lib/account-abstraction/contracts/",
+  "@ERC4337/account-abstraction/=lib/account-abstraction/",
+  "@ERC4337/account-abstraction-v0.6/=lib/account-abstraction-v0.6/",
   "@pigeon/=lib/v2-core/lib/pigeon/src/",
   "@surl/=lib/v2-core/lib/surl/src/",
   "@stringutils/=lib/v2-core/lib/solidity-stringutils/src/",
@@ -37,19 +38,22 @@ remappings = [
   "@safe7579/=lib/v2-core/lib/safe7579/src/",
   "@nexus/=lib/v2-core/lib/nexus/contracts/",
   "@properties-7540/=lib/erc7540-reusable-properties/src/",
-  "sentinellist/=lib/v2-core/lib/nexus/node_modules/sentinellist/src/",
-  "solady/=lib/v2-core/lib/nexus/node_modules/solady/src/",
-  "solarray/=lib/v2-core/lib/nexus/node_modules/solarray/src/",
-  "account-abstraction/=lib/v2-core/lib/modulekit/node_modules/@ERC4337/account-abstraction/contracts/",
-  "account-abstraction-v0.6/=lib/v2-core/lib/modulekit/node_modules/@ERC4337/account-abstraction-v0.6/contracts/",
+  "sentinellist/=lib/sentinellist/src/",
+  "solady/=lib/v2-core/lib/solady/src/",
+  "solarray/=lib/solarray/src/",
+  "account-abstraction/=lib/account-abstraction/contracts/",
+  "account-abstraction-v0.6/=lib/account-abstraction-v0.6/contracts/",
   "excessively-safe-call/=lib/v2-core/lib/ExcessivelySafeCall/src/",
-  "composability/=lib/v2-core/lib/nexus/node_modules/@biconomy/composability/contracts/",
-  "erc7739Validator/=lib/v2-core/lib/nexus/node_modules/erc7739-validator-base/src/",
+  "composability/=lib/composability/contracts/",
+  "erc7739Validator/=lib/erc7739-validator/src/",
+  "erc7579/=lib/erc7579/src/",
+  "rhinestone/checknsignatures/=lib/checknsignatures/",
+  "@safe-global/safe-contracts/=lib/v2-core/lib/safe-smart-account/",
   "test/mock_fiattoken/=lib/v2-core/lib/evm-gateway-contracts/test/mock_fiattoken/",
-  "@rhinestone/erc4337-validation/=lib/v2-core/lib/modulekit/node_modules/@rhinestone/erc4337-validation/",
-  "erc4337-validation/=lib/v2-core/lib/modulekit/node_modules/@rhinestone/erc4337-validation/src/",
-  "forge-std/=lib/v2-core/lib/modulekit/node_modules/forge-std/src/",
-  "halmos-cheatcodes/=/lib/halmos-cheatcodes/src/"
+  "@rhinestone/erc4337-validation/=lib/erc4337-validation/",
+  "erc4337-validation/=lib/erc4337-validation/src/",
+  "forge-std/=lib/forge-std/src/",
+  "halmos-cheatcodes/=lib/halmos-cheatcodes/src/"
 ]
 dynamic_test_linking = true
 gas_limit = "18446744073709551615"
@@ -102,3 +106,12 @@ ignore = [
     "./test/**",
     "**/test/**"
 ]
+
+[invariant]
+runs = 500000000
+depth = 100
+include_storage = true
+show_solidity = true
+show_metrics = true
+fail_on_revert = false
+corpus_dir = "corpus/foundry"

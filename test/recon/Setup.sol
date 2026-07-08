@@ -147,9 +147,32 @@ abstract contract Setup is
     /// Makes a handler have no side effects
     /// The fuzzer will call this anyway, and because it reverts it will be removed from shrinking
     /// Replace the "withGhosts" with "stateless" to make the code clean
+    ///
+    /// Under Foundry with `assertions_revert = false` a failing t()/vm.assert* only records a
+    /// journaled write to the global fail slot, which the trailing revert would erase — making
+    /// every stateless assertion property invisible to the Foundry leg. Re-raise a failure
+    /// recorded during this call as Panic(0x01), which Foundry classifies as an assertion
+    /// failure; under echidna/medusa/recon a failing t() already reverted with Panic before
+    /// reaching this point, so the extra check never fires there.
     modifier stateless() {
+        bool preFailed = _foundryFailSlotSet();
         _;
+        if (!preFailed && _foundryFailSlotSet()) assert(false);
         revert("stateless");
+    }
+
+    // bytes32("failed") — Foundry's GLOBAL_FAIL_SLOT on the cheatcode address, written
+    // (journaled sstore of 1) by non-reverting vm.assert* failures.
+    bytes32 internal constant _FOUNDRY_FAIL_SLOT =
+        0x6661696c65640000000000000000000000000000000000000000000000000000;
+
+    /// Probes the Foundry fail slot with a raw staticcall so fuzzers without the `load`
+    /// cheatcode simply report "not set" instead of reverting.
+    function _foundryFailSlotSet() internal view returns (bool) {
+        (bool ok, bytes memory ret) = address(vm).staticcall(
+            abi.encodeWithSignature("load(address,bytes32)", address(vm), _FOUNDRY_FAIL_SLOT)
+        );
+        return ok && ret.length >= 32 && abi.decode(ret, (bytes32)) != bytes32(0);
     }
 
     /// === Setup === ///
