@@ -1,6 +1,7 @@
 # Full reference https://github.com/foundry-rs/foundry/tree/master/crates/config
 
 [profile.default]
+assertions_revert = false
 cache_path = "cache"
 auto_detect_solc = false
 fuzz = { runs = 10 }
@@ -113,5 +114,4 @@ include_storage = true
 show_solidity = true
 show_metrics = true
 fail_on_revert = false
-continuous_run = true
 corpus_dir = "corpus/foundry"
